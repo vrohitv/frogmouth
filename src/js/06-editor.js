@@ -348,7 +348,7 @@ export const Editor = (() => {
       const t = ref ? '@' + (ref.note.title || 'Untitled') : a.textContent.replace(/^@?/, '@');
       if (a.textContent !== t) a.textContent = t;
       a.classList.toggle('missing', !ref);
-      a.title = ref ? `${ref.board.name} — click to open` : 'Note was deleted';
+      a.title = ref ? `${ref.board ? ref.board.name : 'On no board'} — click to open` : 'Note was deleted';
     }
     for (const s of body.querySelectorAll('span.sref')) {
       const x = Store.secret(s.dataset.secret);
@@ -410,7 +410,7 @@ export const Editor = (() => {
       if (id === selfId) continue;
       const t = note.title || 'Untitled';
       const m = fuzzy(q, t.toLowerCase());
-      if (m) out.push({ kind: 'note', id, label: t, labelHtml: markPositions(t, m.p), hint: board.name, icon: 'note', sc: m.s + (note.updated || 0) / 1e13 });
+      if (m) out.push({ kind: 'note', id, label: t, labelHtml: markPositions(t, m.p), hint: board ? board.name : 'on no board', icon: 'note', sc: m.s + (note.updated || 0) / 1e13 });
     }
     for (const p of filesCache.list) {
       const m = fuzzy(q, p.toLowerCase());

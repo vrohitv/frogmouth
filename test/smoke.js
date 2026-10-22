@@ -53,7 +53,7 @@ import { App } from '../src/js/10-app.js';
     }
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
     if (mode === 'shot-notes' || mode === 'shot-tags') {
-      const infra = { id: uid(), name: 'Infra', created: now(), notes: [] };
+      const infra = { id: uid(), name: 'Infra', created: now(), items: [] };
       Store.S.data.boards.push(infra); Store.index();
       const notes = [...Store.S.notes.values()].map((r) => r.note);
       notes.find((n) => n.title === 'Today').tags = ['todo', 'env:dev'];
@@ -67,11 +67,11 @@ import { App } from '../src/js/10-app.js';
       App.openTab(mode === 'shot-notes' ? 'notes' : 'b:' + infra.id);
     }
     if (mode === 'shot-boards') {
-      for (const name of ['Infra', 'Reading list', 'Sprint 42']) Store.S.data.boards.push({ id: uid(), name, created: now(), notes: [] });
+      for (const name of ['Infra', 'Reading list', 'Sprint 42']) Store.S.data.boards.push({ id: uid(), name, created: now(), items: [] });
       Store.change('boards');
       const long = Board.addNote({ x: 880, y: 120 }, false, '<p>Scrolling note</p>' + Array.from({ length: 14 }, (_, i) => `<p>line ${i + 1} of a note taller than its box</p>`).join('') +
         '<pre class="code" data-lang="sh"><code>' + esc('kubectl -n payments rollout restart deployment/api-gateway && kubectl -n payments rollout status deployment/api-gateway --timeout=120s') + '</code></pre>');
-      long.h = 300; long.w = 320; Store.change('notes'); App.openTab('secrets'); App.openTab('b:' + Store.S.data.boards[0].id);
+      Object.assign(Board.item(long.id), { h: 300, w: 320 }); Store.change('notes'); App.openTab('secrets'); App.openTab('b:' + Store.S.data.boards[0].id);
       await wait(200); const lb = document.querySelector(`.note[data-id="${long.id}"] .note-body`); lb.scrollTop = 120; lb.querySelector('pre').scrollLeft = 60;
     }
     document.body.dataset.ready = '1';
@@ -259,14 +259,14 @@ import { App } from '../src/js/10-app.js';
     }
 
     // board ops
-    const count = Board.current().notes.length;
+    const count = Board.current().items.length;
     Board.select(n.id);
     keydown(document.body, 'Delete');
-    ok('delete note via key', Board.current().notes.length === count - 1);
+    ok('Del removes the note from the board only', Board.current().items.length === count - 1 && !!Store.noteRef(n.id));
     keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
-    ok('undo restores note', Board.current().notes.length === count && !!$(`.note[data-id="${n.id}"]`));
+    ok('undo puts it back on the board', Board.current().items.length === count && !!$(`.note[data-id="${n.id}"]`));
     Board.arrange();
-    ok('arrange keeps notes', Board.current().notes.length === count);
+    ok('arrange keeps notes', Board.current().items.length === count);
 
     // palette search
     const hits = Palette.search('backoff');
@@ -377,9 +377,58 @@ import { App } from '../src/js/10-app.js';
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === 1 && parsed.encrypted === false && parsed.data.boards.length === 2 && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === 1 && parsed.encrypted === false && parsed.data.version === 2 && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
-    ok('normalize round trip', re.boards[0].notes.length === Store.S.data.boards[0].notes.length);
+    ok('normalize round trip', re.boards[0].items.length === Store.S.data.boards[0].items.length && re.notes.length === Store.S.data.notes.length);
+
+    // notes are shared: one note on several boards; deleting a board keeps its notes
+    {
+      const d = Store.S.data;
+      const welcome = [...Store.S.notes.values()].find(({ note }) => note.title === 'Welcome to frogmouth').note;
+      const total = d.notes.length;
+      const side = { id: uid(), name: 'Side', created: now(), items: [] };
+      d.boards.push(side); Store.change('boards');
+      App.openTab('b:' + side.id);
+      Board.placeExisting(welcome.id);
+      await wait(300);
+      ok('a note can be placed on a second board', Store.noteRef(welcome.id).boards.length === 2 && !!$(`.note[data-id="${welcome.id}"]`));
+      ok('shared note shows where else it lives', /2 boards/.test($(`.note[data-id="${welcome.id}"] .note-foot`).textContent));
+      ok('placements keep their own geometry', Board.item(welcome.id) !== d.boards[0].items.find((it) => it.note === welcome.id));
+      Board.addNote({ x: 600, y: 300 }, false, '<p>Only on Side</p>');
+      const onlySide = [...Store.S.notes.values()].find(({ note }) => note.title === 'Only on Side').note;
+      // delete the board through the pill (confirm modal, since it has notes)
+      $(`.board-pill[data-id="${side.id}"] .bp-x`).click();
+      await wait(30);
+      const confirmBtn = $('.modal .btn.primary');
+      ok('deleting a board says its notes stay', !!confirmBtn && /stay in All notes/.test($('.modal').textContent));
+      confirmBtn.click();
+      await wait(60);
+      ok('board is gone', !Store.board(side.id));
+      ok('its notes are not deleted', d.notes.length === total + 1 && !!Store.noteRef(onlySide.id) && !!Store.noteRef(welcome.id));
+      ok('a note only on that board is now on no board', Store.noteRef(onlySide.id).boards.length === 0 && Store.noteRef(welcome.id).boards.length === 1);
+      App.openTab('notes');
+      await wait(30);
+      const orphanRow = $$('.nrow').find((r) => r.querySelector('.n-title b').textContent === 'Only on Side');
+      ok('notes page shows notes on no board', orphanRow && /on no board/.test(orphanRow.textContent));
+      App.gotoNote(onlySide.id);
+      ok('opening a boardless note stays on the notes page', Store.S.data.ui.active === 'notes');
+      // put it back on a board from the notes page
+      App.addToBoard(onlySide.id);
+      keydown(document.body, 'Enter'); // menus without a text field still take the keyboard
+      await wait(60);
+      ok('add to board from the notes page', Store.noteRef(onlySide.id).boards.length === 1 && Store.S.data.ui.active === 'b:' + d.boards[0].id);
+      // Del removes from this board only; shift+Del deletes everywhere
+      Board.select(onlySide.id);
+      keydown(document.body, 'Delete', { shiftKey: true });
+      ok('shift+Del deletes the note everywhere', !Store.noteRef(onlySide.id) && d.notes.length === total);
+      keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+      ok('undo restores a deleted note', !!Store.noteRef(onlySide.id) && Store.noteRef(onlySide.id).boards.length === 1);
+      // migrate a version-1 vault where boards owned their notes
+      const v1 = { boards: [{ id: 'b1', name: 'Old', notes: [{ id: 'n1', x: 5, y: 6, w: 300, html: '<p>Legacy</p>', color: 'rose', tags: ['old'] }] }], secrets: [] };
+      const m = Store.normalize(v1);
+      ok('version 1 vaults migrate', m.version === 2 && m.notes.length === 1 && m.notes[0].title === 'Legacy' && m.notes[0].tags[0] === 'old' && m.boards[0].items[0].note === 'n1' && m.boards[0].items[0].x === 5 && !m.boards[0].notes && !('x' in m.notes[0]));
+      App.openTab('secrets');
+    }
 
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {

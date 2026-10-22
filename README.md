@@ -19,6 +19,10 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 **Boards of sticky notes**
 - The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, encryption and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
 - Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board. `⌥1`–`⌥9` and `⌘K` then `#` work too.
+- **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
+- **Deleting a board never deletes notes.** They stay in All notes (marked *on no board* if that was their only board) and on any other boards.
+- On a board, `Del` or × **removes the note from that board** only. `⇧Del` (or ⇧-click ×) deletes the note everywhere. Both can be undone.
+- `A` on a board pulls in an existing note; on the All notes page, **+** next to the boards (or `a`) puts a note on another board.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.
@@ -96,7 +100,8 @@ Press `?` in the app for the full list.
 | `1`–`6` | Colour |
 | `⌘D` | Duplicate |
 | `T` | Tag the note |
-| `Del` | Delete |
+| `A` | Add an existing note to this board |
+| `Del` / `⇧Del` | Remove from this board / delete everywhere |
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
 
 | Secrets | |
@@ -121,11 +126,13 @@ my-vault/
   anything-else.excalidraw   # any file here can be tagged with @
 ```
 
-Unencrypted, `vault.frogmouth` is pretty-printed JSON, so it diffs well in git:
+Unencrypted, `vault.frogmouth` is pretty-printed JSON, so it diffs well in git. Notes are stored once; boards hold placements that point at them (vaults from before version 2, where boards owned their notes, are converted on open):
 
 ```json
 {"frogmouth":1,"encrypted":false,"saved":"…","data":{
- "boards":[{"id":"…","name":"Inbox","notes":[{"id":"…","x":80,"y":80,"w":300,"color":"straw","html":"<p>Title</p>…"}]}],
+ "version":2,
+ "notes":[{"id":"n1","color":"straw","tags":["docs"],"html":"<p>Title</p>…","title":"Title","text":"…"}],
+ "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}]}],
  "secrets":[{"id":"…","key":"DATABASE_URL","value":"…","tags":["env:prod","db"],"desc":""}],
  "ui":{"board":"…","active":"b:…"}}}
 ```

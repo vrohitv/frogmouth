@@ -285,7 +285,7 @@ export const App = (() => {
 
   /* ── boards ── */
   function newBoard() {
-    const b = { id: uid(), name: 'New board', created: now(), notes: [] };
+    const b = { id: uid(), name: 'New board', created: now(), items: [] };
     Store.S.data.boards.push(b);
     Store.change('boards');
     activate('b:' + b.id);
@@ -316,30 +316,58 @@ export const App = (() => {
     inp.addEventListener('blur', () => finish(true));
     inp.focus(); inp.select();
   }
+  /* deleting a board removes the board and its placements; every note stays in the library */
   async function deleteBoard(id) {
     const d = Store.S.data;
     const b = Store.board(id); if (!b) return;
     if (d.boards.length === 1) { toast('A vault keeps at least one board'); return; }
-    if (b.notes.length && !(await Modal.confirm(`Delete “${b.name}”?`, `Its ${b.notes.length} ${b.notes.length === 1 ? 'note goes' : 'notes go'} with it. You can undo right after.`, 'Delete board'))) return;
+    const n = b.items.length;
+    if (n && !(await Modal.confirm(`Delete the board “${b.name}”?`, `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards. You can undo right after.`, 'Delete board'))) return;
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
-    for (const n of b.notes) Store.S.notes.delete(n.id);
-    if (d.ui.board === id) activate(isBoardView() ? 'b:' + d.boards[Math.min(i, d.boards.length - 1)].id : d.ui.active);
-    if (d.ui.board === id) d.ui.board = d.boards[0].id;
+    Store.index();
+    if (d.ui.board === id) d.ui.board = d.boards[Math.min(i, d.boards.length - 1)].id;
+    if (d.ui.active === 'b:' + id) activate('b:' + d.ui.board);
     Store.change('boards');
     renderChrome();
-    pushUndo(`Deleted board ${b.name}`, () => {
+    pushUndo(`Deleted board ${b.name}. ${n ? `${n === 1 ? 'Its note is' : `Its ${n} notes are`} still in All notes.` : ''}`, () => {
       d.boards.splice(Math.min(i, d.boards.length), 0, b);
-      for (const n of b.notes) Store.S.notes.set(n.id, { note: n, board: b });
+      Store.index();
       Store.change('boards');
       openTab('b:' + b.id);
     });
   }
 
-  function gotoNote(id) {
+  /* open a note where it lives: the given board, else the current board if it is
+     there, else the first board it is on; a note on no board opens in All notes */
+  function gotoNote(id, boardId) {
     const ref = Store.noteRef(id); if (!ref) return;
-    openTab('b:' + ref.board.id);
+    const cur = Store.board(Store.S.data.ui.board);
+    const b = (boardId && ref.boards.find((x) => x.id === boardId)) || (ref.boards.includes(cur) ? cur : ref.board);
+    if (!b) { activate('notes'); NotesList.reveal(id); toast('That note is not on any board. Add it to one with “a”.'); return; }
+    openTab('b:' + b.id);
     requestAnimationFrame(() => Board.center(id));
+  }
+
+  /* put a library note on a board of your choice */
+  function addToBoard(noteId, anchor) {
+    const ref = Store.noteRef(noteId); if (!ref) return;
+    const r = anchor ? anchor.getBoundingClientRect() : { left: innerWidth / 2 - 150, bottom: 120 };
+    const items = Store.S.data.boards.map((b) => ({ id: b.id, label: b.name, icon: ref.boards.includes(b) ? 'tick' : 'board', hint: ref.boards.includes(b) ? 'already there' : '' }));
+    items.push({ id: 'new', label: 'New board…', icon: 'plus' });
+    Popup.open({
+      x: r.left, y: r.bottom + 2, title: `Put “${(ref.note.title || 'Untitled').slice(0, 24)}” on`, items,
+      onPick: (it) => {
+        if (it.id === 'new') {
+          const b = { id: uid(), name: 'New board', created: now(), items: [] };
+          Store.S.data.boards.push(b); Store.change('boards');
+          activate('b:' + b.id); Board.placeExisting(noteId); renameBoard(b.id);
+          return;
+        }
+        activate('b:' + it.id);
+        Board.placeExisting(noteId);
+      },
+    });
   }
 
   /* ── undo for deletions ── */
@@ -416,6 +444,7 @@ export const App = (() => {
       { title: 'Open the board', key: ALT + 'B', run: () => showView('board') },
       { title: 'List all notes', key: ALT + 'L', run: () => showView('notes') },
       { title: 'Open secrets', key: ALT + 'S', run: () => showView('secrets') },
+      { title: 'Add an existing note to this board', key: 'A', when: isBoardView, run: () => Board.addExisting() },
       { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
       { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
       { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
@@ -439,7 +468,7 @@ export const App = (() => {
   function shortcuts() {
     const rows = [
       ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
-      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
+      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del', 'Remove from this board'], ['⇧Del', 'Delete the note everywhere'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], ['↵', 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s  ⇧S', 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
@@ -459,6 +488,8 @@ export const App = (() => {
       if (/^[1-6]$/.test(e.key)) { const b = welcome.querySelectorAll('.recent')[+e.key - 1]; if (b) b.click(); }
       return;
     }
+    // an open menu without its own text field still takes ↑ ↓ ↵ Esc
+    if (Popup.isOpen() && Popup.key(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const k = e.key, mod = modKey(e);
     const lower = k.length === 1 ? k.toLowerCase() : k;
     if (mod && !e.altKey && (lower === 'k' || (lower === 'p' && !e.shiftKey))) { e.preventDefault(); Popup.close(); Palette.isOpen() ? Palette.hide() : Palette.show(); return; }
@@ -521,7 +552,7 @@ export const App = (() => {
       if (Store.S.data.ui.active === 'notes' && (what === 'boards' || what === 'notes')) NotesList.render();
       renderSync();
     });
-    bus.on('goto-note', gotoNote);
+    bus.on('goto-note', (id, boardId) => gotoNote(id, boardId));
     bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
     addEventListener('beforeunload', (e) => {
       if (!Store.S.data || !Store.S.dirty) return;
@@ -532,6 +563,6 @@ export const App = (() => {
     showWelcome();
   }
 
-  return { boot, openTab, gotoNote, pushUndo, commands, enter, showWelcome, openVault };
+  return { boot, openTab, gotoNote, addToBoard, pushUndo, commands, enter, showWelcome, openVault };
 })();
 

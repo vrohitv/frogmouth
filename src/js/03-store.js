@@ -17,7 +17,7 @@ export const Store = (() => {
     dirty: false, saving: false, again: false,
     lastMod: 0,
     status: 'idle', statusText: '',
-    notes: new Map(), // id -> {note, board}
+    notes: new Map(), // id -> {note, boards, board}
     rev: 0,
     imgCache: new Map(),
   };
@@ -25,51 +25,86 @@ export const Store = (() => {
   const canPickDir = () => typeof window.showDirectoryPicker === 'function';
   const canOPFS = () => !!(navigator.storage && navigator.storage.getDirectory);
 
-  /* ── data shape ── */
+  /* ── data shape ──────────────────────────────────────────────────
+     Notes live in one library (data.notes). A board holds placements
+     ({note, x, y, w, h, z}) that point at notes, so one note can sit on
+     several boards, and deleting a board never deletes a note.
+     Text, tags and colour belong to the note; position and size to the
+     placement. */
   function blankData() {
-    const b = { id: uid(), name: 'Inbox', created: now(), notes: [] };
+    const b = { id: uid(), name: 'Inbox', created: now(), items: [] };
     const n1 = uid(), n2 = uid(), n3 = uid();
     const t = now();
-    b.notes.push(
-      { id: n1, x: 80, y: 80, w: 320, h: null, color: 'straw', z: 3, created: t, updated: t,
+    const notes = [
+      { id: n1, color: 'straw', created: t, updated: t,
         html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.frogmouth</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
-      { id: n2, x: 440, y: 80, w: 380, h: null, color: 'night', z: 2, created: t, updated: t, tags: ['snippet', 'lang:js'],
+      { id: n2, color: 'night', created: t, updated: t, tags: ['snippet', 'lang:js'],
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
           'async function retry(fn, tries = 5) {\n  for (let i = 0; i < tries; i++) {\n    try { return await fn(); }\n    catch (err) {\n      // 100ms, 200ms, 400ms ...\n      await sleep(100 * 2 ** i);\n    }\n  }\n  throw new Error("gave up");\n}') +
           '</code></pre><p>Used by <a class="mention" data-note="' + n3 + '" contenteditable="false">@Today</a></p>' },
-      { id: n3, x: 80, y: 440, w: 280, h: null, color: 'lichen', z: 1, created: t, updated: t,
+      { id: n3, color: 'lichen', created: t, updated: t,
         html: '<p>Today</p><ul data-type="todo"><li data-checked="true">Open a vault folder</li><li data-checked="false">Add a secret with tags like <code>env:prod</code></li><li data-checked="false">Read <a class="mention" data-note="' + n1 + '" contenteditable="false">@Welcome to frogmouth</a></li></ul>' },
-    );
+    ];
+    b.items.push(
+      { note: n1, x: 80, y: 80, w: 320, h: null, z: 3 },
+      { note: n2, x: 440, y: 80, w: 380, h: null, z: 2 },
+      { note: n3, x: 80, y: 440, w: 280, h: null, z: 1 });
     return {
+      version: 2,
+      notes,
       boards: [b],
       secrets: [{ id: uid(), key: 'EXAMPLE_API_TOKEN', value: 'replace-me-' + uid(), tags: ['env:dev', 'example'], desc: 'Safe to delete', created: t, updated: t }],
       ui: { board: b.id, active: 'b:' + b.id },
     };
   }
 
+  const NOTE_KEYS = ['id', 'html', 'title', 'text', 'tags', 'color', 'created', 'updated'];
+  function normNote(n) {
+    n.id = String(n.id || uid());
+    n.color = n.color || 'straw';
+    n.html = typeof n.html === 'string' ? n.html : '';
+    n.tags = Array.isArray(n.tags) ? [...new Set(n.tags.map(String).filter(Boolean))] : [];
+    if (typeof n.title !== 'string' || typeof n.text !== 'string') Object.assign(n, Editor.derive(n.html));
+    return n;
+  }
+  function normItem(it) {
+    it.x = +it.x || 0; it.y = +it.y || 0;
+    it.w = clamp(+it.w || 260, 140, 2000);
+    it.h = it.h ? clamp(+it.h, 60, 3000) : null;
+    it.z = +it.z || 1;
+    return it;
+  }
+
   function normalize(d) {
     d = d && typeof d === 'object' ? d : {};
+    d.notes = Array.isArray(d.notes) ? d.notes.filter((n) => n && typeof n === 'object') : [];
+    const byId = new Map();
+    for (const n of d.notes) { normNote(n); if (!byId.has(n.id)) byId.set(n.id, n); }
     d.boards = Array.isArray(d.boards) ? d.boards.filter((b) => b && typeof b === 'object') : [];
     for (const b of d.boards) {
       b.id = String(b.id || uid());
       b.name = String(b.name || 'Untitled');
-      b.notes = Array.isArray(b.notes) ? b.notes.filter((n) => n && typeof n === 'object') : [];
-      for (const n of b.notes) {
-        n.id = String(n.id || uid());
-        n.x = +n.x || 0; n.y = +n.y || 0;
-        n.w = clamp(+n.w || 260, 140, 2000);
-        n.h = n.h ? clamp(+n.h, 60, 3000) : null;
-        n.color = n.color || 'straw';
-        n.z = +n.z || 1;
-        n.html = typeof n.html === 'string' ? n.html : '';
-        n.tags = Array.isArray(n.tags) ? [...new Set(n.tags.map(String).filter(Boolean))] : [];
-        if (typeof n.title !== 'string' || typeof n.text !== 'string') Object.assign(n, Editor.derive(n.html));
+      b.items = Array.isArray(b.items) ? b.items.filter((it) => it && typeof it === 'object') : [];
+      // version 1 vaults kept whole notes inside each board: lift them into the library
+      if (Array.isArray(b.notes)) {
+        for (const old of b.notes) {
+          if (!old || typeof old !== 'object') continue;
+          const n = {};
+          for (const k of NOTE_KEYS) if (k in old) n[k] = old[k];
+          normNote(n);
+          if (!byId.has(n.id)) byId.set(n.id, n);
+          b.items.push({ note: n.id, x: old.x, y: old.y, w: old.w, h: old.h, z: old.z });
+        }
+        delete b.notes;
       }
+      const seen = new Set();
+      b.items = b.items.filter((it) => { it.note = String(it.note || ''); if (!byId.has(it.note) || seen.has(it.note)) return false; seen.add(it.note); return true; }).map(normItem);
     }
-    if (!d.boards.length) d.boards.push({ id: uid(), name: 'Inbox', created: now(), notes: [] });
+    d.notes = [...byId.values()];
+    if (!d.boards.length) d.boards.push({ id: uid(), name: 'Inbox', created: now(), items: [] });
     d.secrets = Array.isArray(d.secrets) ? d.secrets.filter((x) => x && typeof x === 'object') : [];
     for (const x of d.secrets) {
       x.id = String(x.id || uid());
@@ -79,12 +114,66 @@ export const Store = (() => {
       x.desc = String(x.desc || '');
     }
     d.ui = Object.assign({ board: null, active: null }, d.ui || {});
+    d.version = 2;
     return d;
   }
 
+  /* S.notes: note id -> { note, boards: [boards it is placed on], board: first of them or null } */
   function index() {
     S.notes.clear();
-    for (const b of S.data.boards) for (const n of b.notes) S.notes.set(n.id, { note: n, board: b });
+    for (const n of S.data.notes) S.notes.set(n.id, { note: n, boards: [], board: null });
+    for (const b of S.data.boards) for (const it of b.items) {
+      const ref = S.notes.get(it.note);
+      if (ref) { ref.boards.push(b); if (!ref.board) ref.board = b; }
+    }
+  }
+
+  /* ── note operations ── */
+  function createNote(fields = {}) {
+    const t = now();
+    const n = normNote({ id: uid(), html: '<p><br></p>', color: 'straw', created: t, updated: t, ...fields });
+    S.data.notes.push(n);
+    S.notes.set(n.id, { note: n, boards: [], board: null });
+    return n;
+  }
+  /* put a note on a board (no-op if it is already there); returns the placement */
+  function place(boardId, noteId, pos = {}) {
+    const b = board(boardId); const ref = S.notes.get(noteId);
+    if (!b || !ref) return null;
+    const have = b.items.find((it) => it.note === noteId);
+    if (have) return have;
+    const it = normItem({ note: noteId, x: pos.x, y: pos.y, w: pos.w || 260, h: pos.h || null, z: pos.z || 1 });
+    b.items.push(it);
+    ref.boards.push(b); if (!ref.board) ref.board = b;
+    return it;
+  }
+  /* take a note off one board; the note stays in the library */
+  function unplace(boardId, noteId) {
+    const b = board(boardId); if (!b) return null;
+    const i = b.items.findIndex((it) => it.note === noteId);
+    if (i < 0) return null;
+    const [it] = b.items.splice(i, 1);
+    const ref = S.notes.get(noteId);
+    if (ref) { ref.boards = ref.boards.filter((x) => x !== b); ref.board = ref.boards[0] || null; }
+    return { it, index: i };
+  }
+  /* delete a note from the library and every board; returns what undo needs */
+  function deleteNote(id) {
+    const ref = S.notes.get(id); if (!ref) return null;
+    const placed = [];
+    for (const b of S.data.boards) {
+      const i = b.items.findIndex((it) => it.note === id);
+      if (i >= 0) placed.push({ board: b, index: i, it: b.items.splice(i, 1)[0] });
+    }
+    const ni = S.data.notes.indexOf(ref.note);
+    S.data.notes.splice(ni, 1);
+    S.notes.delete(id);
+    return { note: ref.note, index: ni, placed };
+  }
+  function restoreNote(saved) {
+    S.data.notes.splice(Math.min(saved.index, S.data.notes.length), 0, saved.note);
+    for (const p of saved.placed) if (S.data.boards.includes(p.board)) p.board.items.splice(Math.min(p.index, p.board.items.length), 0, p.it);
+    index();
   }
 
   /* ── status ── */
@@ -381,6 +470,6 @@ export const Store = (() => {
   return {
     S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, unlock, openMemory, setData, close,
     serialize, save, saveNow, change, checkDisk, reloadFrom, keepMine, setPassphrase, recents, forgetRecent,
-    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut,
+    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
   };
 })();

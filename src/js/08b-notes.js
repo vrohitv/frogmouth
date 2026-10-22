@@ -1,6 +1,7 @@
 import { $$, clamp, now, h, esc, relTime, ls, icon, Tags } from './00-util.js';
 import { Store } from './03-store.js';
 import { Popup, editTags } from './05-ui.js';
+import { Board } from './07-board.js';
 import { App } from './10-app.js';
 
 /* ── notes page: every note on every board, sortable, filterable, linked ─ */
@@ -43,7 +44,8 @@ export const NotesList = (() => {
       const a = e.target.closest('[data-a]');
       const chip = e.target.closest('.chip');
       if (chip) setFilter(Tags.toggle(filterInp.value, chip.dataset.tag));
-      else if (a && a.dataset.a === 'board') App.openTab('b:' + r.board.id);
+      else if (a && a.dataset.a === 'board') App.gotoNote(r.note.id, a.dataset.board);
+      else if (a && a.dataset.a === 'place') App.addToBoard(r.note.id, a);
       else if (a && a.dataset.a === 'tag') tag(r);
       else if (a && (a.dataset.a === 'out' || a.dataset.a === 'in')) linksMenu(r, a.dataset.a, a);
       else if (e.target.closest('.n-tags')) mark();
@@ -55,7 +57,7 @@ export const NotesList = (() => {
   const snippet = (note) => (note.text || '').split('\n').slice(1).join(' ').replace(/\s+/g, ' ').trim().slice(0, 140);
   const SORTS = {
     title: (a, b) => (a.note.title || '').localeCompare(b.note.title || '', undefined, { sensitivity: 'base' }),
-    board: (a, b) => a.board.name.localeCompare(b.board.name) || SORTS.title(a, b),
+    board: (a, b) => (a.boards[0] ? a.boards[0].name : '\uffff').localeCompare(b.boards[0] ? b.boards[0].name : '\uffff') || SORTS.title(a, b),
     tags: (a, b) => (a.note.tags || []).join(' ').localeCompare((b.note.tags || []).join(' ')) || SORTS.title(a, b),
     links: (a, b) => a.links - b.links || SORTS.title(a, b),
     updated: (a, b) => (a.note.updated || 0) - (b.note.updated || 0),
@@ -66,11 +68,11 @@ export const NotesList = (() => {
     back = Store.backlinks();
     const toks = Tags.tokens(filterInp.value);
     const active = new Set(toks);
-    const all = [...Store.S.notes.values()].map(({ note, board }) => {
+    const all = [...Store.S.notes.values()].map(({ note, boards }) => {
       const out = Store.linksOut(note), inn = back.get(note.id) || [];
-      return { note, board, out, inn, links: out.length + inn.length };
+      return { note, boards, out, inn, links: out.length + inn.length };
     });
-    rows = all.filter(({ note, board }) => Tags.match(note.tags || [], toks, [(note.title || '').toLowerCase(), (note.text || '').toLowerCase(), board.name.toLowerCase()]));
+    rows = all.filter(({ note, boards }) => Tags.match(note.tags || [], toks, [(note.title || '').toLowerCase(), (note.text || '').toLowerCase(), ...(boards.length ? boards.map((b) => b.name.toLowerCase()) : ['no board'])]));
     rows.sort((a, b) => sort.dir * SORTS[sort.by](a, b));
     cur = clamp(cur, 0, Math.max(0, rows.length - 1));
 
@@ -87,7 +89,7 @@ export const NotesList = (() => {
       const n = r.note;
       return `<div class="nrow${i === cur ? ' on' : ''}" data-id="${esc(n.id)}" role="option">` +
         `<div class="n-title"><i class="n-dot paper-${esc(n.color)}"></i><div><b>${esc(n.title || 'Untitled')}</b><span>${esc(snippet(n))}</span></div></div>` +
-        `<button class="n-board" data-a="board" tabindex="-1" title="Open the board">${icon('board')}<span>${esc(r.board.name)}</span></button>` +
+        `<div class="n-boards">${r.boards.map((b) => `<button class="n-board" data-a="board" data-board="${esc(b.id)}" tabindex="-1" title="Open it on ${esc(b.name)}">${icon('board')}<span>${esc(b.name)}</span></button>`).join('') || '<span class="n-noboard">on no board</span>'}<button class="nf-add" data-a="place" tabindex="-1" title="Put it on a board (A)">${icon('plus')}</button></div>` +
         `<div class="n-tags">${(n.tags || []).map((t) => Tags.chip(t, active.has(t.toLowerCase()))).join('')}<button class="nf-add" data-a="tag" tabindex="-1" title="Edit tags (T)">${n.tags && n.tags.length ? icon('edit') : '+ tag'}</button></div>` +
         `<div class="n-links">${r.out.length ? `<button data-a="out" tabindex="-1" title="Notes this one links to">→ ${r.out.length}</button>` : ''}${r.inn.length ? `<button data-a="in" tabindex="-1" title="Notes linking here">← ${r.inn.length}</button>` : ''}</div>` +
         `<div class="n-upd" title="${esc(new Date(n.updated || n.created || 0).toLocaleString())}">${esc(relTime(n.updated || n.created))}</div></div>`;
@@ -141,9 +143,20 @@ export const NotesList = (() => {
     if (!r) return false;
     if (k === 'Enter' || k === 'o') { open(r); return true; }
     if (k === 't') { tag(r); return true; }
-    if (k === 'b') { App.openTab('b:' + r.board.id); return true; }
+    if (k === 'b') { if (r.boards[0]) App.openTab('b:' + r.boards[0].id); return true; }
+    if (k === 'a' || k === 'A') { App.addToBoard(r.note.id, list.querySelector('.nrow.on .nf-add[data-a="place"]')); return true; }
+    if (k === 'Delete' || k === 'Backspace') { Board.removeEverywhere(r.note.id); render(); return true; }
     return false;
   }
 
-  return { init, render, key, setFilter, focus: () => list && list.focus({ preventScroll: true }) };
+  /* select a note's row (clearing a filter that hides it) */
+  function reveal(id) {
+    if (!rows.some((r) => r.note.id === id)) setFilter('');
+    cur = Math.max(0, rows.findIndex((r) => r.note.id === id));
+    mark();
+    const el = list.querySelector('.nrow.on');
+    if (el) { el.classList.remove('copied'); void el.offsetWidth; el.classList.add('copied'); }
+  }
+
+  return { init, render, key, setFilter, reveal, focus: () => list && list.focus({ preventScroll: true }) };
 })();

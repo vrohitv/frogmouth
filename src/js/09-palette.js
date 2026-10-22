@@ -15,12 +15,13 @@ export const Palette = (() => {
     built = Store.S.rev;
     idxNotes = []; idxBoards = []; idxSecrets = [];
     for (const b of Store.S.data.boards) {
-      idxBoards.push({ type: 'board', id: b.id, title: b.name, t: b.name.toLowerCase(), sub: `${b.notes.length} ${b.notes.length === 1 ? 'note' : 'notes'}` });
-      for (const n of b.notes) {
-        const title = n.title || 'Untitled';
-        const tg = (n.tags || []).join(' ');
-        idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${b.name}  ${tg}` : b.name, upd: n.updated || 0 });
-      }
+      idxBoards.push({ type: 'board', id: b.id, title: b.name, t: b.name.toLowerCase(), sub: `${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'}` });
+    }
+    for (const { note: n, boards } of Store.S.notes.values()) {
+      const title = n.title || 'Untitled';
+      const tg = (n.tags || []).join(' ');
+      const where = boards.length ? boards.map((b) => b.name).join(', ') : 'on no board';
+      idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${where}  ${tg}` : where, upd: n.updated || 0 });
     }
     for (const x of Store.S.data.secrets) {
       const tags = x.tags.join(' ');

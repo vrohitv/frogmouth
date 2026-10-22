@@ -589,7 +589,10 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .n-title b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n-title span { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n-dot { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 3px; background: var(--paper); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
-.n-board { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; justify-self: start; border: 0; background: none; padding: 3px 6px; margin-left: -6px; border-radius: 5px; color: var(--muted); font: inherit; cursor: pointer; }
+.n-boards { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: center; min-width: 0; }
+.n-noboard { color: var(--faint); font-size: 11.5px; font-style: italic; }
+.nrow.copied { animation: copied .9s ease-out; }
+.n-board { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; border: 0; background: none; padding: 2px 6px; margin-left: -6px; border-radius: 5px; color: var(--muted); font: inherit; cursor: pointer; }
 .n-board span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n-board .ic { width: 13px; height: 13px; flex: none; }
 .n-board:hover { color: var(--iris); background: var(--panel-2); }
@@ -610,7 +613,10 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .note .chip { border-color: var(--rule); color: var(--ink); font-size: 10.5px; line-height: 16px; }
 .note .chip.kv b { background: var(--rule); color: var(--ink); opacity: .8; }
 .note .chip.kv span { color: var(--ink); }
-.note .backlinks { padding: 0; margin-left: auto; }
+.nf-meta { display: flex; gap: 10px; margin-left: auto; align-items: center; }
+.note .backlinks, .nf-boards { padding: 0; border: 0; background: none; color: var(--ink); opacity: .55; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.nf-boards .ic { width: 11px; height: 11px; }
+.note .backlinks:hover, .nf-boards:hover { opacity: 1; text-decoration: underline; }
 .tag-input { font: 11.5px/22px var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--iris); border-radius: 4px; padding: 0 6px; outline: none; width: 100%; min-width: 140px; }
 .note .tag-input { background: color-mix(in srgb, var(--paper) 70%, #fff); color: var(--ink); }
 .pop .chip { pointer-events: none; }
@@ -626,7 +632,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
   .s-head { display: none; }
   .n-head { display: none; }
   .nrow { grid-template-columns: 1fr auto; grid-template-areas: "t u" "b l" "g g"; row-gap: 4px; }
-  .n-title { grid-area: t; } .n-upd { grid-area: u; } .n-board { grid-area: b; } .n-links { grid-area: l; } .n-tags { grid-area: g; }
+  .n-title { grid-area: t; } .n-upd { grid-area: u; } .n-boards { grid-area: b; } .n-links { grid-area: l; } .n-tags { grid-area: g; }
   .srow { grid-template-columns: 1fr auto; grid-template-areas: "k a" "v v" "t t"; row-gap: 4px; }
   .s-key { grid-area: k; } .s-val { grid-area: v; } .s-tags { grid-area: t; } .s-act { grid-area: a; }
   .s-drawer { top: 56px; right: 8px; left: 8px; width: auto; }
