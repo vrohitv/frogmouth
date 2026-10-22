@@ -3,7 +3,7 @@
 ## Unreleased
 
 - **The bird falls asleep**: after two minutes idle its eyes close into calm curves, it breathes slowly and small z's drift up beside its head (still z's with reduced motion). Any mouse move or key wakes it with a double blink. Before that it squints (30 s) and gets sleepy (75 s).
-- **The frogmouth's eyes are orange-red** (`#E8662E`), like the glowing eyes of many frogmouths, in place of amber: the live bird, the wordmark's eye-o's, every logo file and the favicon. The lids and brows are unchanged, so the bird stays calm.
+- **Soothing colours**: the frogmouth's eyes are sage green (`#8DB49A`) instead of amber, in the live bird, the wordmark's eye-o's, every logo file and the favicon; and the default accent is the calm green instead of orange. An accent picked in the logo menu is still remembered.
 - **Resize notes from every edge and corner**, not only the right and bottom. Dragging the left or top edge moves the note so the opposite edge stays exactly in place (measured with the note's exact height, so even a note sized to its content keeps its bottom edge to the pixel); the dragged edge snaps to the grid.
 
 ## 1.0.0 (2026-10-22)

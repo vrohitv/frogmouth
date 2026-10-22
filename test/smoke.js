@@ -548,6 +548,9 @@ import { App } from '../src/js/10-app.js';
     ok('palette never searches secret values', Palette.search('$s3cr3t').length === 0);
     ok('palette commands', Palette.search('>arrange').some((x) => x.title === 'Arrange notes'));
 
+    ok('the default accent is the calm green', document.documentElement.dataset.accent === 'green' && getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === '#7fae86');
+    ok('the bird has sage eyes', getComputedStyle($('.hud-bird .fm-iris')).fill === 'rgb(141, 180, 154)', getComputedStyle($('.hud-bird .fm-iris')).fill);
+
     // the bird falls asleep (eyes shut, breathing, drifting z's) and wakes on any key or move
     {
       const mark = $('.hud-bird .fm');

@@ -19,14 +19,15 @@ export const App = (() => {
     ls.set('theme', t);
   }
   setTheme(ls.get('theme', matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'night'));
-  /* the UI accent: Anthropic orange by default, or green or purple */
-  const ACCENTS = { orange: 'Orange', green: 'Green', purple: 'Purple' };
-  function setAccent(a) {
-    if (!ACCENTS[a]) a = 'orange';
+  /* the UI accent: a calm green by default, or orange or purple. Only a choice made in
+     the menu is remembered, so the default can change without overriding anyone. */
+  const ACCENTS = { green: 'Green', orange: 'Orange', purple: 'Purple' };
+  function setAccent(a, remember = true) {
+    if (!ACCENTS[a]) a = 'green';
     document.documentElement.dataset.accent = a;
-    ls.set('accent', a);
+    if (remember) ls.set('ui-accent', a);
   }
-  setAccent(ls.get('accent', 'orange'));
+  setAccent(ls.get('ui-accent', 'green'), false);
 
   /* ── welcome ──────────────────────────────────────────────────── */
   function showWelcome() {

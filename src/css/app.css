@@ -1,7 +1,7 @@
 /* ── tokens ──────────────────────────────────────────────────────
    Calm by design: neutral surfaces (no tint), softened text contrast, quiet
    notes, and one muted accent the user picks (orange by default, or green or
-   purple). The bird keeps its orange-red eyes; that is the brand, not the UI. */
+   purple). The bird keeps its sage eyes; that is the brand, not the UI. */
 :root, [data-theme="night"] {
   --bg: #1d1e21;
   --panel: #242529;
@@ -37,11 +37,11 @@
   color-scheme: light;
 }
 /* accent: Anthropic orange (default), green or purple; lighter on dark, deeper on light */
-:root, [data-accent="orange"] { --accent: #d97757; --accent-ink: #1f0e07; --accent-soft: rgba(217, 119, 87, .18); }
-[data-accent="green"] { --toast-act: #9cc4a2; --accent: #7fae86; --accent-ink: #0e1c11; --accent-soft: rgba(127, 174, 134, .18); }
+[data-accent="orange"] { --toast-act: #e8987a; --accent: #d97757; --accent-ink: #1f0e07; --accent-soft: rgba(217, 119, 87, .18); }
+:root, [data-accent="green"] { --toast-act: #9cc4a2; --accent: #7fae86; --accent-ink: #0e1c11; --accent-soft: rgba(127, 174, 134, .18); }
 [data-accent="purple"] { --toast-act: #b9acef; --accent: #a493e6; --accent-ink: #150f2e; --accent-soft: rgba(164, 147, 230, .2); }
-[data-theme="day"][data-accent="orange"], [data-theme="day"]:not([data-accent]) { --accent: #c8623f; --accent-ink: #ffffff; --accent-soft: rgba(200, 98, 63, .14); }
-[data-theme="day"][data-accent="green"] { --accent: #3f7d4e; --accent-ink: #ffffff; --accent-soft: rgba(63, 125, 78, .14); }
+[data-theme="day"][data-accent="orange"] { --accent: #c8623f; --accent-ink: #ffffff; --accent-soft: rgba(200, 98, 63, .14); }
+[data-theme="day"][data-accent="green"], [data-theme="day"]:not([data-accent]) { --accent: #3f7d4e; --accent-ink: #ffffff; --accent-soft: rgba(63, 125, 78, .14); }
 [data-theme="day"][data-accent="purple"] { --accent: #6c58c9; --accent-ink: #ffffff; --accent-soft: rgba(108, 88, 201, .14); }
 :root {
   --sans: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -124,9 +124,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 /* brand colours are fixed (src/brand/mark.json); only the wordmark letters follow the theme */
 .fm { display: block; overflow: visible; cursor: pointer; }
 .fm text { font-weight: 800; fill: var(--text); letter-spacing: -.02em; user-select: none; }
-.fm-iris { fill: #e8662e; }
-.fm-iris-in { fill: #f38a4c; opacity: .7; }
-.fm-ring { fill: none; stroke: #2a1006; stroke-width: 2; }
+.fm-iris { fill: #8db49a; }
+.fm-iris-in { fill: #a6c8b0; opacity: .7; }
+.fm-ring { fill: none; stroke: #14241a; stroke-width: 2; }
 .fm-pup { fill: #0f1211; }
 .fm-glint { fill: #ffffff; }
 .fm-pupil { transition: transform .14s ease-out; }
@@ -548,7 +548,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .toast:not(:has(button)) { padding-right: 14px; }
 .toast-warn { background: var(--danger); color: #fff; }
 .toast.out { opacity: 0; transform: translateY(4px); transition: .16s; }
-.toast-act { border: 0; background: none; color: var(--toast-act, #e8987a); font-weight: 700; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.toast-act { border: 0; background: none; color: var(--toast-act, #9cc4a2); font-weight: 700; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
 
 /* ── secrets ── */

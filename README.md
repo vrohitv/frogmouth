@@ -1,13 +1,13 @@
 <h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/brand/frogmouth-stacked-on-dark.svg">
-    <img src="docs/brand/frogmouth-stacked-on-light.svg" width="300" alt="frogmouth: a head-on tawny frogmouth above the wordmark, whose two o's are its orange-red eyes">
+    <img src="docs/brand/frogmouth-stacked-on-light.svg" width="300" alt="frogmouth: a head-on tawny frogmouth above the wordmark, whose two o's are its sage-green eyes">
   </picture>
 </h1>
 
 <p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
-The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its orange-red eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
+The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its sage-green eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
 
 ## Use it
 
@@ -69,7 +69,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 **Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards. With nothing typed it shows the notes you edited most recently, then your boards by when you last opened them. Opening a note that matched in its text (not its title) opens the board's find bar on that word, so you land on the exact spot.
 
 **Calm, readable UI**
-- Neutral dark or light theme with softened contrast, quiet note colours, and one accent you choose in the logo menu: **orange** (default), **green** or **purple**.
+- Neutral dark or light theme with softened contrast, quiet note colours, and one accent you choose in the logo menu: **green** (default), **orange** or **purple**.
 - Code blocks show line numbers. They are drawn by the page, never part of the code: copying, saving and searching see only your code.
 
 **Sync icon** (top right), next to the name of the folder your vault lives in (or *Browser storage* / *No folder*). Hover it for the full path.
