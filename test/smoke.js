@@ -1,4 +1,4 @@
-import { $, $$, isMac, now, uid, esc, fuzzy, kb, kbFor } from '../src/js/00-util.js';
+import { $, $$, isMac, now, uid, esc, fuzzy, kb, kbFor, Tags } from '../src/js/00-util.js';
 import { Bird } from '../src/js/01-bird.js';
 import { Store } from '../src/js/03-store.js';
 import { HL } from '../src/js/04-highlight.js';
@@ -43,6 +43,11 @@ import { App } from '../src/js/10-app.js';
     App.enter();
     await wait(400);
     if (mode === 'shot-secrets') App.openTab('secrets');
+    if (mode === 'shot-tag-assist') {
+      App.openTab('secrets'); await wait(80);
+      Secrets.setFilter('aws ');
+      const f = document.querySelector('.secrets .s-filter'); f.focus(); f.value = 'aws en'; f.setSelectionRange(6, 6); f.dispatchEvent(new Event('input', { bubbles: true }));
+    }
     if (mode === 'shot-palette') Palette.show('retry');
     if (mode === 'shot-slash') {
       const n = Board.addNote({ x: 760, y: 120 }, true, '<p>Deploy checklist</p><p><br></p>');
@@ -725,7 +730,48 @@ import { App } from '../src/js/10-app.js';
       $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       ok('clicking outside closes the editor', $('.s-drawer').hidden);
     }
-    ok('tag row lists every tag', $$('.secrets .s-tagrow .chip').length === 7, $$('.secrets .s-tagrow .chip').map((c) => c.textContent).join());
+    ok('tag row is a pivot: plain tags, then each key with its values', $$('.secrets .s-tagrow > .chip').map((c) => c.dataset.tag).join() === 'aws,billing,db,example' && $$('.secrets .tp-group .tp-k').length === 1 && $$('.secrets .tp-group .tp-v').map((c) => c.dataset.tag).join() === 'env:dev,env:prod,env:staging', $$('.secrets .s-tagrow .chip').map((c) => c.dataset.tag).join());
+    {
+      // tags: AND with spaces, OR with commas, any value with key:, deeper levels by prefix
+      const T = (tags, q) => Tags.match(tags, Tags.tokens(q));
+      ok('commas mean either', T(['env:staging'], 'env:prod,staging') && !T(['env:dev'], 'env:prod,staging') && T(['db'], 'api,db'));
+      ok('spaces mean both', T(['aws', 'env:prod'], 'aws env:prod') && !T(['aws'], 'aws env:prod'));
+      ok('a key alone means any value', T(['env:dev'], 'env:') && !T(['aws'], 'env:'));
+      ok('deeper levels are found from their parent', T(['team:platform/infra'], 'team:platform') && !T(['team:web'], 'team:platform'));
+      ok('negation and alternatives together', !T(['env:prod'], '-env:prod,dev') && T(['env:staging'], '-env:prod,dev'));
+      ok('shift-click adds an alternative and removes it again', Tags.orToggle('aws env:prod ', 'env:staging') === 'aws env:prod,staging ' && Tags.orToggle('env:prod,staging ', 'env:prod') === 'env:staging ');
+      const sf = $('.secrets .s-filter');
+      Secrets.setFilter('env:prod');
+      const cnt = (t) => { const c = $(`.secrets .s-tagrow .chip[data-tag="${t}"]`); return [+c.querySelector('i').textContent, c.classList.contains('zero'), c.classList.contains('on')]; };
+      ok('counts follow the results: what a click would leave', JSON.stringify([cnt('env:prod'), cnt('env:dev'), cnt('aws')]) === JSON.stringify([[2, false, true], [0, true, false], [2, false, false]]), JSON.stringify([cnt('env:prod'), cnt('env:dev'), cnt('aws')]));
+      $('.secrets .tp-k').click();
+      ok('clicking a key filters any of its values', sf.value.trim() === 'env:prod env:');
+      Secrets.setFilter('env:prod ');
+      $('.secrets .s-tagrow .chip[data-tag="env:staging"]').dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+      ok('shift-click on a chip ORs it in', sf.value.trim() === 'env:prod,staging' && $$('.srow').length === 3, sf.value + ' ' + $$('.srow').length);
+      // autocomplete
+      Secrets.setFilter(''); sf.focus();
+      const typeIn = (txt) => { sf.value += txt; sf.setSelectionRange(sf.value.length, sf.value.length); sf.dispatchEvent(new Event('input', { bubbles: true })); };
+      typeIn('en');
+      const pop = () => ($('.pop') ? [...$$('.pop .pop-label')].map((x) => x.textContent) : []);
+      ok('typing suggests tags, the key first', Popup.isOpen() && pop()[0] === 'envany', JSON.stringify(pop()));
+      keydown(sf, 'Tab');
+      ok('Tab completes the key and goes on to its values', sf.value === 'env:' && Popup.isOpen() && pop().length === 3, sf.value + ' ' + JSON.stringify(pop()));
+      keydown(sf, 'ArrowDown'); keydown(sf, 'Enter');
+      ok('Enter picks a value', /^env:(dev|prod|staging) $/.test(sf.value) && !Popup.isOpen(), JSON.stringify(sf.value));
+      Secrets.setFilter(''); sf.focus(); typeIn('env:prod,st');
+      ok('after a comma it offers the key\'s other values', Popup.isOpen() && JSON.stringify(pop()) === '["envstaging"]', JSON.stringify(pop()));
+      keydown(sf, 'Tab');
+      ok('and completes them', sf.value === 'env:prod,staging ', JSON.stringify(sf.value));
+      typeIn('b');
+      keydown(sf, 'Escape');
+      ok('Esc closes the suggestions and keeps the filter', !Popup.isOpen() && sf.value === 'env:prod,staging b');
+      Secrets.setFilter(''); sf.blur();
+      // search understands tag tokens exactly
+      const hits = Palette.search('$env:prod,staging').map((x) => x.title).sort();
+      ok('search filters by tags exactly, with alternatives', JSON.stringify(hits) === JSON.stringify(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'DATABASE_URL']), JSON.stringify(hits));
+      ok('search: tags and text together', JSON.stringify(Palette.search('$env:prod secret').map((x) => x.title)) === JSON.stringify(['AWS_SECRET_ACCESS_KEY']), JSON.stringify(Palette.search('$env:prod secret').map((x) => x.title)));
+    }
     ok('switcher shows secrets active', $('.hud-switch [data-view="secrets"]').classList.contains('on'));
     $('.hud-switch [data-view="board"]').click();
     ok('switcher returns to the board', !$('.board-vp').hidden && $('.secrets').hidden);

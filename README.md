@@ -68,6 +68,12 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - **Export JSON** downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
 - Generate random values.
 
+**Tags and filters** (All notes, Secrets and `⌘K` search alike)
+- Tags are plain (`api`) or key:value (`env:prod`); the key is the level above the value, and values can go deeper with `/` (`team:platform/infra`).
+- Space means both, comma means either, minus means not: `env:prod,staging aws -legacy`. A key alone (`env:`) means any value, and a parent (`team:platform`) includes everything under it.
+- **Autocomplete everywhere you filter**: type a few letters and matching tags appear with how many items carry them. `Tab` or `↵` completes; a key goes on to its values (`en` → `env:` → `env:prod`), and after a comma you get the key's other values.
+- The tag row under each filter is a **pivot**: plain tags, then each key with its values (`env: dev prod staging`), each with a count of the current results, so you see what a click leaves. Click to narrow, click a key for any of its values, `⇧`-click a value to add it as an alternative.
+
 **Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards. With nothing typed it shows the notes you edited most recently, then your boards by when you last opened them. Opening a note that matched in its text (not its title) opens the board's find bar on that word, so you land on the exact spot.
 
 **Calm, readable UI**

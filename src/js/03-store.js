@@ -448,6 +448,15 @@ export const Store = (() => {
   const noteRef = (id) => S.notes.get(id);
   const secret = (id) => S.data && S.data.secrets.find((x) => x.id === id);
   /* every tag in use, on notes and secrets, sorted */
+  /* tag -> how many notes and/or secrets carry it */
+  function tagCounts(which = 'all') {
+    const c = new Map(), add = (tags) => { for (const t of new Set(tags || [])) c.set(t, (c.get(t) || 0) + 1); };
+    if (S.data) {
+      if (which !== 'secrets') for (const { note } of S.notes.values()) add(note.tags);
+      if (which !== 'notes') for (const x of S.data.secrets) add(x.tags);
+    }
+    return c;
+  }
   function allTags() {
     const set = new Set();
     if (S.data) {
@@ -470,6 +479,6 @@ export const Store = (() => {
   return {
     S, FILE, FORMAT, parse, canPickDir, canOPFS, blankData, normalize, index, openDir, openMemory, close,
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
-    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
+    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, tagCounts, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
   };
 })();

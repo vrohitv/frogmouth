@@ -226,8 +226,12 @@ const ICONS = {
 export const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
 /* ── tags (shared by notes and secrets) ───────────────────────────
-   A tag is plain (`api`) or key:value (`env:prod`). Filters are
-   space-separated tokens: `api env:prod -draft`. */
+   A tag is plain (`api`) or key:value (`env:prod`); keys are the hierarchy
+   (env → prod, dev), and a value can go deeper with / (team:platform/infra).
+   Filters are space-separated tokens, all of which must hold (AND):
+   `api env:prod -draft`. Commas give alternatives (OR): `env:prod,staging`,
+   `api,db`. `env:` alone means any env. Prefixes match, so team:platform
+   includes team:platform/infra. */
 export const Tags = {
   parse(t) { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; },
   split(s) { return [...new Set(String(s || '').split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean))]; },
@@ -236,25 +240,64 @@ export const Tags = {
     return `<button class="chip${v != null ? ' kv' : ''}${on ? ' on' : ''}" data-tag="${esc(t)}" tabindex="-1">${v != null ? `<b>${esc(k)}</b><span>${esc(v)}</span>` : esc(k)}</button>`;
   },
   tokens(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); },
-  /* every token must hit (or, with a leading -, miss): a k:v token matches a
-     k:v tag by key and value prefix; a plain token matches a tag key or value
-     prefix, or appears anywhere in one of the lowercase `texts` */
+  /* every token must hit (or, with a leading -, miss); a token hits if any of its
+     comma alternatives does. A k:v alternative matches a k:v tag by key and value
+     prefix; a plain one matches a tag key or value prefix, or appears anywhere in
+     one of the lowercase `texts` */
   match(tags, toks, texts = []) {
-    for (const t of toks) {
-      let neg = false, q = t;
-      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
-      let hit;
+    const one = (q) => {
       const ci = q.indexOf(':');
       if (ci > 0) {
         const k = q.slice(0, ci), v = q.slice(ci + 1);
-        hit = tags.some((tg) => { const p = Tags.parse(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
-      } else {
-        hit = texts.some((x) => x.includes(q)) ||
-          tags.some((tg) => { const p = Tags.parse(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
+        return tags.some((tg) => { const p = Tags.parse(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
       }
-      if (hit === neg) return false;
+      return texts.some((x) => x.includes(q)) ||
+        tags.some((tg) => { const p = Tags.parse(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
+    };
+    for (const t of toks) {
+      let neg = false, q = t;
+      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
+      if ((Tags.alts(q).some(one)) === neg) return false;
     }
     return true;
+  },
+  /* `env:prod,staging` → ['env:prod', 'env:staging']; `api,db` → ['api', 'db']; `env:` → ['env:'] */
+  alts(q) {
+    const ci = q.indexOf(':');
+    const list = ci > 0 ? q.slice(ci + 1).split(',').map((v) => q.slice(0, ci + 1) + v.trim()) : q.split(',').map((v) => v.trim());
+    return list.filter((a) => a && !(ci > 0 && a === q.slice(0, ci + 1) && list.length > 1));
+  },
+  /* the tags a filter asks for (not the negated ones), lowercase */
+  wanted(toks) { return new Set(toks.filter((t) => t[0] !== '-').flatMap((t) => Tags.alts(t))); },
+  /* The tag row as a pivot: plain tags, then each key with its values (env: prod dev
+     staging). Counts are over the current results, so they say what a click would
+     leave; a key filters any of its values. `all` and `shown` are lists of tag lists. */
+  pivot(all, shown, toks) {
+    const plain = new Set(), keys = new Map(), n = new Map(), kn = new Map();
+    for (const tags of all) for (const t of tags) { const p = Tags.parse(t); if (p.v == null) plain.add(t); else { if (!keys.has(p.k)) keys.set(p.k, new Set()); keys.get(p.k).add(t); } }
+    for (const tags of shown) {
+      for (const t of new Set(tags)) n.set(t, (n.get(t) || 0) + 1);
+      for (const k of new Set(tags.map((t) => Tags.parse(t)).filter((p) => p.v != null).map((p) => p.k))) kn.set(k, (kn.get(k) || 0) + 1);
+    }
+    const want = Tags.wanted(toks), on = (t) => (want.has(t.toLowerCase()) ? ' on' : '');
+    const zero = (c) => (c ? '' : ' zero');
+    const sorted = (it) => [...it].sort((a, b) => a.localeCompare(b));
+    const chip = (t, label, c, cls = '') => `<button class="chip${cls}${on(t)}${zero(c)}" data-tag="${esc(t)}" tabindex="-1" title="${esc(t)}: ${c} ${c === 1 ? 'match' : 'matches'}. Click to filter, ${isMac ? '⇧' : 'Shift+'}click for either">${label}<i>${c}</i></button>`;
+    return sorted(plain).map((t) => chip(t, esc(t), n.get(t) || 0)).join('') +
+      sorted(keys.keys()).map((k) => `<span class="tp-group">${chip(k + ':', `<b>${esc(k)}</b>`, kn.get(k) || 0, ' tp-k')}${sorted(keys.get(k)).map((t) => chip(t, esc(Tags.parse(t).v), n.get(t) || 0, ' tp-v')).join('')}</span>`).join('');
+  },
+  /* shift-click: add a value to the filter as an alternative (env:prod → env:prod,staging) */
+  orToggle(q, tag) {
+    const p = Tags.parse(tag);
+    if (p.v == null || !p.v) return Tags.toggle(q, tag);
+    const toks = String(q || '').split(/\s+/).filter(Boolean);
+    const i = toks.findIndex((t) => t.toLowerCase().startsWith(p.k.toLowerCase() + ':') && t.length > p.k.length + 1);
+    if (i < 0) return Tags.toggle(q, tag);
+    const vals = toks[i].slice(p.k.length + 1).split(',').filter(Boolean);
+    const j = vals.findIndex((v) => v.toLowerCase() === p.v.toLowerCase());
+    if (j >= 0) vals.splice(j, 1); else vals.push(p.v);
+    if (vals.length) toks[i] = p.k + ':' + vals.join(','); else toks.splice(i, 1);
+    return toks.join(' ') + (toks.length ? ' ' : '');
   },
   toggle(q, tag) {
     const toks = String(q || '').split(/\s+/).filter(Boolean);

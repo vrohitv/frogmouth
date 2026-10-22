@@ -1,6 +1,6 @@
 import { $$, kb, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags, bus } from './00-util.js';
 import { Store } from './03-store.js';
-import { Modal } from './05-ui.js';
+import { Modal, tagAssist } from './05-ui.js';
 import { App } from './10-app.js';
 
 /* ── secrets: key/value pairs with plain and key:value tags ────────── */
@@ -14,12 +14,13 @@ export const Secrets = (() => {
 
   function init(el) {
     root = el;
-    filterInp = h('input', { class: 'field s-filter', placeholder: 'Filter by key or tag, e.g. env:prod aws -legacy', spellcheck: 'false', autocomplete: 'off' });
+    filterInp = h('input', { class: 'field s-filter', placeholder: 'Filter by key or tags: env:prod,staging aws -legacy', spellcheck: 'false', autocomplete: 'off' });
+    tagAssist(filterInp, () => Store.tagCounts('secrets'));
     countEl = h('span', { class: 's-count muted' });
     list = h('div', { class: 's-list', role: 'listbox', tabindex: '0' });
     drawer = h('aside', { class: 's-drawer', hidden: true });
     tagsRow = h('div', { class: 's-tagrow' });
-    tagsRow.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) toggleFilter(c.dataset.tag); });
+    tagsRow.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) toggleFilter(c.dataset.tag, e.shiftKey); });
     root.append(
       h('div', { class: 's-bar' },
         h('div', { class: 's-search', html: icon('search') }, filterInp),
@@ -59,20 +60,18 @@ export const Secrets = (() => {
 
   /* ── filtering ── */
   const matches = (x, toks) => Tags.match(x.tags, toks, [x.key.toLowerCase(), x.desc.toLowerCase()]);
-  function toggleFilter(tag) { filterInp.value = Tags.toggle(filterInp.value, tag); cur = 0; render(); }
+  function toggleFilter(tag, either) { filterInp.value = (either ? Tags.orToggle : Tags.toggle)(filterInp.value, tag); cur = 0; render(); }
   function setFilter(q) { filterInp.value = q; cur = 0; render(); }
 
   /* ── rendering ── */
   function render() {
     if (!root || !Store.S.data) return;
     const toks = filterInp.value.toLowerCase().split(/\s+/).filter(Boolean);
-    const active = new Set(toks);
+    const active = Tags.wanted(toks);
     const all = Store.S.data.secrets;
     rows = all.filter((x) => matches(x, toks)).sort((a, b) => a.key.localeCompare(b.key) || (b.updated || 0) - (a.updated || 0));
     cur = clamp(cur, 0, Math.max(0, rows.length - 1));
-    const freq = new Map();
-    for (const x of all) for (const t of x.tags) freq.set(t, (freq.get(t) || 0) + 1);
-    tagsRow.innerHTML = [...freq.keys()].sort().map((t) => chip(t, active.has(t.toLowerCase()))).join('');
+    tagsRow.innerHTML = Tags.pivot(all.map((x) => x.tags), rows.map((x) => x.tags), toks);
     countEl.textContent = toks.length ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'secret' : 'secrets'}`;
     if (!all.length) {
       list.innerHTML = `<div class="s-empty"><p>No secrets yet.</p><p class="muted">Press <kbd>N</kbd> to add one. Tags like <code>env:prod</code> group them.</p></div>`;

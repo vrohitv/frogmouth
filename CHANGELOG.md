@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Tag search**: tags autocomplete in the All notes and Secrets filters and in `⌘K` (with counts; a key goes on to its values). Commas mean either (`env:prod,staging`), `env:` means any value, and a parent value includes deeper ones (`team:platform` → `team:platform/infra`). The tag row is a pivot: grouped by key, with counts of the current results; click to narrow, `⇧`-click to add an alternative. `⌘K` treats tag tokens exactly.
 - **Board links**: `@@` (or the `@` menu, which now lists boards too) puts a link to a board in a note, so one note can be the map of all your boards. Following links shows a trail (`‹ Projects › Q3 Launch`); click a step or press `⌥←` to go back to the view you left. Links never place anything on a board, and a link to a deleted board is struck through.
 
 ## 1.1.0 (2026-10-22)

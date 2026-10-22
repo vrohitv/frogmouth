@@ -598,6 +598,13 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .chip.kv span { padding: 0 6px; color: var(--text); }
 .chip:hover, .chip.on { border-color: var(--accent); }
 .chip.on { box-shadow: inset 0 0 0 1px var(--accent); }
+/* the tag row as a pivot: counts over the current results; a key group (env: prod dev) */
+.s-tagrow .chip { gap: 5px; }
+.s-tagrow .chip i { font-style: normal; font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.s-tagrow .chip.zero { opacity: .38; }
+.tp-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; padding-left: 8px; margin-left: 4px; border-left: 1px solid var(--line); }
+.chip.tp-k b { font-weight: 600; color: var(--muted); }
+.chip.tp-k { border-style: dashed; }
 .s-act { display: flex; gap: 2px; justify-content: flex-end; }
 .s-act button { border: 0; background: none; color: var(--muted); width: 28px; height: 26px; border-radius: 4px; cursor: pointer; display: grid; place-items: center; }
 .s-act button:hover { background: var(--panel-2); color: var(--text); }

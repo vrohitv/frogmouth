@@ -1,4 +1,5 @@
-import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus, kb, relTime } from './00-util.js';
+import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus, kb, relTime, Tags } from './00-util.js';
+import { tagAssist } from './05-ui.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { Board } from './07-board.js';
@@ -7,7 +8,8 @@ import { App } from './10-app.js';
 
 /* ── palette: search everything, run commands ─────────────────────
    plain  notes, boards, secrets (names and tags, never values)
-   >      commands      @  notes only      $  secrets only      #  boards only */
+   >      commands      @  notes only      $  secrets only      #  boards only
+   Tag tokens filter exactly, as on the pages: env:prod, env:prod,staging (either), -draft. */
 export const Palette = (() => {
   let el, inp, list, foot, items = [], idx = 0, built = -1, idxNotes = [], idxBoards = [], idxSecrets = [];
 
@@ -25,11 +27,11 @@ export const Palette = (() => {
       const title = n.title || 'Untitled';
       const tg = (n.tags || []).join(' ');
       const where = boards.length ? boards.map((b) => b.name).join(', ') : 'on no board';
-      idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${where}  ${tg}` : where, where, upd: n.updated || 0 });
+      idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${where}  ${tg}` : where, where, upd: n.updated || 0, tags: n.tags || [] });
     }
     for (const x of Store.S.data.secrets) {
       const tags = x.tags.join(' ');
-      idxSecrets.push({ type: 'secret', id: x.id, title: x.key, t: x.key.toLowerCase(), body: (tags + ' ' + x.desc).toLowerCase(), sub: tags || x.desc });
+      idxSecrets.push({ type: 'secret', id: x.id, title: x.key, t: x.key.toLowerCase(), body: (tags + ' ' + x.desc).toLowerCase(), sub: tags || x.desc, tags: x.tags });
     }
   }
 
@@ -74,9 +76,13 @@ export const Palette = (() => {
       const boards = mode === '' || mode === '#' ? idxBoards.slice().sort((a, b) => b.opened - a.opened).map((it) => ({ ...it, group: 'Boards' })) : [];
       return recent.concat(boards, mode === '$' ? idxSecrets.slice(0, 60) : []);
     }
+    // tag tokens (with a colon or comma, or negated) filter exactly; the rest is fuzzy text
+    const tagToks = terms.filter((t) => t.includes(':') || t.includes(',') || (t[0] === '-' && t.length > 1));
+    const textToks = terms.filter((t) => !tagToks.includes(t));
     const out = [];
     for (const pool of pools) for (const it of pool) {
-      const r = score(it, terms);
+      if (tagToks.length && !(it.tags && Tags.match(it.tags, tagToks, [it.t, it.body || '']))) continue;
+      const r = textToks.length ? score(it, textToks) : { s: 0, p: [], snip: '', hit: '' };
       if (r) out.push({ ...it, s: r.s + (it.type === 'board' ? 5 : 0), p: r.p, snip: r.snip, hit: r.hit });
     }
     out.sort((a, b) => b.s - a.s || (b.upd || 0) - (a.upd || 0));
@@ -109,7 +115,8 @@ export const Palette = (() => {
   function show(prefix = '') {
     if (!Store.S.data) return;
     if (!el) {
-      inp = h('input', { class: 'pal-input', placeholder: 'Search notes, boards, secrets.  > commands', spellcheck: 'false', autocomplete: 'off' });
+      inp = h('input', { class: 'pal-input', placeholder: 'Search notes, boards, secrets, tags.  > commands', spellcheck: 'false', autocomplete: 'off' });
+      tagAssist(inp, () => Store.tagCounts());
       list = h('div', { class: 'pal-list' });
       foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>${kb('enter')}</kbd> open</span><span><kbd>&gt;</kbd> commands</span><span><kbd>@</kbd> notes</span><span><kbd>$</kbd> secrets</span><span><kbd>#</kbd> boards</span>` });
       el = h('div', { class: 'scrim pal-scrim' }, h('div', { class: 'pal', role: 'dialog', 'aria-label': 'Search' }, h('div', { class: 'pal-top', html: icon('search') }, inp), list, foot));

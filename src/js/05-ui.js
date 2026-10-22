@@ -187,3 +187,67 @@ export function editTags(host, tags, onDone) {
   inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp) finish(true); }, 120));
   return inp;
 }
+
+/* Tag completion for a search field: suggests tags for the word being typed, with how
+   many items carry each. Typing a key offers the key first (env → env:) and then its
+   values; after a comma it offers the key's other values (env:prod,st → staging).
+   Tab or Enter completes, arrows move, Esc closes. source() gives a Map tag -> count. */
+export function tagAssist(inp, source) {
+  let mine = false;
+  const word = () => {
+    const end = inp.selectionStart == null ? inp.value.length : inp.selectionStart;
+    const start = inp.value.lastIndexOf(' ', end - 1) + 1;
+    let w = inp.value.slice(start, end);
+    const neg = w[0] === '-' ? '-' : '';
+    if (neg) w = w.slice(1);
+    const ci = w.indexOf(':'), comma = w.lastIndexOf(',');
+    const key = ci > 0 && comma > ci ? w.slice(0, ci) : null; // a further value of this key, after a comma
+    const head = comma >= 0 ? w.slice(0, comma + 1) : '';
+    return { start, end, from: start + neg.length + head.length, part: w.slice(comma + 1), key, head };
+  };
+  function items() {
+    const w = word(), q = w.part.toLowerCase();
+    if (!q && !w.key) return [];
+    const counts = source(), out = [];
+    if (w.key) {
+      const have = new Set(w.head.toLowerCase().slice(w.key.length + 1).split(',').filter(Boolean));
+      for (const [t, n] of counts) {
+        const p = Tags.parse(t);
+        if (p.v != null && p.k.toLowerCase() === w.key.toLowerCase() && p.v.toLowerCase().startsWith(q) && !have.has(p.v.toLowerCase())) out.push({ label: t, labelHtml: Tags.chip(t), hint: String(n), text: p.v, n });
+      }
+    } else {
+      const keys = new Map();
+      for (const [t, n] of counts) {
+        const p = Tags.parse(t), tl = t.toLowerCase();
+        if (q.indexOf(':') < 0 && p.v != null && p.k.toLowerCase().startsWith(q)) keys.set(p.k, (keys.get(p.k) || 0) + n);
+        if (tl.startsWith(q) && tl !== q) out.push({ label: t, labelHtml: Tags.chip(t), hint: String(n), text: t, n });
+      }
+      for (const [k, n] of keys) out.push({ label: k + ':', labelHtml: `<span class="chip kv"><b>${esc(k)}</b><span>any</span></span>`, hint: String(n), text: k + ':', key: true, n: Infinity });
+    }
+    return out.sort((a, b) => b.n - a.n || a.label.localeCompare(b.label)).slice(0, 12);
+  }
+  function apply(it) {
+    const w = word(), after = inp.value.slice(w.end);
+    const add = it.text + (it.key || /^\s/.test(after) ? '' : ' ');
+    inp.value = inp.value.slice(0, w.from) + add + after;
+    const pos = w.from + add.length;
+    inp.setSelectionRange(pos, pos);
+    inp.focus();
+    inp.dispatchEvent(new Event('input', { bubbles: true })); // the page filters, and a key goes on to its values
+  }
+  function suggest() {
+    const list = items();
+    if (!list.length) { if (mine) Popup.close(); return; }
+    if (mine && Popup.isOpen()) { Popup.update(list); return; }
+    const r = inp.getBoundingClientRect();
+    Popup.open({ x: r.left, y: r.bottom, title: 'Tags  ·  Tab to complete', items: list, onPick: apply, onClose: () => { mine = false; } });
+    mine = true;
+  }
+  inp.addEventListener('input', suggest);
+  // capture, so it runs before the field's own keys (arrows, Enter, Esc)
+  inp.addEventListener('keydown', (e) => {
+    if (!mine || !Popup.isOpen() || !['ArrowDown', 'ArrowUp', 'Tab', 'Enter', 'Escape'].includes(e.key)) return;
+    if (Popup.key(e)) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+  inp.addEventListener('blur', () => setTimeout(() => { if (mine && document.activeElement !== inp) Popup.close(); }, 120));
+}

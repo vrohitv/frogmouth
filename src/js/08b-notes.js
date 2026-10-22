@@ -1,6 +1,6 @@
 import { $$, clamp, now, h, esc, relTime, ls, icon, Tags, bus } from './00-util.js';
 import { Store } from './03-store.js';
-import { Popup, editTags } from './05-ui.js';
+import { Popup, editTags, tagAssist } from './05-ui.js';
 import { Board } from './07-board.js';
 import { App } from './10-app.js';
 
@@ -13,7 +13,8 @@ export const NotesList = (() => {
 
   function init(el) {
     root = el;
-    filterInp = h('input', { class: 'field s-filter', placeholder: 'Filter by title, text, board or tag, e.g. deploy env:prod -draft', spellcheck: 'false', autocomplete: 'off' });
+    filterInp = h('input', { class: 'field s-filter', placeholder: 'Filter by text, board or tags: deploy env:prod,staging -draft', spellcheck: 'false', autocomplete: 'off' });
+    tagAssist(filterInp, () => Store.tagCounts('notes'));
     countEl = h('span', { class: 's-count muted' });
     tagsRow = h('div', { class: 's-tagrow' });
     head = h('div', { class: 'n-head' });
@@ -30,7 +31,7 @@ export const NotesList = (() => {
       else if (e.key === 'Enter') { e.preventDefault(); if (rows[cur]) open(rows[cur]); }
       else if (e.key === 'Escape') { e.preventDefault(); if (filterInp.value) setFilter(''); else list.focus(); }
     });
-    tagsRow.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) setFilter(Tags.toggle(filterInp.value, c.dataset.tag)); });
+    tagsRow.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) setFilter((e.shiftKey ? Tags.orToggle : Tags.toggle)(filterInp.value, c.dataset.tag)); });
     head.addEventListener('click', (e) => {
       const b = e.target.closest('[data-sort]'); if (!b) return;
       const by = b.dataset.sort;
@@ -68,7 +69,7 @@ export const NotesList = (() => {
     if (!root || !Store.S.data) return;
     back = Store.backlinks();
     const toks = Tags.tokens(filterInp.value);
-    const active = new Set(toks);
+    const active = Tags.wanted(toks);
     const all = [...Store.S.notes.values()].map(({ note, boards }) => {
       const out = Store.linksOut(note), inn = back.get(note.id) || [];
       return { note, boards, out, inn, links: out.length + inn.length };
@@ -77,9 +78,7 @@ export const NotesList = (() => {
     rows.sort((a, b) => sort.dir * SORTS[sort.by](a, b));
     cur = clamp(cur, 0, Math.max(0, rows.length - 1));
 
-    const freq = new Map();
-    for (const { note } of all) for (const t of note.tags || []) freq.set(t, (freq.get(t) || 0) + 1);
-    tagsRow.innerHTML = [...freq.keys()].sort().map((t) => Tags.chip(t, active.has(t.toLowerCase()))).join('');
+    tagsRow.innerHTML = Tags.pivot(all.map((r) => r.note.tags || []), rows.map((r) => r.note.tags || []), toks);
     countEl.textContent = toks.length ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'note' : 'notes'}`;
     head.innerHTML = COLS.map(([id, label]) =>
       `<button data-sort="${id}" class="${sort.by === id ? 'on' : ''}" aria-sort="${sort.by === id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${sort.by === id ? `<i>${sort.dir > 0 ? '↑' : '↓'}</i>` : ''}</button>`).join('');
