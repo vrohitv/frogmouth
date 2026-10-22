@@ -2,7 +2,7 @@
 
 ![The five expressions: rest, squint, eyes closed, wide, gape](frogmouth-expressions.svg)
 
-The symbol is a tawny frogmouth seen head on. Tawny frogmouths are often mistaken for owls, so the drawing leans on what is only theirs: a broad, flat head with no ear tufts, pale brow stripes, a gape almost as wide as the face, a horn-coloured hooked beak with a bristle tuft, and heavy lids over amber eyes.
+The symbol is a tawny frogmouth seen head on. Tawny frogmouths are often mistaken for owls, so the drawing leans on what is only theirs: a broad, flat head with no ear tufts, pale brow stripes, a gape almost as wide as the face, a horn-coloured hooked beak with a bristle tuft, and heavy lids over orange-red eyes, the colour many frogmouths' eyes glow.
 
 Character: calm and watchful, never cross. The **brows** carry the sharp lines; the **lids** are level and droop gently, so the bird looks sleepy-wise rather than angry. The wordmark is set in JetBrains Mono ExtraBold, the app's typeface, and its two o's are the same eyes.
 
@@ -41,7 +41,7 @@ A mascot is a set of faces, not one. The app shows them live; `frogmouth-express
 
 | | Hex | Where |
 |---|---|---|
-| Iris | `#F2B33D` | The bird's eyes (brand only; the app's UI accent is chosen separately, see below) |
+| Iris | `#E8662E` | The bird's eyes (brand only; the app's UI accent is chosen separately, see below) |
 | Plumage | `#5F6866` | The head |
 | Lid | `#454D4B` | Eyelids |
 | Brow | `#D3D9D6` | Brow stripes, bristles |
@@ -62,7 +62,7 @@ The interface is deliberately calm: neutral charcoal (`#1D1E21`) or light grey (
 | Green | `#7FAE86` | `#3F7D4E` |
 | Purple | `#A493E6` | `#6C58C9` |
 
-The bird keeps its amber eyes in every accent; they are the brand, not the UI.
+The bird keeps its orange-red eyes in every accent; they are the brand, not the UI.
 
 ## Do not
 

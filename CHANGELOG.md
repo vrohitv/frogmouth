@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The frogmouth's eyes are orange-red** (`#E8662E`), like the glowing eyes of many frogmouths, in place of amber: the live bird, the wordmark's eye-o's, every logo file and the favicon. The lids and brows are unchanged, so the bird stays calm.
 - **Resize notes from every edge and corner**, not only the right and bottom. Dragging the left or top edge moves the note so the opposite edge stays exactly in place (measured with the note's exact height, so even a note sized to its content keeps its bottom edge to the pixel); the dragged edge snaps to the grid.
 
 ## 1.0.0 (2026-10-22)

@@ -1,13 +1,13 @@
 <h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/brand/frogmouth-stacked-on-dark.svg">
-    <img src="docs/brand/frogmouth-stacked-on-light.svg" width="300" alt="frogmouth: a head-on tawny frogmouth above the wordmark, whose two o's are its amber eyes">
+    <img src="docs/brand/frogmouth-stacked-on-light.svg" width="300" alt="frogmouth: a head-on tawny frogmouth above the wordmark, whose two o's are its orange-red eyes">
   </picture>
 </h1>
 
 <p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
-The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its amber eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
+The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its orange-red eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
 
 ## Use it
 

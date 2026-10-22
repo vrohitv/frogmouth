@@ -1,7 +1,7 @@
 /* ── tokens ──────────────────────────────────────────────────────
    Calm by design: neutral surfaces (no tint), softened text contrast, quiet
    notes, and one muted accent the user picks (orange by default, or green or
-   purple). The bird keeps its amber eyes; that is the brand, not the UI. */
+   purple). The bird keeps its orange-red eyes; that is the brand, not the UI. */
 :root, [data-theme="night"] {
   --bg: #1d1e21;
   --panel: #242529;
@@ -124,9 +124,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 /* brand colours are fixed (src/brand/mark.json); only the wordmark letters follow the theme */
 .fm { display: block; overflow: visible; cursor: pointer; }
 .fm text { font-weight: 800; fill: var(--text); letter-spacing: -.02em; user-select: none; }
-.fm-iris { fill: #f2b33d; }
-.fm-iris-in { fill: #f7c860; opacity: .7; }
-.fm-ring { fill: none; stroke: #1e1606; stroke-width: 2; }
+.fm-iris { fill: #e8662e; }
+.fm-iris-in { fill: #f38a4c; opacity: .7; }
+.fm-ring { fill: none; stroke: #2a1006; stroke-width: 2; }
 .fm-pup { fill: #0f1211; }
 .fm-glint { fill: #ffffff; }
 .fm-pupil { transition: transform .14s ease-out; }

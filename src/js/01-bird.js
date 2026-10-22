@@ -3,7 +3,7 @@ import MARK from '../brand/mark.json';
 
 /* ── the frogmouth (the bird) ────────────────────────────────────────────────
    The symbol (a head-on tawny frogmouth) and the wordmark, whose two o's
-   are the same amber eyes.
+   are the same orange-red eyes.
    Eyes follow the pointer (or the text caret while typing), blink,
    squint when idle (frogmouths camouflage by narrowing their eyes) and
    shut tight while a secret is being typed. */
@@ -30,7 +30,7 @@ export const Bird = (() => {
     return ctx.measureText(text).width;
   }
 
-  /* One amber eye. heavy: the brand's calm lid, level and gently drooping
+  /* One orange-red eye. heavy: the brand's calm lid, level and gently drooping
      (never angled toward the beak, which reads as anger); otherwise a light lid.
      Lids move by translateY, so blinking and squinting work the same for both. */
   function eye(cx, cy, r, svg, heavy = true) {
