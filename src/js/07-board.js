@@ -72,6 +72,7 @@ export const Board = (() => {
     vp.style.backgroundPosition = `${view.x}px ${view.y}px`;
     vp.classList.toggle('far', view.z < 0.5);
     bus.emit('zoom', view.z);
+    if (picker) closePicker(); // it would float away from its note
     if (pct) pct.textContent = Math.round(view.z * 100) + '%';
     navSoon();
     if (!resized) saveView();
@@ -98,7 +99,7 @@ export const Board = (() => {
     refreshFeet();
   }
   function unmount() {
-    closeFind();
+    closeFind(); closePicker();
     const a = document.activeElement;
     if (a && a.closest && a.closest('.plane')) a.blur();
     sel = null; group.clear(); board = null;
@@ -111,7 +112,7 @@ export const Board = (() => {
     if (!n) return null;
     const body = Editor.mount(n, (out) => commit(n, out));
     const grip = h('div', { class: 'note-grip', title: 'Drag to move' },
-      h('div', { class: 'note-swatches' }, COLORS.map((c, i) => h('button', { class: 'sw paper-' + c, title: `${c} (${i + 1})`, 'data-color': c, tabindex: '-1' }))),
+      h('button', { class: 'note-color', title: 'Colour (1–9)', 'aria-label': 'Colour', tabindex: '-1' }),
       h('button', { class: 'note-x', title: xTitle(), html: icon('x'), tabindex: '-1' }));
     const foot = h('div', { class: 'note-foot' });
     // every edge and corner resizes; double-click a bottom one for automatic height
@@ -155,8 +156,8 @@ export const Board = (() => {
       editAt(n.id, e.clientX, e.clientY);
     });
     grip.addEventListener('pointerdown', (e) => {
-      const sw = e.target.closest('.sw');
-      if (sw) { e.preventDefault(); e.stopPropagation(); setColor(n, sw.dataset.color); return; }
+      const cb = e.target.closest('.note-color');
+      if (cb) { e.preventDefault(); e.stopPropagation(); if (!group.has(n.id)) select(n.id); pickColor(n, cb); return; }
       if (e.target.closest('.note-x')) {
         e.preventDefault(); e.stopPropagation();
         if (e.shiftKey) confirmDeleteEverywhere(n.id);
@@ -568,6 +569,48 @@ export const Board = (() => {
     ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
     ctx.strokeRect(fx + 0.75, fy + 0.75, fw - 1.5, fh - 1.5);
   }
+
+  /* ── colour picker: the note's colour button opens a small grid of the nine papers ──
+     Click a colour, press 1–9, or move with the arrows and press Enter; Esc or a
+     click outside closes it. With several notes selected it colours all of them. */
+  let picker = null;
+  const cap = (c) => c[0].toUpperCase() + c.slice(1);
+  function closePicker() { if (picker) { picker.remove(); picker = null; } }
+  function pickColor(n, anchor) {
+    const again = picker && picker.dataset.note === n.id;
+    closePicker();
+    if (again) return; // a second click on the same button closes it
+    const ids = group.has(n.id) && group.size > 1 ? picked() : [n.id];
+    const grid = h('div', { class: 'cp-grid', role: 'radiogroup', 'aria-label': 'Note colour' }, COLORS.map((c, i) => h('button', {
+      class: 'cp-sw paper-' + c + (c === n.color ? ' on' : ''), role: 'radio', 'aria-checked': String(c === n.color),
+      'aria-label': `${cap(c)}, key ${i + 1}`, title: `${cap(c)} (${i + 1})`, 'data-color': c, html: `<i>${i + 1}</i>`,
+    })));
+    picker = h('div', { class: 'cpick', role: 'dialog', 'aria-label': 'Note colour', 'data-note': n.id },
+      h('div', { class: 'cp-title' }, h('span', { text: ids.length > 1 ? `Colour of ${ids.length} notes` : 'Colour' }), h('kbd', { text: '1–9' })), grid);
+    document.body.append(picker);
+    const r = anchor.getBoundingClientRect(), pr = picker.getBoundingClientRect();
+    picker.style.left = clamp(r.left - 8, 8, innerWidth - pr.width - 8) + 'px';
+    picker.style.top = (r.bottom + 6 + pr.height > innerHeight - 8 ? Math.max(8, r.top - pr.height - 6) : r.bottom + 6) + 'px';
+    const apply = (c) => { for (const id of ids) { const x = noteOf(id); if (x) setColor(x, c); } closePicker(); };
+    picker.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      const b = e.target.closest('.cp-sw');
+      if (b) { e.preventDefault(); apply(b.dataset.color); }
+    });
+    picker.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // the board does not see keys meant for the picker
+      const btns = [...grid.children], i = btns.indexOf(document.activeElement);
+      if (/^[1-9]$/.test(e.key)) { e.preventDefault(); apply(COLORS[+e.key - 1]); }
+      else if (e.key === 'Escape') { e.preventDefault(); closePicker(); }
+      else if (e.key === 'Enter' || e.key === ' ') { if (i >= 0) { e.preventDefault(); apply(btns[i].dataset.color); } }
+      else {
+        const d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 3, ArrowUp: -3 }[e.key];
+        if (d) { e.preventDefault(); btns[(Math.max(0, i) + d + btns.length) % btns.length].focus(); }
+      }
+    });
+    (grid.querySelector('.on') || grid.firstChild).focus({ preventScroll: true });
+  }
+  addEventListener('pointerdown', (e) => { if (picker && !picker.contains(e.target) && !(e.target.closest && e.target.closest('.note-color'))) closePicker(); }, true);
 
   /* ── find on this board (mod+F) ──────────────────────────────────
      Every match in every note on the board, in reading order. Notes without

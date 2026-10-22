@@ -201,7 +201,8 @@ export const Bird = (() => {
     }
   }
 
-  addEventListener('pointermove', (e) => { px = e.clientX; py = e.clientY; focusPt = null; activity(); schedule(); }, { passive: true });
+  // only a real move counts: browsers also send pointer moves after layout changes, with the pointer standing still
+  addEventListener('pointermove', (e) => { if (e.clientX === px && e.clientY === py) return; px = e.clientX; py = e.clientY; focusPt = null; activity(); schedule(); }, { passive: true });
   addEventListener('keydown', () => activity(), true);
   document.addEventListener('pointerleave', () => { px = innerWidth / 2; py = innerHeight / 2; schedule(); });
 

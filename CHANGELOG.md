@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 (2026-10-22)
+
+- **Colour picker**: each note has one small colour button instead of a row of nine swatches. It opens a compact 3 × 3 picker of the papers in the current theme, with the current one marked: click, press `1`–`9`, or use the arrows and `↵`; `Esc` or a click outside closes it. With several notes selected it colours all of them. The `1`–`9` keys on the board work as before.
+- The bird no longer wakes up from pointer events the browser sends when the page changes under a still mouse; only real movement or a key wakes it.
+
 ## 1.2.0 (2026-10-22)
 
 - **The note view**: clicking a note link opens the note full size over your board instead of taking you away. Read it, click to edit, follow its links in the same view (`‹` back); `↵` opens it on its board, `A` adds it here (or shows it if it is already here), `Esc` closes. Also used for "N notes link here" and for notes on no board.

@@ -119,6 +119,13 @@ import { App } from '../src/js/10-app.js';
       }
     }
     if (mode === 'shot-recent') Palette.show('');
+    if (mode === 'shot-picker' || mode === 'shot-picker-day') {
+      if (mode === 'shot-picker-day') document.documentElement.dataset.theme = 'day';
+      await wait(300);
+      const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Today').note;
+      Board.select(t.id);
+      document.querySelector(`.note[data-id="${t.id}"] .note-color`).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+    }
     if (mode === 'shot-peek') {
       const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Retry with backoff').note;
       Peek.open(t.id);
@@ -489,6 +496,41 @@ import { App } from '../src/js/10-app.js';
       Board.removeEverywhere(hub.id, true);
       for (const n of [...proj.items]) Board.removeEverywhere(n.note, true);
       d.boards.splice(d.boards.indexOf(proj), 1); Store.index(); Store.change('boards');
+    }
+
+    // colour picker: one button on the note opens a small 3 × 3 grid of the nine papers
+    {
+      const c1 = Board.addNote({ x: 40, y: 3800 }, false, '<p>Colour me</p>', { color: 'moth' });
+      const c2 = Board.addNote({ x: 340, y: 3800 }, false, '<p>Me too</p>', { color: 'moth' });
+      await wait(30);
+      const el = (n) => $(`.note[data-id="${n.id}"]`);
+      const press = (n) => el(n).querySelector('.note-color').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+      ok('a note has one colour button, not a row of swatches', !!el(c1).querySelector('.note-color') && !el(c1).querySelector('.sw'));
+      press(c1);
+      const pk = () => $('.cpick');
+      ok('the button opens a small picker with the nine colours, the current one marked', !!pk() && pk().querySelectorAll('.cp-sw').length === 9 && pk().querySelector('.cp-sw.on').dataset.color === 'moth' && document.activeElement === pk().querySelector('.cp-sw.on'));
+      pk().querySelector('.cp-sw[data-color="sea"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      ok('clicking a colour sets it and closes the picker', c1.color === 'sea' && el(c1).classList.contains('paper-sea') && !pk());
+      press(c1);
+      keydown(document.activeElement, '5');
+      ok('a number key picks in the picker', c1.color === 'heather' && !pk());
+      press(c1);
+      keydown(document.activeElement, 'ArrowRight'); keydown(document.activeElement, 'ArrowDown'); keydown(document.activeElement, 'Enter');
+      ok('arrows move from the current colour and Enter picks', c1.color === 'night' && !pk(), c1.color); // heather → right: dusk → down: night
+      press(c1); keydown(document.activeElement, 'Escape');
+      ok('Esc closes without changing', !pk() && c1.color === 'night');
+      press(c1); press(c1);
+      ok('a second click on the button closes it', !pk());
+      press(c1); $('.board-vp').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+      ok('a click outside closes it', !pk());
+      Board.select(c1.id);
+      el(c2).querySelector('.note-body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, shiftKey: true }));
+      press(c2);
+      ok('with several notes selected the picker says so', /Colour of 2 notes/.test(pk().textContent));
+      keydown(document.activeElement, '3');
+      ok('...and colours all of them', c1.color === 'apricot' && c2.color === 'apricot');
+      for (const n of [c1, c2]) Board.removeEverywhere(n.id, true);
+      Board.select(null);
     }
 
     // zoom percent and minimap
