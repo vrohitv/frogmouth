@@ -21,7 +21,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Boards of sticky notes**
 - The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, encryption and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
-- Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board. `⌥1`–`⌥9` and `⌘K` then `#` work too.
+- Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board.
+- With many boards, only your six most recently used get pills. The board-count button (or `⌥J`) opens a searchable list of every board; typing a name that doesn't exist creates it. `⌥1`–`⌥9` jump to the pills, and `⌘K` then `#` searches boards too.
 - **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
 - **Deleting a board never deletes notes.** They stay in All notes (marked *on no board* if that was their only board) and on any other boards.
 - On a board, `Del` or × **removes the note from that board** only, after a confirming second press or click (the × turns into **Remove?**). `⇧Del` (or ⇧-click ×) deletes the note everywhere after a confirmation dialog. Both can be undone.
@@ -89,7 +90,8 @@ Press `?` in the app for the full list.
 | `⌘⇧P` | Commands |
 | `⌘S` | Save now |
 | `⌥B` `⌥L` `⌥S` | Board, all notes, secrets |
-| `⌥1`–`⌥9`, `⌥[` `⌥]` | Switch boards |
+| `⌥J` | Find or create a board |
+| `⌥1`–`⌥9`, `⌥[` `⌥]` | Board pills, previous / next board |
 | `⌘Z` | Undo a delete |
 
 | Board | |

@@ -1,4 +1,4 @@
-import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon } from './00-util.js';
+import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon, fuzzy, markPositions } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { Popup, Modal } from './05-ui.js';
@@ -150,6 +150,7 @@ export const App = (() => {
       const b = Store.board(t.slice(2));
       if (!b) return;
       ui.board = b.id;
+      ui.recent = [b.id, ...(ui.recent || []).filter((id) => id !== b.id && Store.board(id))].slice(0, 40);
     }
     ui.active = t;
     Popup.close();
@@ -184,10 +185,22 @@ export const App = (() => {
   }
 
   /* board pills: click to open, double-click to rename, drag to reorder, × to delete, + to add */
+  /* with many boards only the recently used ones get a pill (kept in board order);
+     the rest are one search away in the board picker (⌥J) */
+  const MAX_PILLS = 6;
+  function pillBoards() {
+    const d = Store.S.data;
+    if (d.boards.length <= MAX_PILLS) return d.boards;
+    const keep = new Set([d.ui.board, ...(d.ui.recent || [])].filter((id) => Store.board(id)).slice(0, MAX_PILLS));
+    for (const b of d.boards) { if (keep.size >= MAX_PILLS) break; keep.add(b.id); } // fill free slots in board order
+    return d.boards.filter((b) => keep.has(b.id));
+  }
   function renderBoards() {
     const d = Store.S.data;
     const many = d.boards.length > 1;
-    boardsEl.replaceChildren(...d.boards.map((b, i) => {
+    const shown = pillBoards();
+    const hidden = d.boards.length - shown.length;
+    const pills = shown.map((b, i) => {
       const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
         title: `${b.name}${i < 9 ? `  (${ALT}${i + 1})` : ''}. Double-click to rename, drag to reorder.` },
@@ -221,9 +234,41 @@ export const App = (() => {
         Store.change('boards');
       });
       return pill;
-    }), h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard }));
+    });
+    // only the pills scroll; the all-boards and + buttons always stay in reach
+    const scroller = h('div', { class: 'bp-scroll' }, pills);
+    scroller.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { scroller.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+    boardsEl.replaceChildren(scroller,
+    hidden > 0 ? h('button', { class: 'bp-more', title: `All ${d.boards.length} boards (${ALT}J)`, html: `${icon('grid')}<span>${d.boards.length}</span>`, onclick: boardPicker }) : null,
+    h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard }));
     const on = boardsEl.querySelector('.board-pill.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  /* every board, searchable; type a new name to create one */
+  function boardPicker() {
+    const d = Store.S.data;
+    const anchor = boardsEl.getBoundingClientRect();
+    const rank = new Map((d.ui.recent || []).map((id, i) => [id, i]));
+    const item = (b, m) => ({ id: b.id, label: b.name, labelHtml: m ? markPositions(b.name, m.p) : null, icon: b.id === d.ui.board && isBoardView() ? 'tick' : 'board', hint: `${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'}` });
+    const list = (q) => {
+      q = (q || '').trim();
+      const lq = q.toLowerCase();
+      const out = d.boards.map((b) => { const m = fuzzy(lq, b.name.toLowerCase()); return m && { b, m }; }).filter(Boolean)
+        .sort((x, y) => (lq ? y.m.s - x.m.s : (rank.has(x.b.id) ? rank.get(x.b.id) : 1e6 + d.boards.indexOf(x.b)) - (rank.has(y.b.id) ? rank.get(y.b.id) : 1e6 + d.boards.indexOf(y.b))))
+        .slice(0, 200).map(({ b, m }) => item(b, lq && m));
+      if (q && !d.boards.some((b) => b.name.toLowerCase() === lq)) out.push({ id: 'new', name: q, label: `Create board “${q}”`, icon: 'plus' });
+      return out;
+    };
+    Popup.open({
+      x: anchor.left, y: anchor.bottom + 6, title: `${d.boards.length} ${d.boards.length === 1 ? 'board' : 'boards'}`, input: true, placeholder: 'Find or create a board',
+      items: list(''), onQuery: (q) => Popup.update(list(q)),
+      onPick: (it) => {
+        if (it.id !== 'new') { activate('b:' + it.id); return; }
+        const b = { id: uid(), name: it.name, created: now(), items: [] };
+        d.boards.push(b); Store.change('boards'); activate('b:' + b.id);
+      },
+    });
   }
 
   function appMenu() {
@@ -446,6 +491,7 @@ export const App = (() => {
       { title: 'Open secrets', key: ALT + 'S', run: () => showView('secrets') },
       { title: 'Add an existing note to this board', key: 'A', when: isBoardView, run: () => Board.addExisting() },
       { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
+      { title: 'Go to board…', key: ALT + 'J', run: boardPicker },
       { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
       { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
@@ -465,7 +511,7 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
+      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}J`, 'Find or create a board'], [`${ALT}1–9`, 'Board pills 1 to 9'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
       ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del, then Del or ↵', 'Remove from this board'], ['⇧Del', 'Delete the note everywhere (asks first)'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], ['↵', 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s  ⇧S', 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
@@ -495,7 +541,8 @@ export const App = (() => {
     if (mod && lower === 's') { e.preventDefault(); if (Store.S.vault.kind === 'memory') downloadVault(); else { Store.saveNow.flush(); } return; }
     if (mod && e.shiftKey && lower === 'l') { e.preventDefault(); lock(); return; }
     if (Modal.isOpen() || Palette.isOpen()) return;
-    if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = Store.S.data.boards[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
+    if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = pillBoards()[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
+    if (e.altKey && !mod && e.code === 'KeyJ') { e.preventDefault(); boardPicker(); return; }
     if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleBoard(-1); return; }
     if (e.altKey && !mod && e.code === 'BracketRight') { e.preventDefault(); cycleBoard(1); return; }
     if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); showView('secrets'); return; }
@@ -521,7 +568,6 @@ export const App = (() => {
     notesEl = h('div', { class: 'notes-page page', hidden: true });
     menuBtn = h('button', { class: 'hud-menu', title: 'Theme, encryption, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
     boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
-    boardsEl.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { boardsEl.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
       h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
       h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${ALT}L)`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),

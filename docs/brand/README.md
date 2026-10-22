@@ -13,7 +13,7 @@ Use the largest level that fits. Smaller levels are redrawn for their size, not 
 | Level | File | Use | Minimum |
 |---|---|---|---|
 | Full | `frogmouth-stacked-on-dark.svg`, `-on-light.svg` | Symbol above wordmark. Splash screens, README, square or centred layouts. | 96 px tall |
-| Primary | `frogmouth-lockup-on-dark.svg`, `-on-light.svg` | Symbol beside wordmark, the wordmark's eyes level with the symbol's. The default logo. | 160 px wide |
+| Primary | `frogmouth-lockup-on-dark.svg`, `-on-light.svg` | Symbol beside wordmark, the wordmark centred on the head. The default logo. | 160 px wide |
 | Compact | `frogmouth-wordmark-on-dark.svg`, `-on-light.svg` | Wordmark alone, where the symbol already appears nearby. | 96 px wide |
 | Icon | `frogmouth-mark.svg` | The symbol alone: avatars, app UI, social. Works on dark and light. | 33 px |
 | Small icon | `frogmouth-mark-small.svg` | Redrawn for 16 to 32 px (no throat shading, ridge or bristles; bigger eyes, heavier mouth line). The favicon. | 16 px |

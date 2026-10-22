@@ -88,7 +88,8 @@ export const Popup = (() => {
     return false;
   }
 
-  addEventListener('mousedown', (e) => { if (el && !el.contains(e.target)) close(); }, true);
+  // pointerdown, not mousedown: the board cancels pointerdown (to drag notes), which suppresses mousedown
+  addEventListener('pointerdown', (e) => { if (el && !el.contains(e.target)) close(); }, true);
   addEventListener('resize', () => close());
   return { open, update, close, key, isOpen: () => !!el };
 })();

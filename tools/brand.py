@@ -25,6 +25,7 @@ BG_DARK, BG_LIGHT = "#121A1D", "#EDF2F0"
 ADVANCE, TRACK, XH = 600, -20, 550          # font units (1000 per em)
 EYE_R = 290                                 # an o-sized eye, in font units
 REST, SQUINT, CLOSED, WIDE = 0.2, 0.45, 1.06, 0.0   # lid amounts, same scale as the app
+OPTICAL_Y = 62                              # the symbol's visual centre on its 128 grid
 
 # ── font outlines ───────────────────────────────────────────────────
 font = instancer.instantiateVariableFont(TTFont(ROOT / "src" / "fonts" / "jetbrains-mono-latin-wght-normal.woff2"), {"wght": 800})
@@ -159,10 +160,10 @@ def main():
         size = 120
         g, w = wordmark(16, 16 + (EYE_R + XH / 2) / 1000 * size, size, ink)
         files[f"frogmouth-wordmark-{name}.svg"] = svg(w + 32, 16 + (EYE_R + XH / 2) / 1000 * size + 0.24 * size + 8, g)
-        # primary: horizontal lockup, the wordmark's eyes level with the symbol's
+        # primary: horizontal lockup, the wordmark's x-height centred on the head's visual centre
+        # (the eyes sit high in a frogmouth's head, so lining the eye-o's up with them looks too high)
         size, gap = 96, 30
-        eye_y = MARK["eyes"][0]["cy"]
-        g, w = wordmark(128 + gap, eye_y + XH / 2000 * size, size, ink)
+        g, w = wordmark(128 + gap, OPTICAL_Y + XH / 2000 * size, size, ink)
         files[f"frogmouth-lockup-{name}.svg"] = svg(128 + gap + w + 8, 128, mark() + g, blink=True)
         # full: stacked lockup
         size = 84

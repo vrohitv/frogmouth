@@ -54,6 +54,17 @@ import { App } from '../src/js/10-app.js';
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
     if (mode === 'shot-secret-edit') { App.openTab('secrets'); await wait(50); Secrets.edit(Store.S.data.secrets[1]); }
     if (mode === 'shot-arm') { await wait(300); const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Today').note; Board.select(t.id); keydown(document.body, 'Delete'); }
+    if (mode === 'shot-measure') {
+      await wait(800);
+      const box = (q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.top, r.height].map((v) => +v.toFixed(1)); };
+      const eyes = (q) => [...document.querySelectorAll(q + ' .fm-ring')].map((e) => { const r = e.getBoundingClientRect(); return +(r.top + r.height / 2).toFixed(1); });
+      const pre = document.createElement('pre'); pre.id = 'results';
+      const t = document.querySelector('.sync-where'), ic = document.querySelector('.sync-ic svg');
+      const tr = t.getBoundingClientRect(), ir = ic.getBoundingClientRect();
+      pre.textContent = JSON.stringify({ pill: box('.hud-brand'), markEyes: eyes('.hud-bird'), wordEyes: eyes('.hud-logo'), syncTextMid: +(tr.top + tr.height / 2).toFixed(1), syncIconMid: +(ir.top + ir.height / 2).toFixed(1) });
+      document.body.append(pre);
+    }
+    if (mode === 'shot-many') { for (let i = 1; i <= 30; i++) Store.S.data.boards.push({ id: uid(), name: ['Infra', 'Reading list', 'Sprint ' + i, 'Client ' + i, 'Ideas'][i % 5] + (i % 5 > 1 ? '' : ' ' + i), created: now(), items: [] }); Store.change('boards'); await wait(100); document.querySelector('.bp-more').click(); }
     if (mode === 'shot-welcome') { App.showWelcome(); await wait(1200); }
     if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
@@ -389,6 +400,41 @@ import { App } from '../src/js/10-app.js';
         ok('export keeps values and tags', db && db.value === 'postgres://app:pw@db:5432/app' && db.tags.includes('env:staging'), JSON.stringify(db));
       }
     }
+
+    // menus close on a click on the board (the board cancels pointerdown, which used to swallow it)
+    App.openTab('b:' + Store.S.data.boards[0].id);
+    await wait(250);
+    const footWithLinks = $$('.note-foot').find((f) => f.querySelector('.backlinks'));
+    footWithLinks.querySelector('.backlinks').click();
+    ok('linked-from menu opens', Popup.isOpen());
+    $('.board-vp').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: 5, clientY: 400 }));
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    ok('clicking the board closes it', !Popup.isOpen());
+
+    // many boards: only recent ones get pills; the rest are one search away
+    {
+      const d = Store.S.data, before = d.boards.length;
+      for (let i = 1; i <= 30; i++) d.boards.push({ id: uid(), name: `Project ${i}`, created: now(), items: [] });
+      Store.change('boards');
+      ok('at most 6 board pills', $$('.board-pill').length <= 6 && !!$('.bp-more'), $$('.board-pill').length);
+      ok('the all-boards button shows the count', $('.bp-more').textContent.includes(String(before + 30)));
+      keydown(document.body, 'j', { altKey: true, code: 'KeyJ' });
+      ok('alt+J opens the board picker', Popup.isOpen() && !!$('.pop-input'));
+      const pin = $('.pop-input');
+      pin.value = 'proj 17'; pin.dispatchEvent(new Event('input'));
+      ok('board picker filters by name', $$('.pop-item')[0] && $$('.pop-item')[0].textContent.includes('Project 17'));
+      keydown(pin, 'Enter');
+      const p17 = d.boards.find((b) => b.name === 'Project 17');
+      ok('picking opens the board and gives it a pill', d.ui.active === 'b:' + p17.id && $$('.board-pill .bp-name').some((e) => e.textContent === 'Project 17'));
+      keydown(document.body, 'j', { altKey: true, code: 'KeyJ' });
+      const pin2 = $('.pop-input');
+      pin2.value = 'Brand new space'; pin2.dispatchEvent(new Event('input'));
+      keydown(pin2, 'ArrowUp');
+      keydown(pin2, 'Enter');
+      ok('typing a new name creates the board', d.boards.some((b) => b.name === 'Brand new space') && d.ui.active === 'b:' + d.boards.find((b) => b.name === 'Brand new space').id);
+      d.boards.splice(before); Store.index(); App.openTab('b:' + d.boards[0].id);
+    }
+    App.openTab('secrets');
 
     // serialization round trip
     const text = await Store.serialize();
