@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Minimap and zoom control** at the bottom right of the board: the zoom percentage with `−` / `+` / Fit (click the percentage for 100%), and a minimap of every note in its colour with the visible area framed; click or drag in it to move. `M` toggles the minimap. The view is now always derived from the saved camera, so the same camera at the same window size gives bit-for-bit the same view.
 - **Nine note colours that switch with the theme**, like Keep or Samsung Notes: each is a light/dark pair designed in OKLCH, so every colour has the same perceived lightness (soft pastels by day, calm charcoal tints at night) and keeps its hue in both themes, with text at 9.7:1 contrast or better. New: apricot, heather (lilac) and sea (teal); keys `1`–`9`. A colour name from a newer release shows as moth.
 - **The bird falls asleep**: after two minutes idle its eyes close into calm curves, it breathes slowly and small z's drift up beside its head (still z's with reduced motion). Any mouse move or key wakes it with a double blink. Before that it squints (30 s) and gets sleepy (75 s).
 - **Soothing colours**: the frogmouth's eyes are sage green (`#8DB49A`) instead of amber, in the live bird, the wordmark's eye-o's, every logo file and the favicon; and the default accent is the calm green instead of orange. An accent picked in the logo menu is still remembered.

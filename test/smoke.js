@@ -117,6 +117,7 @@ import { App } from '../src/js/10-app.js';
       if (mode === 'shot-papers-day') document.documentElement.dataset.theme = 'day';
       Board.COLORS.forEach((c, i) => Board.addNote({ x: 80 + (i % 5) * 230, y: 520 + Math.floor(i / 5) * 150 }, false, `<p>${c[0].toUpperCase() + c.slice(1)}</p><p>Key ${i + 1}. Calm in both themes, with <code>code</code> and a #tag.</p>`, { color: c, w: 210 }));
       Board.fit();
+      if (mode === 'shot-papers') { await wait(500); Board.zoomAt(1.1, 300, 600); }
     }
     document.body.dataset.ready = '1';
     return;
@@ -350,6 +351,36 @@ import { App } from '../src/js/10-app.js';
     ok('undo puts it back on the board', Board.current().items.length === count && !!$(`.note[data-id="${n.id}"]`));
     Board.arrange();
     ok('arrange keeps notes', Board.current().items.length === count);
+
+    // zoom percent and minimap
+    {
+      const frameP = () => new Promise((r) => requestAnimationFrame(() => r()));
+      Board.zoomAt(1); await frameP(); await frameP();
+      ok('the zoom control shows the zoom', $('.nav-pct').textContent === '100%');
+      Board.zoomAt(0.5); await frameP(); await frameP();
+      ok('the zoom percent follows the zoom', $('.nav-pct').textContent === '50%', $('.nav-pct').textContent);
+      $('.nav-pct').click(); await frameP(); await frameP();
+      ok('clicking the percent goes back to 100%', Board.zoom() === 1 && $('.nav-pct').textContent === '100%');
+      [...$$('.nav-btn')].find((b) => b.textContent === '+').click();
+      ok('+ zooms in', Board.zoom() > 1);
+      Board.zoomAt(1); await frameP(); await frameP();
+      const mm = $('.minimap');
+      ok('the minimap shows when the board has notes', !mm.hidden && mm.width > 0);
+      // clicking a note's spot in the minimap brings that note to the middle of the screen
+      const target = Board.current().items[0], tH = $(`.note[data-id="${target.note}"]`).offsetHeight;
+      const cx = target.x + target.w / 2, cy = target.y + tH / 2, pt = Board.mapPoint(cx, cy);
+      const selBefore = Board.selection().length;
+      mm.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: pt.x, clientY: pt.y, pointerId: 7 }));
+      mm.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, button: 0, clientX: pt.x, clientY: pt.y, pointerId: 7 }));
+      const v = Board.view(), vpEl = $('.board-vp');
+      const mid = [(vpEl.clientWidth / 2 - v.x) / v.z, (vpEl.clientHeight / 2 - v.y) / v.z];
+      ok('clicking in the minimap moves the view there', Math.abs(mid[0] - cx) < 0.01 && Math.abs(mid[1] - cy) < 0.01, JSON.stringify([mid, [cx, cy]]));
+      ok('a minimap click does not deselect or touch notes', Board.selection().length === selBefore && !$('.marquee'));
+      keydown(document.body, 'm'); await frameP(); await frameP();
+      ok('M hides the minimap and remembers it', mm.hidden && localStorage.getItem(Object.keys(localStorage).find((k) => /minimap/.test(k))) === 'false');
+      keydown(document.body, 'm'); await frameP(); await frameP();
+      ok('M shows it again', !mm.hidden);
+    }
 
     // a display change (external monitor unplugged, then plugged back in) never moves notes,
     // keeps the same board point centred, and returning gives back exactly the same view

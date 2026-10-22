@@ -53,7 +53,8 @@ export const Board = (() => {
       view = { x: vw / 2 - cam.cx * cam.z, y: vh / 2 - cam.cy * cam.z, z: cam.z };
       if (board) applyView(true);
     }).observe(vp);
-    bus.on('change', (what) => { if (what === 'note' || what === 'notes') { refreshFeet(); if (finder) refind(); } });
+    bus.on('change', (what) => { if (what === 'note' || what === 'notes') { refreshFeet(); if (finder) refind(); } navSoon(); });
+    buildNav();
     bus.on('closed', () => { disarm(); closeFind(); unmount(); plane.replaceChildren(); els.clear(); backMap = new Map(); });
   }
 
@@ -61,13 +62,18 @@ export const Board = (() => {
 
   /* resized: the viewport changed size, not the camera */
   function applyView(resized) {
+    // the camera is the truth; the screen transform is always derived from it, so the
+    // same camera at the same viewport size gives bit-for-bit the same view
     if (!resized) cam = { cx: (vw / 2 - view.x) / view.z, cy: (vh / 2 - view.y) / view.z, z: view.z };
+    view = { x: vw / 2 - cam.cx * cam.z, y: vh / 2 - cam.cy * cam.z, z: cam.z };
     plane.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.z})`;
     const g = 24 * view.z;
     vp.style.backgroundSize = `${g}px ${g}px`;
     vp.style.backgroundPosition = `${view.x}px ${view.y}px`;
     vp.classList.toggle('far', view.z < 0.5);
     bus.emit('zoom', view.z);
+    if (pct) pct.textContent = Math.round(view.z * 100) + '%';
+    navSoon();
     if (!resized) saveView();
   }
 
@@ -189,6 +195,7 @@ export const Board = (() => {
     el.style.width = it.w + 'px';
     el.style.height = it.h ? it.h + 'px' : '';
     el.style.zIndex = it.z || 1;
+    navSoon();
   }
 
   function commit(n, out) {
@@ -345,6 +352,7 @@ export const Board = (() => {
     group.clear();
     for (const id of next) group.add(id);
     if (!group.has(sel)) sel = ids.length ? ids[ids.length - 1] : null;
+    navSoon();
   }
   function select(id) {
     if (sel === id && group.size === (id ? 1 : 0)) return;
@@ -413,6 +421,7 @@ export const Board = (() => {
     if (k === '-' || k === '_') { zoomAt(view.z / 1.2); return true; }
     if (k === '0' && !modKey(e)) { zoomAt(1); return true; }
     if (k === '!' || (k === '1' && e.shiftKey)) { fit(); return true; }
+    if ((k === 'm' || k === 'M') && !modKey(e)) { toggleMap(); return true; }
     if (k === 'Tab') { cycle(e.shiftKey ? -1 : 1); return true; }
     if (k === 'a' || k === 'A') { addExisting(); return true; }
     if (!n) {
@@ -444,6 +453,107 @@ export const Board = (() => {
     const i = order.findIndex((m) => m.note === sel);
     const next = order[(i + dir + order.length) % order.length];
     center(next.note, false);
+  }
+
+  /* ── zoom control and minimap (bottom right) ─────────────────────
+     The minimap draws every note in its paper colour and the visible area as a
+     frame; click or drag in it to move there. M shows or hides it. It is drawn on
+     a canvas once per frame at most, so it stays cheap with thousands of notes. */
+  let nav, pct, map, mapOn = ls.get('minimap', true), mapT = null, mapDrag = false, navRaf = 0, paperCache = null;
+  function buildNav() {
+    // the buttons never take focus, so Enter, Space and the board's keys keep working on the board
+    const btn = (html, title, fn, cls = '') => {
+      const b = h('button', { class: 'nav-btn ' + cls, title, 'aria-label': title, html, tabindex: '-1' });
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', fn);
+      return b;
+    };
+    pct = btn('100%', 'Zoom to 100% (0)', () => zoomAt(1), 'nav-pct');
+    map = h('canvas', { class: 'minimap', role: 'img', 'aria-label': 'Minimap: click or drag to move around the board' });
+    nav = h('div', { class: 'board-nav' }, map, h('div', { class: 'hud-pill nav-zoom' },
+      btn('−', 'Zoom out (−)', () => zoomAt(view.z / 1.2)), pct, btn('+', 'Zoom in (=)', () => zoomAt(view.z * 1.2)),
+      btn(icon('fit'), `Fit everything (${kb('shift+1')})`, fit), btn(icon('map'), 'Minimap (M)', toggleMap, 'nav-map')));
+    // the control is its own island: no panning, deselecting or new notes from clicks on it
+    for (const t of ['pointerdown', 'dblclick', 'wheel']) nav.addEventListener(t, (e) => e.stopPropagation());
+    map.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      mapDrag = true; // the map's scale stays fixed while dragging, so it does not slide under the pointer
+      if (map.setPointerCapture) try { map.setPointerCapture(e.pointerId); } catch {}
+      mapGo(e);
+    });
+    map.addEventListener('pointermove', (e) => { if (mapDrag) mapGo(e); });
+    const end = () => { if (mapDrag) { mapDrag = false; navSoon(); } };
+    map.addEventListener('pointerup', end); map.addEventListener('pointercancel', end);
+    vp.append(nav);
+    new MutationObserver(() => { paperCache = null; navSoon(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
+  }
+  function toggleMap() {
+    mapOn = !mapOn; ls.set('minimap', mapOn);
+    map.hidden = !(mapOn && board && board.items.length);
+    navSoon();
+  }
+  const navSoon = () => { if (nav && !navRaf) navRaf = requestAnimationFrame(drawNav); };
+  const heightOf = (m) => m.h || (els.get(m.note) && els.get(m.note).offsetHeight) || 160;
+  function paperOf(c) {
+    if (!paperCache) paperCache = new Map();
+    let v = paperCache.get(c);
+    if (!v) {
+      const probe = h('div', { class: 'note paper-' + c, style: { display: 'none' } });
+      vp.append(probe);
+      v = getComputedStyle(probe).getPropertyValue('--paper').trim() || '#888';
+      probe.remove();
+      paperCache.set(c, v);
+    }
+    return v;
+  }
+  /* centre the view on the board point under the pointer in the minimap */
+  function mapGo(e) {
+    if (!mapT) return;
+    const r = map.getBoundingClientRect();
+    const bx = (e.clientX - r.left - mapT.ox) / mapT.s, by = (e.clientY - r.top - mapT.oy) / mapT.s;
+    view.x = vw / 2 - bx * view.z; view.y = vh / 2 - by * view.z;
+    applyView();
+  }
+  function drawNav() {
+    navRaf = 0;
+    if (!nav || !board) return;
+    pct.textContent = Math.round(view.z * 100) + '%';
+    nav.classList.toggle('map-off', !mapOn);
+    const show = mapOn && board.items.length > 0;
+    map.hidden = !show;
+    if (!show) { mapT = null; return; }
+    const W = map.clientWidth, H = map.clientHeight, dpr = devicePixelRatio || 1;
+    if (!W || !H) return;
+    if (map.width !== Math.round(W * dpr) || map.height !== Math.round(H * dpr)) { map.width = Math.round(W * dpr); map.height = Math.round(H * dpr); }
+    const ctx = map.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    // the visible area, in board units
+    const v = { x: -view.x / view.z, y: -view.y / view.z, w: vw / view.z, h: vh / view.z };
+    if (!mapDrag || !mapT) {
+      let x1 = v.x, y1 = v.y, x2 = v.x + v.w, y2 = v.y + v.h;
+      for (const m of board.items) { x1 = Math.min(x1, m.x); y1 = Math.min(y1, m.y); x2 = Math.max(x2, m.x + m.w); y2 = Math.max(y2, m.y + heightOf(m)); }
+      const pad = Math.max(x2 - x1, y2 - y1) * 0.05, bw = x2 - x1 + pad * 2, bh = y2 - y1 + pad * 2;
+      const s = Math.min(W / bw, H / bh);
+      mapT = { s, ox: (W - bw * s) / 2 - (x1 - pad) * s, oy: (H - bh * s) / 2 - (y1 - pad) * s };
+    }
+    const { s, ox, oy } = mapT;
+    const root = getComputedStyle(document.documentElement);
+    const accent = root.getPropertyValue('--accent').trim(), line = root.getPropertyValue('--line').trim();
+    ctx.lineWidth = 1;
+    for (const m of board.items) {
+      const n = noteOf(m.note);
+      const x = ox + m.x * s, y = oy + m.y * s, w = Math.max(2, m.w * s), hh = Math.max(2, heightOf(m) * s);
+      ctx.fillStyle = paperOf(n ? n.color : 'moth');
+      ctx.fillRect(x, y, w, hh);
+      ctx.strokeStyle = group.has(m.note) ? accent : line;
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, hh - 1);
+    }
+    const fx = ox + v.x * s, fy = oy + v.y * s, fw = v.w * s, fh = v.h * s;
+    ctx.globalAlpha = 0.12; ctx.fillStyle = accent; ctx.fillRect(fx, fy, fw, fh); ctx.globalAlpha = 1;
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
+    ctx.strokeRect(fx + 0.75, fy + 0.75, fw - 1.5, fh - 1.5);
   }
 
   /* ── find on this board (mod+F) ──────────────────────────────────
@@ -854,7 +964,9 @@ export const Board = (() => {
 
   return {
     init, mount, unmount, addNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
-    zoom: () => view.z, view: () => ({ ...view }), zoomAt, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,
+    zoom: () => view.z, view: () => ({ ...view }), zoomAt, toggleMap,
+    // where a board point is drawn in the minimap, in client pixels (for tests)
+    mapPoint: (x, y) => { const r = map.getBoundingClientRect(); return mapT && { x: r.left + mapT.ox + x * mapT.s, y: r.top + mapT.oy + y * mapT.s }; }, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,
     tagNote: (id) => { const n = noteOf(id); if (n) tagNote(n); },
     refreshChips: () => { for (const el of els.values()) Editor.refreshChips(el.querySelector('.note-body')); },
   };

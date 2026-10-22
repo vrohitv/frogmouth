@@ -33,6 +33,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - **Work on several notes at once.** `⇧`-click adds a note to the selection, `⇧`-drag on empty board draws a box around notes, and `⌘A` selects them all. Drag any selected note to move the group; arrows nudge, `1`–`9` colour, `⌘D` duplicates and `Del` `Del` removes them all, with one undo.
 - **Find on a board** with `⌘F`: every match in every note, counted ("2 of 9 in 4 notes"). Notes without a match fade back, `↵` / `⇧↵` step through the matches, and long notes and wide code blocks scroll to each one. The notes themselves are never changed. On the All notes and Secrets pages `⌘F` jumps to their filter.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.
+- **The board is unlimited**: notes can sit anywhere and you can pan forever; zoom goes from 20% to 250%. Bottom right, a **zoom control** shows the zoom (`−` `100%` `+`; click the percentage for 100%) with **Fit**, and a **minimap** shows every note in its colour and the visible area as a frame. Click or drag in the minimap to move there; `M` hides or shows it.
 - **Screens come and go; notes stay put.** Note positions are board coordinates, never screen pixels, and the view remembers which point of the board is in the middle of the window. Plug in a big display, unplug it, resize the window or change the browser zoom: the same notes stay centred, nothing moves, and going back to a size gives back exactly the view you had there. **Arrange notes** gives the same layout on any screen.
 - **Arrange notes** tidies a board into columns. **Fit** shows everything at once.
 - The first line of a note is its title. Nothing else is needed.
@@ -111,6 +112,7 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `⌘F` | Find in every note on the board |
 | `Del` `Del` / `⇧Del` | Remove from this board (confirm with a second `Del`) / delete everywhere (asks first) |
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
+| `M` | Show or hide the minimap |
 
 | Secrets | |
 |---|---|
