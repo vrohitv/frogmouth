@@ -65,7 +65,7 @@ import { App } from '../src/js/10-app.js';
       pre.textContent = JSON.stringify({ pill: box('.hud-brand'), markEyes: eyes('.hud-bird'), wordEyes: eyes('.hud-logo'), syncTextMid: +(tr.top + tr.height / 2).toFixed(1), syncIconMid: +(ir.top + ir.height / 2).toFixed(1) });
       document.body.append(pre);
     }
-    if (mode === 'shot-many') { for (let i = 1; i <= 30; i++) Store.S.data.boards.push({ id: uid(), name: ['Infra', 'Reading list', 'Sprint ' + i, 'Client ' + i, 'Ideas'][i % 5] + (i % 5 > 1 ? '' : ' ' + i), created: now(), items: [] }); Store.change('boards'); await wait(100); document.querySelector('.bp-more').click(); }
+    if (mode === 'shot-many') { for (let i = 1; i <= 30; i++) Store.S.data.boards.push({ id: uid(), name: ['Infra', 'Reading list', 'Sprint ' + i, 'Client ' + i, 'Ideas'][i % 5] + (i % 5 > 1 ? '' : ' ' + i), created: now(), items: [] }); Store.S.data.boards.forEach((b, i) => { b.opened = now() - i * 3.7e6; if (i === 3 || i === 9) b.pinned = true; }); Store.change('boards'); await wait(100); document.querySelector('.bp-more').click(); }
     if (mode === 'shot-welcome') { App.showWelcome(); await wait(1200); }
     if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
@@ -423,27 +423,49 @@ import { App } from '../src/js/10-app.js';
     ok('clicking the board closes it', !Popup.isOpen());
 
     ok('no stray "null" in the board pills', !/null|undefined/.test($('.hud-boards').textContent), $('.hud-boards').textContent);
+    ok('the boards button is always there', !!$('.bp-more'));
 
     // many boards: only recent ones get pills; the rest are one search away
     {
       const d = Store.S.data, before = d.boards.length;
       for (let i = 1; i <= 30; i++) d.boards.push({ id: uid(), name: `Project ${i}`, created: now(), items: [] });
       Store.change('boards');
-      ok('at most 6 board pills', $$('.board-pill').length <= 6 && !!$('.bp-more'), $$('.board-pill').length);
-      ok('the all-boards button shows the count', $('.bp-more').textContent.includes(String(before + 30)));
+      ok('at most 6 board pills', $$('.board-pill').length <= 6, $$('.board-pill').length);
+      ok('the boards button shows the count', $('.bp-more').textContent.includes(String(before + 30)));
       keydown(document.body, 'j', { altKey: true, code: 'KeyJ' });
-      ok('alt+J opens the board picker', Popup.isOpen() && !!$('.pop-input'));
-      const pin = $('.pop-input');
-      pin.value = 'proj 17'; pin.dispatchEvent(new Event('input'));
-      ok('board picker filters by name', $$('.pop-item')[0] && $$('.pop-item')[0].textContent.includes('Project 17'));
-      keydown(pin, 'Enter');
+      ok('alt+J opens the boards panel', !!$('.bd-panel') && $$('.bd-row').length === before + 30);
+      const bin = $('.bd-input');
+      bin.value = 'proj 17'; bin.dispatchEvent(new Event('input'));
+      ok('the panel filters by name', $$('.bd-row')[0] && $$('.bd-row')[0].textContent.includes('Project 17'));
+      keydown(bin, 'Enter');
       const p17 = d.boards.find((b) => b.name === 'Project 17');
-      ok('picking opens the board and gives it a pill', d.ui.active === 'b:' + p17.id && $$('.board-pill .bp-name').some((e) => e.textContent === 'Project 17'));
+      ok('opening a board from the panel gives it a pill', !$('.bd-panel') && d.ui.active === 'b:' + p17.id && $$('.board-pill .bp-name').some((e) => e.textContent === 'Project 17'));
+      // pin a board that has no pill: it gets one and keeps it
       keydown(document.body, 'j', { altKey: true, code: 'KeyJ' });
-      const pin2 = $('.pop-input');
-      pin2.value = 'Brand new space'; pin2.dispatchEvent(new Event('input'));
-      keydown(pin2, 'ArrowUp');
-      keydown(pin2, 'Enter');
+      const bin2 = $('.bd-input');
+      bin2.value = 'Project 3'; bin2.dispatchEvent(new Event('input'));
+      keydown(bin2, 'p', { altKey: true, code: 'KeyP' });
+      const p3 = d.boards.find((b) => b.name === 'Project 3');
+      ok('alt+P pins a board', p3.pinned === true && !!$('.bd-row .bd-pin.pinned'));
+      keydown(bin2, 'Escape');
+      ok('Esc closes the panel', !$('.bd-panel'));
+      for (let k = 20; k <= 26; k++) App.openTab('b:' + d.boards.find((b) => b.name === `Project ${k}`).id); // use lots of other boards
+      ok('a pinned board keeps its pill', $$('.board-pill .bp-name').some((e) => e.textContent === 'Project 3'));
+      // rename and delete from the panel
+      $('.bp-more').click();
+      const bin3 = $('.bd-input');
+      bin3.value = 'Project 4'; bin3.dispatchEvent(new Event('input'));
+      keydown(bin3, 'F2');
+      const ri = $('.bd-rename');
+      ok('F2 renames inline', !!ri);
+      ri.value = 'Renamed four'; keydown(ri, 'Enter');
+      ok('rename saves', d.boards.some((b) => b.name === 'Renamed four'));
+      bin3.value = 'Renamed four'; bin3.dispatchEvent(new Event('input'));
+      keydown(bin3, 'Backspace', { metaKey: isMac, ctrlKey: !isMac });
+      await wait(20);
+      ok('delete from the panel removes an empty board', !d.boards.some((b) => b.name === 'Renamed four'));
+      bin3.value = 'Brand new space'; bin3.dispatchEvent(new Event('input'));
+      keydown(bin3, 'Enter');
       ok('typing a new name creates the board', d.boards.some((b) => b.name === 'Brand new space') && d.ui.active === 'b:' + d.boards.find((b) => b.name === 'Brand new space').id);
       d.boards.splice(before); Store.index(); App.openTab('b:' + d.boards[0].id);
     }

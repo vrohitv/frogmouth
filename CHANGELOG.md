@@ -7,7 +7,7 @@ First production release.
 - One plain JSON vault file per folder: `vault.fm`, with daily backups in `.fm-backups/`.
 - Notes live in one library and can sit on several boards; deleting a board never deletes notes.
 - All-notes page with sorting, filters, tags and links in both directions; tags shared with secrets.
-- Board pills with a searchable board picker for many boards (`⌥J`).
+- Board pills (pinned boards always keep one, recent boards fill the rest) and a Boards panel for any number of boards (`⌥J`): search, open, create, pin, rename, delete, with note counts and last-opened times.
 - Secrets: key/value with plain and key:value tags, centred editor, JSON export.
 - Disk-change detection and conflict resolution. No encryption: frogmouth is a productivity tool, an alternative to a notepad.
 - Brand: frogmouth symbol, wordmark and logo system in `docs/brand/`.

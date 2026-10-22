@@ -1,4 +1,4 @@
-import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon, fuzzy, markPositions } from './00-util.js';
+import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon, fuzzy, markPositions, relTime } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
@@ -126,6 +126,7 @@ export const App = (() => {
       if (!b) return;
       ui.board = b.id;
       ui.recent = [b.id, ...(ui.recent || []).filter((id) => id !== b.id && Store.board(id))].slice(0, 40);
+      b.opened = now();
     }
     ui.active = t;
     Popup.close();
@@ -165,7 +166,9 @@ export const App = (() => {
   function pillBoards() {
     const d = Store.S.data;
     if (d.boards.length <= MAX_PILLS) return d.boards;
-    const keep = new Set([d.ui.board, ...(d.ui.recent || [])].filter((id) => Store.board(id)).slice(0, MAX_PILLS));
+    // pinned boards always get a pill; the current and recently used ones fill the rest
+    const keep = new Set(d.boards.filter((b) => b.pinned).map((b) => b.id));
+    for (const id of [d.ui.board, ...(d.ui.recent || [])]) { if (keep.size >= MAX_PILLS) break; if (Store.board(id)) keep.add(id); }
     for (const b of d.boards) { if (keep.size >= MAX_PILLS) break; keep.add(b.id); } // fill free slots in board order
     return d.boards.filter((b) => keep.has(b.id));
   }
@@ -213,36 +216,108 @@ export const App = (() => {
     const scroller = h('div', { class: 'bp-scroll' }, pills);
     scroller.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { scroller.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     boardsEl.replaceChildren(...[scroller,
-    hidden > 0 ? h('button', { class: 'bp-more', title: `All ${d.boards.length} boards (${ALT}J)`, html: `${icon('grid')}<span>${d.boards.length}</span>`, onclick: boardPicker }) : null,
+    h('button', { class: 'bp-more' + (hidden > 0 ? ' has-more' : ''), title: `All ${d.boards.length} boards: find, pin, rename, delete (${ALT}J)`, html: `${icon('grid')}<span>${d.boards.length}</span>`, onclick: boardPicker }),
     h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard })].filter(Boolean));
     const on = boardsEl.querySelector('.board-pill.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  /* every board, searchable; type a new name to create one */
+  /* ── the Boards panel: every board, searchable, with pin / rename / delete ──
+     ↑↓ move  ↵ open (or create the typed name)  ⌥P pin  F2 rename  ⌘⌫ delete  Esc close */
+  let panel = null;
   function boardPicker() {
+    if (panel) { panel.close(); return; }
     const d = Store.S.data;
-    const anchor = boardsEl.getBoundingClientRect();
-    const rank = new Map((d.ui.recent || []).map((id, i) => [id, i]));
-    const item = (b, m) => ({ id: b.id, label: b.name, labelHtml: m ? markPositions(b.name, m.p) : null, icon: b.id === d.ui.board && isBoardView() ? 'tick' : 'board', hint: `${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'}` });
-    const list = (q) => {
-      q = (q || '').trim();
-      const lq = q.toLowerCase();
-      const out = d.boards.map((b) => { const m = fuzzy(lq, b.name.toLowerCase()); return m && { b, m }; }).filter(Boolean)
-        .sort((x, y) => (lq ? y.m.s - x.m.s : (rank.has(x.b.id) ? rank.get(x.b.id) : 1e6 + d.boards.indexOf(x.b)) - (rank.has(y.b.id) ? rank.get(y.b.id) : 1e6 + d.boards.indexOf(y.b))))
-        .slice(0, 200).map(({ b, m }) => item(b, lq && m));
-      if (q && !d.boards.some((b) => b.name.toLowerCase() === lq)) out.push({ id: 'new', name: q, label: `Create board “${q}”`, icon: 'plus' });
-      return out;
-    };
-    Popup.open({
-      x: anchor.left, y: anchor.bottom + 6, title: `${d.boards.length} ${d.boards.length === 1 ? 'board' : 'boards'}`, input: true, placeholder: 'Find or create a board',
-      items: list(''), onQuery: (q) => Popup.update(list(q)),
-      onPick: (it) => {
-        if (it.id !== 'new') { activate('b:' + it.id); return; }
-        const b = { id: uid(), name: it.name, created: now(), items: [] };
-        d.boards.push(b); Store.change('boards'); activate('b:' + b.id);
-      },
+    let rows = [], idx = 0, renaming = null;
+    const inp = h('input', { class: 'bd-input', placeholder: 'Find a board, or type a new name', spellcheck: 'false', autocomplete: 'off' });
+    const list = h('div', { class: 'bd-list', role: 'listbox' });
+    const count = h('span', { class: 'bd-count' });
+    const foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>${ALT}P</kbd> pin</span><span><kbd>F2</kbd> rename</span><span><kbd>${MOD}⌫</kbd> delete</span>` });
+    const box = h('div', { class: 'pal bd-panel', role: 'dialog', 'aria-label': 'Boards' }, h('div', { class: 'pal-top', html: icon('grid') }, inp, count), list, foot);
+    const el = h('div', { class: 'scrim pal-scrim' }, box);
+    const close = () => { el.remove(); panel = null; };
+    panel = { close };
+    el.addEventListener('mousedown', (e) => { if (e.target === el) close(); });
+
+    const ago = (t) => (t ? relTime(t) : 'never opened');
+    function build() {
+      const q = inp.value.trim(), lq = q.toLowerCase();
+      const scored = d.boards.map((b) => { const m = fuzzy(lq, b.name.toLowerCase()); return m && { b, m }; }).filter(Boolean);
+      scored.sort((x, y) => (lq ? y.m.s - x.m.s : 0) || (y.b.pinned ? 1 : 0) - (x.b.pinned ? 1 : 0) || (y.b.opened || 0) - (x.b.opened || 0) || x.b.name.localeCompare(y.b.name));
+      rows = scored.map(({ b, m }) => ({ b, m: lq ? m : null }));
+      if (q && !d.boards.some((b) => b.name.toLowerCase() === lq)) rows.push({ create: q });
+      idx = Math.min(idx, Math.max(0, rows.length - 1));
+      count.textContent = q ? `${scored.length} of ${d.boards.length}` : `${d.boards.length} ${d.boards.length === 1 ? 'board' : 'boards'}`;
+      paint();
+    }
+    function paint() {
+      list.innerHTML = rows.map((r, i) => r.create
+        ? `<div class="bd-row bd-create${i === idx ? ' on' : ''}" data-i="${i}">${icon('plus')}<span class="bd-name">Create board “${esc(r.create)}”</span></div>`
+        : `<div class="bd-row${i === idx ? ' on' : ''}${r.b.id === d.ui.board && isBoardView() ? ' current' : ''}" data-i="${i}">` +
+          `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${ALT}P)">${icon('pin')}</button>` +
+          `<span class="bd-name">${r.m ? markPositions(r.b.name, r.m.p) : esc(r.b.name)}</span>` +
+          `<span class="bd-meta">${r.b.items.length} ${r.b.items.length === 1 ? 'note' : 'notes'}</span>` +
+          `<span class="bd-meta bd-when">${esc(ago(r.b.opened))}</span>` +
+          `<span class="bd-acts"><button data-a="rename" tabindex="-1" title="Rename (F2)">${icon('edit')}</button>` +
+          `<button data-a="delete" tabindex="-1" title="Delete board (${MOD}⌫); its notes stay in All notes">${icon('x')}</button></span></div>`).join('') ||
+        '<div class="pal-empty">No boards.</div>';
+      const on = list.children[idx]; if (on) on.scrollIntoView({ block: 'nearest' });
+    }
+    function open(r) {
+      close();
+      if (r.create) { const b = { id: uid(), name: r.create, created: now(), items: [] }; d.boards.push(b); Store.change('boards'); activate('b:' + b.id); }
+      else activate('b:' + r.b.id);
+    }
+    function pin(r) { if (!r || r.create) return; r.b.pinned = !r.b.pinned; if (!r.b.pinned) delete r.b.pinned; Store.change('boards'); paint(); }
+    function rename(r) {
+      if (!r || r.create) return;
+      const row = list.children[rows.indexOf(r)]; if (!row) return;
+      const name = row.querySelector('.bd-name');
+      const ri = h('input', { class: 'bp-input bd-rename', value: r.b.name, spellcheck: 'false', 'aria-label': 'Board name' });
+      name.replaceChildren(ri);
+      renaming = ri;
+      const done = (save) => {
+        if (renaming !== ri) return;
+        renaming = null;
+        const v = ri.value.trim();
+        if (save && v && v !== r.b.name) { r.b.name = v; Store.change('boards'); }
+        build(); inp.focus();
+      };
+      ri.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); done(true); } if (e.key === 'Escape') { e.preventDefault(); done(false); } });
+      ri.addEventListener('blur', () => done(true));
+      ri.focus(); ri.select();
+    }
+    async function remove(r) {
+      if (!r || r.create) return;
+      await deleteBoard(r.b.id);
+      if (panel) { build(); inp.focus(); }
+    }
+
+    inp.addEventListener('input', () => { idx = 0; build(); });
+    inp.addEventListener('keydown', (e) => {
+      const r = rows[idx];
+      if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(rows.length - 1, idx + 1); paint(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(0, idx - 1); paint(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (r) open(r); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+      else if (e.altKey && e.code === 'KeyP') { e.preventDefault(); pin(r); }
+      else if (e.key === 'F2') { e.preventDefault(); rename(r); }
+      else if (modKey(e) && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); remove(r); }
+      else if (e.altKey && e.code === 'KeyJ') { e.preventDefault(); close(); }
     });
+    list.addEventListener('mousedown', (e) => {
+      const row = e.target.closest('.bd-row'); if (!row || e.target.closest('.bd-rename')) return;
+      e.preventDefault();
+      const r = rows[+row.dataset.i]; idx = +row.dataset.i;
+      const a = e.target.closest('[data-a]');
+      if (!a) return open(r);
+      if (a.dataset.a === 'pin') pin(r);
+      else if (a.dataset.a === 'rename') rename(r);
+      else if (a.dataset.a === 'delete') remove(r);
+    });
+    document.body.append(el);
+    build();
+    inp.focus();
   }
 
   function appMenu() {
@@ -428,7 +503,7 @@ export const App = (() => {
       { title: 'Open secrets', key: ALT + 'S', run: () => showView('secrets') },
       { title: 'Add an existing note to this board', key: 'A', when: isBoardView, run: () => Board.addExisting() },
       { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
-      { title: 'Go to board…', key: ALT + 'J', run: boardPicker },
+      { title: 'Boards: find, pin, rename, delete…', key: ALT + 'J', run: boardPicker },
       { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
       { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
@@ -445,7 +520,7 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}J`, 'Find or create a board'], [`${ALT}1–9`, 'Board pills 1 to 9'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
+      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}J`, 'Boards panel: find, pin, rename, delete, create'], [`${ALT}1–9`, 'Board pills 1 to 9'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
       ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del, then Del or ↵', 'Remove from this board'], ['⇧Del', 'Delete the note everywhere (asks first)'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], ['↵', 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s  ⇧S', 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
@@ -473,7 +548,7 @@ export const App = (() => {
     if (mod && !e.altKey && (lower === 'k' || (lower === 'p' && !e.shiftKey))) { e.preventDefault(); Popup.close(); Palette.isOpen() ? Palette.hide() : Palette.show(); return; }
     if (mod && e.shiftKey && lower === 'p') { e.preventDefault(); Palette.show('>'); return; }
     if (mod && lower === 's') { e.preventDefault(); if (Store.S.vault.kind === 'memory') downloadVault(); else { Store.saveNow.flush(); } return; }
-    if (Modal.isOpen() || Palette.isOpen()) return;
+    if (Modal.isOpen() || Palette.isOpen() || panel) return;
     if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = pillBoards()[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
     if (e.altKey && !mod && e.code === 'KeyJ') { e.preventDefault(); boardPicker(); return; }
     if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleBoard(-1); return; }

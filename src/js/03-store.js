@@ -87,6 +87,8 @@ export const Store = (() => {
     for (const b of d.boards) {
       b.id = String(b.id || uid());
       b.name = String(b.name || 'Untitled');
+      if (b.pinned !== true) delete b.pinned;
+      b.opened = +b.opened || 0;
       b.items = Array.isArray(b.items) ? b.items.filter((it) => it && typeof it === 'object') : [];
       const seen = new Set();
       b.items = b.items.filter((it) => { it.note = String(it.note || ''); if (!byId.has(it.note) || seen.has(it.note)) return false; seen.add(it.note); return true; }).map(normItem);

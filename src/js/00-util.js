@@ -190,6 +190,7 @@ const ICONS = {
   down: '<path d="M4 6l4 4 4-4"/>',
   tick: '<path d="M3.5 8.5l3 3 6-7"/>',
   dot: '<circle cx="8" cy="8" r="2.5"/>',
+  pin: '<path d="M6 2.5h4l-.5 4 2.5 2.5H4L6.5 6.5z"/><path d="M8 9v4.5"/>',
   list: '<path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.5" cy="4" r=".6"/><circle cx="2.5" cy="8" r=".6"/><circle cx="2.5" cy="12" r=".6"/>',
   fileok: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M5.5 9.8l1.8 1.8 3.4-3.8"/>',
   filedot: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><circle cx="8" cy="10" r="1.7"/>',
