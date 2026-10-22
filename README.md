@@ -1,6 +1,8 @@
-# frogmouth
+<h1 align="center">
+  <img src="docs/frogmouth.svg" width="320" alt="frogmouth: a tawny frogmouth perched on a branch. The two o's in its name are its amber eyes.">
+</h1>
 
-Sticky notes and secrets in one file on your disk. One HTML page, no server, no network, no accounts.
+<p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
 The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch. Its two amber eyes are the two o's in the name, and they follow your cursor.
 
