@@ -1,4 +1,5 @@
 import { $, $$, isMac, now, uid, esc, fuzzy, kb, kbFor } from '../src/js/00-util.js';
+import { Bird } from '../src/js/01-bird.js';
 import { Store } from '../src/js/03-store.js';
 import { HL } from '../src/js/04-highlight.js';
 import { Popup } from '../src/js/05-ui.js';
@@ -68,6 +69,8 @@ import { App } from '../src/js/10-app.js';
     if (mode === 'shot-many') { for (let i = 1; i <= 30; i++) Store.S.data.boards.push({ id: uid(), name: ['Infra', 'Reading list', 'Sprint ' + i, 'Client ' + i, 'Ideas'][i % 5] + (i % 5 > 1 ? '' : ' ' + i), created: now(), items: [] }); Store.S.data.boards.forEach((b, i) => { b.opened = now() - i * 3.7e6; if (i === 3 || i === 9) b.pinned = true; }); Store.change('boards'); await wait(100); document.querySelector('.bp-more').click(); }
     if (mode === 'shot-keys') { await wait(300); document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', shiftKey: true, code: 'Slash', bubbles: true, cancelable: true })); }
     if (mode === 'shot-welcome') { App.showWelcome(); await wait(1200); }
+    if (mode === 'shot-asleep') { App.showWelcome(); await wait(900); Bird.mood('asleep'); await wait(1900); }
+    if (mode === 'shot-asleep-hud') { await wait(500); Bird.mood('asleep'); await wait(1900); }
     if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
       const infra = { id: uid(), name: 'Infra', created: now(), items: [] };
@@ -544,6 +547,22 @@ import { App } from '../src/js/10-app.js';
     ok('palette finds note by body', body2.some((x) => x.title === 'Retry with backoff'), JSON.stringify(body2.map((x) => x.title)));
     ok('palette never searches secret values', Palette.search('$s3cr3t').length === 0);
     ok('palette commands', Palette.search('>arrange').some((x) => x.title === 'Arrange notes'));
+
+    // the bird falls asleep (eyes shut, breathing, drifting z's) and wakes on any key or move
+    {
+      const mark = $('.hud-bird .fm');
+      await wait(700); // let the search box's own "rest" timer from earlier tests run out
+      Bird.mood('asleep'); await wait(400);
+      const lidY = (svg) => parseFloat(svg.querySelector('.fm-lidg').style.transform.match(/translateY\(([-\d.]+)px\)/)[1]);
+      ok('asleep: the bird gets the asleep look', mark.classList.contains('asleep') && $$('.fm.asleep').length >= 2);
+      ok('asleep: eyes are shut', lidY(mark) > 0, mark.querySelector('.fm-lidg').style.transform);
+      ok('asleep: three z\'s drift up, one after another', mark.querySelectorAll('.fm-z').length === 3 && mark.querySelectorAll('.fm-z')[0].getAnimations().length === 1 && new Set([...mark.querySelectorAll('.fm-z')].map((z) => z.style.animationDelay)).size === 3);
+      ok('asleep: the head breathes', mark.querySelector('.fm-head').getAnimations().length === 1);
+      ok('the wordmark sleeps too, without z\'s', $('.hud-logo .fm').classList.contains('asleep') && !$('.hud-logo .fm .fm-z'));
+      keydown(document.body, 'Shift');
+      await wait(800); // it wakes with a double blink
+      ok('a key wakes it: z\'s gone, eyes open', !mark.classList.contains('asleep') && !mark.querySelector('.fm-z').getAnimations().length && lidY(mark) < 0, mark.querySelector('.fm-lidg').style.transform);
+    }
 
     // secrets
     App.openTab('secrets');

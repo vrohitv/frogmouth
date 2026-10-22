@@ -142,6 +142,20 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .fm.gaping .fm-mouth { transform: scaleY(1); transition-duration: .16s; }
 .fm.gaping .fm-jaw { transform: scaleY(.42); transition-duration: .16s; }
 .fm.gaping .fm-head { transform: none !important; }
+/* asleep: slow breaths and z's drifting up and out, each growing as it fades */
+.fm-z { font-weight: 800; font-size: 20px; fill: var(--text); opacity: 0; transform-box: fill-box; transform-origin: center; }
+.fm.asleep .fm-head { animation: fm-breathe 4.4s ease-in-out infinite; }
+.fm-sleepline { stroke: #2b3231; stroke-width: 2; stroke-linecap: round; opacity: 0; transition: opacity .3s .2s; }
+.fm-word ~ .fm-eye .fm-sleepline { stroke-width: 4; }
+.fm.asleep .fm-sleepline { opacity: .9; }
+.fm.asleep .fm-z { animation: fm-z 3.3s ease-out infinite; }
+@keyframes fm-breathe { 50% { transform: translateY(1.2px) scale(1.018, .99); } }
+@keyframes fm-z {
+  0% { opacity: 0; transform: translate(0, 0) scale(.55); }
+  18% { opacity: .75; }
+  100% { opacity: 0; transform: translate(22px, -34px) scale(1.15); }
+}
+.hud-bird .fm-z { font-size: 34px; }
 
 /* ── welcome ── */
 .welcome {
@@ -705,4 +719,8 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001s !important; transition-duration: .001s !important; }
+  /* still asleep, just not moving: the z's stay put */
+  .fm.asleep .fm-z { animation: none !important; opacity: .6; }
+  .fm.asleep .fm-z:nth-child(2) { transform: translate(11px, -15px) scale(.85); }
+  .fm.asleep .fm-z:nth-child(3) { transform: translate(22px, -30px) scale(1.05); }
 }

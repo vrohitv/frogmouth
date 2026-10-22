@@ -5,14 +5,17 @@ import MARK from '../brand/mark.json';
    The symbol (a head-on tawny frogmouth) and the wordmark, whose two o's
    are the same orange-red eyes.
    Eyes follow the pointer (or the text caret while typing), blink,
-   squint when idle (frogmouths camouflage by narrowing their eyes) and
-   shut tight while a secret is being typed. */
+   squint when idle (frogmouths camouflage by narrowing their eyes), fall
+   asleep after a while (eyes shut, slow breaths, drifting z's) and shut
+   tight while a secret is being typed. */
 export const Bird = (() => {
   const NS = 'http://www.w3.org/2000/svg';
   const FONT = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
   const eyes = new Set();
   const heads = new Set();
-  const LID = { wide: 0.0, rest: 0.2, squint: 0.45, sleepy: 0.8, closed: 1.06 };
+  const svgs = new Set();
+  const LID = { wide: 0.0, rest: 0.2, squint: 0.45, sleepy: 0.8, asleep: 1.06, closed: 1.06 };
+  const DOZE = 30e3, SLEEPY = 75e3, ASLEEP = 120e3; // idle times for each stage
   let px = innerWidth / 2, py = innerHeight / 3, focusPt = null, focusT = 0;
   let mood = 'rest', lastAct = now(), raf = 0, clipN = 0, blinking = false;
 
@@ -51,12 +54,15 @@ export const Bird = (() => {
     }
     const lidG = s('g', { class: 'fm-lidg' }, [s('path', { class: 'fm-lid', d: lidD }), s('path', { class: 'fm-lid-edge', d: edgeD, fill: 'none' })]);
     const ring = s('circle', { r, class: 'fm-ring' });
+    // asleep: a soft closed-eye curve on the shut lid, turned up at the ends like a calm smile
+    const sleepLine = s('path', { class: 'fm-sleepline', d: `M${-r * 0.62} ${r * 0.12}Q0 ${r * 0.62} ${r * 0.62} ${r * 0.12}`, fill: 'none' });
     const g = s('g', { class: 'fm-eye', transform: `translate(${cx} ${cy})` }, [
       s('clipPath', { id }, [s('circle', { r: r - 0.5 })]),
       s('circle', { r, class: 'fm-iris' }),
       s('circle', { r: r * 0.78, class: 'fm-iris-in' }),
       s('g', { 'clip-path': `url(#${id})` }, [pupil, lidG]),
       ring,
+      sleepLine,
     ]);
     const e = { g, pupil, lid: lidG, ring, r, svg };
     eyes.add(e);
@@ -96,6 +102,13 @@ export const Bird = (() => {
       svg.setAttribute('viewBox', MARK.viewBox.join(' '));
       head.style.transformOrigin = '64px 104px';
       heads.add({ svg, head });
+      // asleep: z's drift up from beside the head, one after another (see .fm.asleep in app.css)
+      svg.append(s('g', { class: 'fm-zs', 'aria-hidden': 'true' }, [0, 1, 2].map((i) => {
+        const z = s('text', { class: 'fm-z', x: 100, y: 30, 'font-family': FONT });
+        z.textContent = 'z';
+        z.style.animationDelay = i * 1.1 + 's';
+        return z;
+      })));
     } else {
       const R = 26, E = 100, pad = 9;
       const gmW = measure('gm', 100);
@@ -114,7 +127,9 @@ export const Bird = (() => {
       const minX = leftX - frW - 4, maxX = rightX + uthW + 4, minY = -R - 6, maxY = base + fs * 0.26;
       svg.setAttribute('viewBox', `${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`);
     }
-    svg.append(head);
+    svg.prepend(head);
+    svgs.add(svg);
+    svg.classList.toggle('asleep', mood === 'asleep');
     svg.addEventListener('click', () => startle(svg));
     // wake up: eyes open once, a moment after appearing
     setTimeout(() => es.forEach((e) => setLid(e, lidAmt())), kind === 'mark' ? 450 : 250);
@@ -129,11 +144,12 @@ export const Bird = (() => {
   function setMood(m) {
     if (mood === m) return;
     mood = m;
+    for (const svg of svgs) { if (!svg.isConnected) svgs.delete(svg); else svg.classList.toggle('asleep', m === 'asleep'); }
     if (!blinking) applyLids();
   }
 
   function blink(twice) {
-    if (isShy() || blinking || mood === 'sleepy') return;
+    if (isShy() || blinking || mood === 'sleepy' || mood === 'asleep') return;
     blinking = true;
     for (const e of eyes) { e.lid.classList.add('fast'); setLid(e, LID.closed); }
     setTimeout(() => {
@@ -157,7 +173,7 @@ export const Bird = (() => {
 
   function activity() {
     lastAct = now();
-    if (mood === 'squint' || mood === 'sleepy') { setMood('rest'); blink(true); }
+    if (mood === 'squint' || mood === 'sleepy' || mood === 'asleep') { setMood('rest'); blink(true); }
   }
 
   function schedule() { if (!raf) raf = requestAnimationFrame(frame); }
@@ -194,11 +210,12 @@ export const Bird = (() => {
   document.addEventListener('focusin', reshy);
   document.addEventListener('focusout', reshy);
 
-  // idle → squint → sleepy; random blinks while awake
+  // idle → squint → sleepy → asleep; random blinks while awake
   setInterval(() => {
     const idle = now() - lastAct;
-    if (idle > 120000) setMood('sleepy');
-    else if (idle > 30000) setMood('squint');
+    if (idle > ASLEEP) setMood('asleep');
+    else if (idle > SLEEPY) setMood('sleepy');
+    else if (idle > DOZE) setMood('squint');
   }, 2000);
   (function loop() {
     setTimeout(() => { if (!document.hidden) blink(Math.random() < 0.18); loop(); }, 2600 + Math.random() * 4800);
