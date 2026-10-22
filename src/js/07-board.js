@@ -1,4 +1,4 @@
-import { kb, modKey, clamp, now, h, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags, fuzzy, markPositions } from './00-util.js';
+import { kb, modKey, clamp, now, h, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags, fuzzy, markPositions, wheelZoom } from './00-util.js';
 import { Store } from './03-store.js';
 import { Popup, Modal, editTags } from './05-ui.js';
 import { Editor } from './06-editor.js';
@@ -309,7 +309,7 @@ export const Board = (() => {
     const k = e.deltaMode === 1 ? 16 : 1;
     if (e.ctrlKey || e.metaKey) {
       const r = vp.getBoundingClientRect();
-      zoomAt(view.z * Math.exp(-e.deltaY * k * 0.01), e.clientX - r.left, e.clientY - r.top);
+      zoomAt(view.z * wheelZoom(e), e.clientX - r.left, e.clientY - r.top);
     } else {
       view.x -= (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * k;
       view.y -= (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * k;

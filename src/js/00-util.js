@@ -132,6 +132,15 @@ export function markPositions(text, positions) {
   return out + (open ? '</mark>' : '');
 }
 
+/* The zoom factor for one wheel event. A trackpad pinch sends many small deltas and zooms
+   in proportion; one notch of a mouse wheel sends a big one (about 100px, or 3 lines),
+   which must be one gentle step, not a jump across the whole zoom range. So each event
+   changes the zoom by at most 10%. */
+export function wheelZoom(e, rate = 0.01) {
+  const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1);
+  return clamp(Math.exp(-px * rate), 1 / 1.1, 1.1);
+}
+
 /* ── toasts ───────────────────────────────────────────────────── */
 export function toast(msg, opts = {}) {
   const host = $('#toasts');

@@ -2,6 +2,7 @@
 
 ## 1.2.2 (2026-10-22)
 
+- Fixed: one notch of a mouse wheel with `⌘` / `Ctrl` jumped the zoom across its whole range (100% straight to 250%, or down to 37%), on the board and on images in notes. A notch is now one 10% step, and a trackpad pinch still zooms smoothly.
 - **Security:** HTML and SVG files from the vault folder now open in a sandbox. Opened directly, a file's scripts ran as frogmouth itself: a downloaded HTML report could read the vault, secrets included, and send them out by navigating the page. Now such a file runs in a sandboxed frame with its own unique origin, under a policy that blocks every load and navigation, so it can't read the app's storage, open windows, leave its frame or reach the network. Its own scripts still run, so interactive reports keep working.
 - **Inline fields confirm when you leave them.** Note tags (on the board and in All notes) and board names (on the pill and in the Boards panel) now share one behaviour: `↵` saves and closes the field, `Esc` cancels, and a click anywhere else saves, including on the board, another note or the floating bar.
 - Fixed: pressing `↵` in a board note's tag field saved the tags but left the field on screen, so the chips never came back; each further edit stacked another field.
