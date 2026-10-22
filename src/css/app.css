@@ -200,10 +200,13 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
   box-shadow: 0 1px 0 rgba(0, 0, 0, .15), 0 8px 24px -14px rgba(0, 0, 0, .6);
   color: var(--text);
 }
-.hud-brand { padding: 0 4px 0 10px; gap: 6px; min-width: 0; }
+.hud-brand { padding: 0 4px 0 8px; gap: 6px; min-width: 0; overflow: visible; }
+.hud { top: 22px; }
+/* the bird perches on the logo pill, its head above the edge, its belly tucked behind it */
+.hud-bird { position: relative; width: 44px; height: 38px; margin-left: -4px; overflow: hidden; border-radius: 0 0 0 9px; margin-top: -22px; height: 60px; align-self: flex-end; }
+.hud-bird .fm { position: absolute; left: -2px; bottom: -14px; width: 48px; height: auto; }
 .hud-logo { display: flex; }
-.hud-logo .fm { height: 32px; width: auto; }
-.hud-logo .fm-face text { stroke: var(--panel); }
+.hud-logo .fm { height: 22px; width: auto; }
 .hud-board {
   display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 6px 0 8px; min-width: 0;
   border: 0; border-left: 1px solid var(--line); border-radius: 0 6px 6px 0; background: none; color: var(--muted); cursor: pointer;

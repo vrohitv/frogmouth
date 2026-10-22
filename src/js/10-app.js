@@ -420,7 +420,9 @@ const App = (() => {
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
       h('div', { class: 'hud-group' },
-        h('div', { class: 'hud-pill hud-brand' }, h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('face')), boardBtn),
+        h('div', { class: 'hud-pill hud-brand' },
+          h('span', { class: 'hud-bird', title: 'frogmouth' }, Bird.make('icon')),
+          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('mini')), boardBtn),
         switchEl),
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),

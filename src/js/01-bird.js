@@ -59,7 +59,8 @@ const Bird = (() => {
   /* Build an SVG. kind = 'big' (welcome: whole bird on a branch)
      | 'face' (header: head, brows and beak around the wordmark) | 'mini' (wordmark only). */
   function make(kind = 'mini') {
-    const big = kind === 'big', face = big || kind === 'face';
+    // 'icon' is the bird on its own (no lettering), small enough to sit beside the logo
+    const icon = kind === 'icon', big = kind === 'big' || icon, face = big || kind === 'face';
     const R = big ? 27 : 26; // eye radius
     const E = 100; // eye centre x offset from 0
     const pad = big ? 12 : 9;
@@ -81,8 +82,10 @@ const Bird = (() => {
     if (big) {
       const plume = s('g', { class: 'fm-plume' });
       // branch it is perched on (behind the bird)
-      plume.append(s('path', { class: 'fm-branch', d: 'M-310 352 C-170 328 90 344 310 312' }));
-      plume.append(s('path', { class: 'fm-twig', d: 'M186 326 C214 298 244 290 276 292M-214 342 C-236 362 -256 372 -290 376' }));
+      if (!icon) {
+        plume.append(s('path', { class: 'fm-branch', d: 'M-310 352 C-170 328 90 344 310 312' }));
+        plume.append(s('path', { class: 'fm-twig', d: 'M186 326 C214 298 244 290 276 292M-214 342 C-236 362 -256 372 -290 376' }));
+      }
       // long tail hanging below the branch, like a broken-off stick
       plume.append(s('path', { class: 'fm-body', d: 'M-34 330 L-26 446 Q0 458 26 446 L34 330Z' }));
       plume.append(s('path', { class: 'fm-streak', d: 'M-8 360 L-6 440M10 356 L9 436' }));
@@ -134,8 +137,10 @@ const Bird = (() => {
       head.append(s('path', { class: 'fm-mini-brow', d: `M${E - R * 1.1} ${-R * 1.15} Q${E} ${-R * 1.75} ${E + R * 1.15} ${-R * 1.25}` }));
     }
 
-    word.append(txt('fr', leftX, 'end'), txt('gm', 0, 'middle'), txt('uth', rightX, 'start'));
-    head.append(word);
+    if (!icon) {
+      word.append(txt('fr', leftX, 'end'), txt('gm', 0, 'middle'), txt('uth', rightX, 'start'));
+      head.append(word);
+    }
     const e1 = eye(-E, 0, R, svg), e2 = eye(E, 0, R, svg);
     head.append(e1.g, e2.g);
     svg.append(head);
@@ -144,7 +149,7 @@ const Bird = (() => {
     const maxX = Math.max(rightX + uthW, big ? 310 : face ? 180 : -1e9) + 6;
     const minY = big ? -132 : face ? -70 : -R * 1.9;
     const maxY = big ? 462 : face ? 100 : base + fs * 0.26;
-    svg.setAttribute('viewBox', `${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`);
+    svg.setAttribute('viewBox', icon ? '-200 -134 400 470' : `${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`);
 
     if (face) heads.add({ svg, head });
     svg.addEventListener('click', () => startle(svg));
