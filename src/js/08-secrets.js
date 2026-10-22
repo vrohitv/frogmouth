@@ -1,4 +1,4 @@
-import { $$, MOD, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags } from './00-util.js';
+import { $$, MOD, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags, bus } from './00-util.js';
 import { Store } from './03-store.js';
 import { Modal } from './05-ui.js';
 import { App } from './10-app.js';
@@ -52,6 +52,8 @@ export const Secrets = (() => {
     });
     // a click on the dimmed page outside the editor closes it
     root.addEventListener('mousedown', (e) => { if (e.target === root && closeEditor) closeEditor(); });
+    // a locked or closed vault leaves nothing behind: no rows, no revealed values
+    bus.on('closed', () => { revealed.clear(); rows = []; cur = 0; filterInp.value = ''; list.replaceChildren(); tagsRow.replaceChildren(); drawer.hidden = true; drawer.replaceChildren(); root.classList.remove('drawer-open'); closeEditor = null; });
     list.addEventListener('dblclick', (e) => { const row = e.target.closest('.srow'); if (row && !e.target.closest('button')) edit(Store.secret(row.dataset.id)); });
   }
 
@@ -225,18 +227,6 @@ export const Secrets = (() => {
 
 
 
-  /* ── sidebar data ── */
-  function tagStats() {
-    const m = new Map();
-    for (const s of Store.S.data.secrets) for (const t of s.tags) {
-      const { k, v } = parseTag(t);
-      const e = m.get(k) || m.set(k, { n: 0, vals: new Map() }).get(k);
-      e.n++;
-      if (v != null) e.vals.set(v, (e.vals.get(v) || 0) + 1);
-    }
-    return [...m].sort((a, b) => a[0].localeCompare(b[0]));
-  }
-
   /* ── keyboard (view focused, not typing) ── */
   function key(e) {
     if (!drawer.hidden) return false;
@@ -261,5 +251,5 @@ export const Secrets = (() => {
   function focus() { if (drawer.hidden) list.focus({ preventScroll: true }); }
   function select(id) { const x = Store.secret(id); if (!x) return; if (!matches(x, filterInp.value.toLowerCase().split(/\s+/).filter(Boolean))) setFilter(''); cur = rows.indexOf(x); mark(); flash(x); }
 
-  return { init, render, key, focus, edit, select, setFilter, exportJson, tagStats, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
+  return { init, render, key, focus, edit, select, setFilter, exportJson };
 })();

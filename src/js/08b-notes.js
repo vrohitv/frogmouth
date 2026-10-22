@@ -1,4 +1,4 @@
-import { $$, clamp, now, h, esc, relTime, ls, icon, Tags } from './00-util.js';
+import { $$, clamp, now, h, esc, relTime, ls, icon, Tags, bus } from './00-util.js';
 import { Store } from './03-store.js';
 import { Popup, editTags } from './05-ui.js';
 import { Board } from './07-board.js';
@@ -23,6 +23,7 @@ export const NotesList = (() => {
       tagsRow, head, list);
 
     filterInp.addEventListener('input', () => { cur = 0; render(); });
+    bus.on('closed', () => { rows = []; cur = 0; back = new Map(); filterInp.value = ''; list.replaceChildren(); tagsRow.replaceChildren(); });
     filterInp.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }

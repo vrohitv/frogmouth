@@ -660,6 +660,16 @@ export const Editor = (() => {
     else toast('Open a vault folder to attach files', { kind: 'warn' });
   }
 
+  /* How a tagged file may be opened. A blob URL runs with this page's origin, so
+     an HTML or SVG file opened as a document could reach the stored folder
+     handles: only passive types open as themselves, text-like files open as
+     plain text, everything else is downloaded. */
+  function openAs(type, path) {
+    if (/^(image\/(png|jpe?g|gif|webp|avif|bmp)|application\/pdf|video\/|audio\/)/.test(type)) return 'view';
+    if (/^text\//.test(type) || /\.(excalidraw|json|md|txt|log|csv|ya?ml|toml|ini|env|js|ts|py|go|rs|sh|sql|css|html?|svg|xml)$/i.test(path)) return 'text';
+    return 'download';
+  }
+
   /* file tag actions */
   async function fileMenu(chip) {
     const path = chip.dataset.path;
@@ -677,10 +687,11 @@ export const Editor = (() => {
       ],
       onPick: async (it) => {
         if (it.id === 'copy') { await copyText(path); toast('Copied ' + path); return; }
-        const type = /\.(excalidraw|json)$/i.test(path) ? 'application/json' : f.type || 'text/plain';
-        const url = URL.createObjectURL(new Blob([f], { type: it.id === 'open' && /^(text\/|application\/json)/.test(type) ? 'text/plain;charset=utf-8' : type }));
-        if (it.id === 'open') window.open(url, '_blank', 'noopener');
-        else { const a = h('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove(); }
+        const how = it.id === 'open' ? openAs(f.type, path) : 'download';
+        const asTab = how !== 'download';
+        const url = URL.createObjectURL(new Blob([f], { type: how === 'view' ? f.type : how === 'text' ? 'text/plain;charset=utf-8' : 'application/octet-stream' }));
+        if (asTab) window.open(url, '_blank', 'noopener');
+        else { const a = h('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove(); if (it.id === 'open') toast(`${f.name} can't be shown here, so it was downloaded`); }
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       },
     });
@@ -941,5 +952,5 @@ export const Editor = (() => {
 
   const refit = (root) => { for (const f of root.querySelectorAll('figure.pic')) { sizePic(f); fitPic(f); } };
 
-  return { fixNesting, refit, mount, sanitize, serialize, derive, hydrate, refreshChips, command, followCaret, slashList: SLASH, isTriggerOpen: () => !!trig };
+  return { refit, mount, sanitize, derive, refreshChips, openAs };
 })();

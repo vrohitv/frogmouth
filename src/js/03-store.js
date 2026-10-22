@@ -2,13 +2,16 @@ import { MOD, clamp, now, h, uid, debounce, esc, bus, toast, download, idb } fro
 import { Vcrypt } from './02-crypto.js';
 import { Editor } from './06-editor.js';
 
-/* ── store: state, the .frogmouth file, sync, images ───────────────
-   A vault is a folder. Inside it lives one `*.frogmouth` file (JSON,
+/* ── store: state, the .fm file, sync, images ───────────────────────
+   A vault is a folder. Inside it lives one `*.fm` file (JSON,
    optionally encrypted) plus any images, which notes reference by path
    relative to the folder. Writes are debounced and atomic
    (createWritable swaps the file on close). */
 export const Store = (() => {
-  const FILE = 'vault.frogmouth';
+  const FILE = 'vault.fm';
+  const EXT = '.fm', LEGACY_EXT = '.frogmouth'; // vaults made before the rename still open
+  const BACKUPS = '.fm-backups';
+  const isVaultName = (n) => n.endsWith(EXT) || n.endsWith(LEGACY_EXT);
   const IMG_RE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i;
   const S = {
     data: null,
@@ -37,7 +40,7 @@ export const Store = (() => {
     const t = now();
     const notes = [
       { id: n1, color: 'straw', created: t, updated: t,
-        html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.frogmouth</code> file in the folder you chose.</p>' +
+        html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.fm</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
@@ -183,20 +186,31 @@ export const Store = (() => {
   }
 
   /* ── open / load ── */
+  /* vault.fm, else the first *.fm, else a legacy *.frogmouth (preferring vault.frogmouth) */
   async function findFile(dir) {
-    let first = null;
+    let fm = null, legacy = null;
     for await (const [name, h] of dir.entries()) {
-      if (h.kind !== 'file' || !name.endsWith('.frogmouth')) continue;
-      if (name === FILE) return h;
-      if (!first || name < first.name) first = h;
+      if (h.kind !== 'file') continue;
+      if (name === FILE) return { fh: h };
+      if (name.endsWith(EXT) && (!fm || name < fm.name)) fm = h;
+      if (name.endsWith(LEGACY_EXT) && (!legacy || name === 'vault' + LEGACY_EXT || (legacy.name !== 'vault' + LEGACY_EXT && name < legacy.name))) legacy = h;
     }
-    return first;
+    return fm ? { fh: fm } : legacy ? { fh: legacy, legacy: true } : null;
   }
 
-  /* returns {ok:true} | {locked:true, env} */
+  /* returns {ok:true, fresh?, migrated?} | {locked:true, env, migrated?} */
   async function openDir(dir, kind = 'dir') {
-    let fh = await findFile(dir);
-    let created = false;
+    const found = await findFile(dir);
+    let fh = found && found.fh, created = false, migrated = null;
+    if (found && found.legacy) {
+      // copy a pre-rename vault to <name>.fm; the old file stays untouched as a safety copy
+      const text = await (await fh.getFile()).text();
+      const fmName = fh.name.slice(0, -LEGACY_EXT.length) + EXT;
+      const nfh = await dir.getFileHandle(fmName, { create: true });
+      const w = await nfh.createWritable(); await w.write(text); await w.close();
+      migrated = { from: fh.name, to: fmName };
+      fh = nfh;
+    }
     if (!fh) {
       fh = await dir.getFileHandle(FILE, { create: true });
       created = true;
@@ -214,16 +228,17 @@ export const Store = (() => {
       return { ok: true, fresh: true };
     }
     const env = parse(text);
-    if (env.encrypted) return { locked: true, env };
+    S.openedText = text; // backed up once the vault is readable
+    if (env.encrypted) return { locked: true, env, migrated };
     S.crypt = null;
     setData(env.data);
     backup(text);
-    return { ok: true };
+    return { ok: true, migrated };
   }
 
   function parse(text) {
     let j;
-    try { j = JSON.parse(text); } catch { throw new Error(`${S.vault ? S.vault.file : 'This file'} is not valid JSON. Fix it in a text editor or restore a backup from .frogmouth-backups.`); }
+    try { j = JSON.parse(text); } catch { throw new Error(`${S.vault ? S.vault.file : 'This file'} is not valid JSON. Fix it in a text editor or restore a backup from ${BACKUPS}.`); }
     if (j && j.encrypted) return j;
     if (j && j.data) return { data: j.data };
     return { data: j }; // tolerate a bare data object
@@ -233,6 +248,7 @@ export const Store = (() => {
     const { c, text } = await Vcrypt.open(pass, env);
     S.crypt = c;
     setData(JSON.parse(text));
+    if (S.openedText) backup(S.openedText); // the encrypted file as it was, like plain vaults
     return true;
   }
 
@@ -256,8 +272,10 @@ export const Store = (() => {
     saveNow.cancel();
     for (const u of S.imgCache.values()) URL.revokeObjectURL(u);
     S.imgCache.clear();
-    S.data = null; S.vault = null; S.crypt = null; S.dirty = false;
+    S.data = null; S.vault = null; S.crypt = null; S.dirty = false; S.openedText = null;
+    S.notes.clear();
     setStatus('idle');
+    bus.emit('closed'); // views drop their DOM and caches (note text, revealed secrets, search index)
   }
 
   /* ── saving ── */
@@ -307,10 +325,14 @@ export const Store = (() => {
       const f = await S.vault.fh.getFile();
       if (f.lastModified <= S.lastMod) return;
       if (S.dirty) { setStatus('conflict', 'Changed on disk'); return; }
+      // an edit may still be on its way from the editor (it commits ~0.3 s after typing): try again shortly
+      const a = document.activeElement;
+      if (a && (a.isContentEditable || a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
       await reloadFrom(f);
       toast('Reloaded — the vault changed on disk');
     } catch (err) {
       if (err && err.name === 'NotFoundError') setStatus('error', 'Vault file is missing');
+      else if (err && err.message === 'locked') setStatus('conflict', 'Changed on disk with another passphrase');
     }
   }
   setInterval(checkDisk, 2000);
@@ -329,6 +351,17 @@ export const Store = (() => {
       S.crypt = null;
       setData(env.data);
     }
+    bus.emit('reloaded'); // the app re-renders every view from the new data
+  }
+
+  /* after "No write permission": ask again (must run from a click) and retry the save */
+  async function regainAccess() {
+    const h = S.vault && S.vault.kind === 'dir' && S.vault.dir;
+    if (h && h.requestPermission) {
+      try { if ((await h.requestPermission({ mode: 'readwrite' })) !== 'granted') return false; } catch { return false; }
+    }
+    await save();
+    return S.status === 'saved';
   }
 
   async function keepMine() {
@@ -347,14 +380,14 @@ export const Store = (() => {
   async function backup(text) {
     if (!S.vault || S.vault.kind !== 'dir') return;
     try {
-      const dir = await S.vault.dir.getDirectoryHandle('.frogmouth-backups', { create: true });
+      const dir = await S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
       const day = new Date().toISOString().slice(0, 10);
-      const name = S.vault.file.replace(/\.frogmouth$/, '') + '-' + day + '.frogmouth';
+      const name = S.vault.file.replace(/\.(fm|frogmouth)$/, '') + '-' + day + EXT;
       try { await dir.getFileHandle(name); return; } catch {}
       const fh = await dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(text); await w.close();
       const names = [];
-      for await (const [n, h] of dir.entries()) if (h.kind === 'file' && n.endsWith('.frogmouth')) names.push(n);
+      for await (const [n, h] of dir.entries()) if (h.kind === 'file' && n.endsWith(EXT)) names.push(n);
       names.sort();
       while (names.length > 14) await dir.removeEntry(names.shift());
     } catch (err) { console.warn('backup skipped', err); }
@@ -413,7 +446,7 @@ export const Store = (() => {
         if (out.length > 5000) return;
         if (name.startsWith('.') || name === 'node_modules') continue;
         if (h.kind === 'directory') { if (depth < 6) await walk(h, prefix + name + '/', depth + 1); }
-        else if (!name.endsWith('.frogmouth') && (!re || re.test(name))) out.push(prefix + name);
+        else if (!isVaultName(name) && (!re || re.test(name))) out.push(prefix + name);
       }
     }
     await walk(S.vault.dir, '', 0);
@@ -468,8 +501,8 @@ export const Store = (() => {
   const linksOut = (note) => { const out = new Set(); const re = /data-note="([^"]+)"/g; let m; while ((m = re.exec(note.html))) if (S.notes.has(m[1])) out.add(m[1]); return [...out]; };
 
   return {
-    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, unlock, openMemory, setData, close,
-    serialize, save, saveNow, change, checkDisk, reloadFrom, keepMine, setPassphrase, recents, forgetRecent,
+    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, unlock, openMemory, close,
+    serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, setPassphrase, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
   };
 })();

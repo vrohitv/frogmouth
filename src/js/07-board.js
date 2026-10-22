@@ -39,6 +39,7 @@ export const Board = (() => {
     addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceDown = false; vp.classList.remove('grab'); } });
     new ResizeObserver(() => board && applyView()).observe(vp);
     bus.on('change', (what) => { if (what === 'note' || what === 'notes') refreshFeet(); });
+    bus.on('closed', () => { disarm(); unmount(); plane.replaceChildren(); els.clear(); backMap = new Map(); });
   }
 
   const toBoard = (cx, cy) => { const r = vp.getBoundingClientRect(); return { x: (cx - r.left - view.x) / view.z, y: (cy - r.top - view.y) / view.z }; };

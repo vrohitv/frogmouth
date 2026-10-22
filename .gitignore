@@ -1,6 +1,8 @@
 node_modules/
 test/frogmouth.html
+*.fm
 *.frogmouth
+.fm-backups/
 .frogmouth-backups/
 .DS_Store
 __pycache__/

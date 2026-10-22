@@ -1,6 +1,6 @@
 {
   "name": "frogmouth",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Sticky notes and secrets in one local file. One HTML page, no server, no network.",
   "license": "MIT",
   "private": true,
@@ -10,10 +10,15 @@
     "dev": "vite",
     "build": "vite build",
     "build:test": "vite build --mode test",
-    "test": "python3 test/run.py"
+    "test": "python3 test/run.py",
+    "brand": "python3 tools/brand.py",
+    "check": "npm run build && git diff --exit-code -- frogmouth.html && npm test"
   },
   "devDependencies": {
     "vite": "^8.3.5",
     "vite-plugin-singlefile": "^2.3.4"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

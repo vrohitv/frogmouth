@@ -7,7 +7,7 @@ import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
 import { Palette } from './09-palette.js';
 
-/* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
+/* ── app shell: welcome, floating controls, board pills, sync, keys, commands ── */
 export const App = (() => {
   let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
@@ -70,7 +70,7 @@ export const App = (() => {
     }
     const alt = h('div', { class: 'w-alt' });
     if (Store.canOPFS()) alt.append(h('button', { class: 'btn ghost', text: 'Use browser storage', title: 'Saved inside this browser profile, not in a folder', onclick: useOPFS }));
-    alt.append(h('button', { class: 'btn ghost', text: 'Import a .frogmouth file', onclick: importFile }));
+    alt.append(h('button', { class: 'btn ghost', text: 'Import a .fm file', onclick: importFile }));
     alt.append(h('button', { class: 'btn ghost', text: 'Try it without saving', onclick: () => { Store.openMemory(); enter(); } }));
     actions.append(alt);
     card.append(h('p', { class: 'w-fine', html: `This page makes no network requests. The vault is readable JSON unless you set a passphrase (AES-256).` }));
@@ -99,7 +99,7 @@ export const App = (() => {
     catch (err) { toast('Browser storage is unavailable here', { kind: 'warn' }); }
   }
   function importFile() {
-    const inp = h('input', { type: 'file', accept: '.frogmouth,application/json', style: { display: 'none' } });
+    const inp = h('input', { type: 'file', accept: '.fm,.frogmouth,application/json', style: { display: 'none' } });
     inp.onchange = async () => {
       const f = inp.files[0]; inp.remove(); if (!f) return;
       try {
@@ -121,9 +121,10 @@ export const App = (() => {
   async function openVault(dir, kind) {
     try {
       const res = await Store.openDir(dir, kind);
-      if (res.locked) return showWelcome('locked', res.env);
+      if (res.locked) { if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 }); return showWelcome('locked', res.env); }
       enter();
       if (res.fresh) toast(`Created ${Store.FILE} in ${Store.S.vault.name}`);
+      if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 });
     } catch (err) {
       console.error(err);
       Modal.open({ title: 'Could not open the vault', body: h('p', { text: err.message || String(err) }), actions: [{ label: 'OK', primary: true }] });
@@ -169,7 +170,6 @@ export const App = (() => {
   const viewOf = () => (isBoardView() ? 'board' : Store.S.data.ui.active);
   /* the switcher's three pages; ⌥B ⌥L ⌥S, pressing a page's key again returns to the board */
   function showView(v) { activate(v === 'board' || viewOf() === v ? 'b:' + Store.S.data.ui.board : v); }
-  const toggleView = () => showView('secrets');
   function cycleBoard(d) {
     const bs = Store.S.data.boards;
     const i = bs.findIndex((b) => b.id === Store.S.data.ui.board);
@@ -313,6 +313,7 @@ export const App = (() => {
     const st = Store.S.status;
     if (st === 'conflict') resolveConflict();
     else if (Store.S.vault.kind === 'memory') downloadVault();
+    else if (st === 'error') Store.regainAccess().then((ok) => toast(ok ? 'Saved' : 'Still cannot write to the folder. Check its permissions, or download a copy from the menu.', ok ? {} : { kind: 'warn', timeout: 7000 }));
     else Store.saveNow.flush();
   }
 
@@ -323,7 +324,7 @@ export const App = (() => {
       actions: [{ label: 'Cancel', value: null }, { label: 'Load the disk version', value: 'disk' }, { label: 'Keep mine', primary: true, value: 'mine' }],
     });
     if (v === 'disk') {
-      try { await Store.reloadFrom(); enter(); toast('Loaded the disk version'); }
+      try { await Store.reloadFrom(); toast('Loaded the disk version'); }
       catch { toast('The disk version is encrypted with a different passphrase. Lock and reopen.', { kind: 'warn', timeout: 6000 }); }
     } else if (v === 'mine') { await Store.keepMine(); toast('Your version was written to disk'); }
   }
@@ -430,7 +431,7 @@ export const App = (() => {
     const err = h('p', { class: 'w-err' });
     Modal.open({
       title: change ? 'Change the passphrase' : 'Encrypt this vault',
-      body: h('div', { class: 'stack' }, a, b, err, h('p', { class: 'muted small', text: 'The .frogmouth file is encrypted with AES-256-GCM. Images and tagged files in the folder are not. There is no recovery: a forgotten passphrase means a lost vault.' })),
+      body: h('div', { class: 'stack' }, a, b, err, h('p', { class: 'muted small', text: 'The .fm file is encrypted with AES-256-GCM. Images and tagged files in the folder are not. There is no recovery: a forgotten passphrase means a lost vault.' })),
       actions: [{ label: 'Cancel', value: null }, { label: change ? 'Change passphrase' : 'Encrypt', primary: true, run: async () => {
         if (a.value.length < 8) { err.textContent = 'Use at least 8 characters.'; return false; }
         if (a.value !== b.value) { err.textContent = 'The two entries differ.'; return false; }
@@ -462,7 +463,7 @@ export const App = (() => {
 
   async function downloadVault() {
     const text = await Store.serialize();
-    download(Store.S.vault.kind === 'memory' && /\.frogmouth$/.test(Store.S.vault.name) ? Store.S.vault.name : 'vault.frogmouth', text);
+    download(Store.S.vault.kind === 'memory' && /\.fm$/.test(Store.S.vault.name) ? Store.S.vault.name : Store.FILE, text);
     if (Store.S.vault.kind === 'memory') { Store.S.dirty = false; Store.setStatus('memory', 'Downloaded'); }
   }
 
@@ -498,7 +499,7 @@ export const App = (() => {
       { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
-      { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); enter(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
+      { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
       { title: 'Download a copy of the vault', run: downloadVault },
       { title: 'Encrypt vault with a passphrase', when: () => !c, run: () => setPass(false) },
       { title: 'Change passphrase', when: () => c, run: () => setPass(true) },
@@ -589,6 +590,14 @@ export const App = (() => {
     Secrets.init(secretsEl);
     NotesList.init(notesEl);
     addEventListener('keydown', onKey);
+    // anything that fails in the background gets said out loud instead of failing silently
+    const oops = (err) => {
+      console.error(err);
+      const msg = (err && (err.message || String(err))) || 'Unknown error';
+      if (!/ResizeObserver loop|AbortError|The user aborted/.test(msg)) toast(`Something went wrong: ${msg.slice(0, 120)}`, { kind: 'warn', timeout: 7000 });
+    };
+    addEventListener('unhandledrejection', (e) => oops(e.reason));
+    addEventListener('error', (e) => oops(e.error || e.message));
     bus.on('status', renderSync);
     bus.on('change', (what) => {
       if (what === 'secrets') Board.refreshChips();
@@ -597,6 +606,7 @@ export const App = (() => {
       renderSync();
     });
     bus.on('goto-note', (id, boardId) => gotoNote(id, boardId));
+    bus.on('reloaded', () => { if (Store.S.data && !shell.hidden) enter(); });
     bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
     addEventListener('beforeunload', (e) => {
       if (!Store.S.data || !Store.S.dirty) return;
@@ -607,6 +617,6 @@ export const App = (() => {
     showWelcome();
   }
 
-  return { boot, openTab, gotoNote, addToBoard, pushUndo, commands, enter, showWelcome, openVault };
+  return { boot, openTab, gotoNote, addToBoard, pushUndo, commands, enter, showWelcome };
 })();
 

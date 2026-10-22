@@ -35,6 +35,7 @@ class Pipe:
             os.dup2(r_in, 3); os.dup2(w_out, 4)
         self.proc = subprocess.Popen(
             [CHROME, "--headless=new", "--disable-gpu", "--remote-debugging-pipe",
+             *(["--no-sandbox"] if os.environ.get("CI") else []),  # CI runners block Chrome's sandbox
              f"--user-data-dir={self.profile}", "--no-first-run", url],
             pass_fds=(3, 4), preexec_fn=child,  # keep the dup'ed fds open after exec
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

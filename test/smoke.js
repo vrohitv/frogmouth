@@ -119,6 +119,7 @@ import { App } from '../src/js/10-app.js';
     ok('wrong passphrase fails', bad);
     ok('ciphertext hides plaintext', !JSON.stringify(sealed).includes('hello'));
 
+    ok('tagged HTML/SVG files never open as live documents', Editor.openAs('text/html', 'files/x.html') === 'text' && Editor.openAs('image/svg+xml', 'a.svg') === 'text' && Editor.openAs('application/xhtml+xml', 'a.xhtml') === 'download' && Editor.openAs('', 'files/a.excalidraw') === 'text' && Editor.openAs('image/png', 'a.png') === 'view' && Editor.openAs('application/zip', 'a.zip') === 'download');
     ok('fuzzy subsequence', fuzzy('rtb', 'retry with backoff') && !fuzzy('zzz', 'retry'));
 
     /* ── app in memory mode ── */
@@ -508,7 +509,7 @@ import { App } from '../src/js/10-app.js';
         Store.S.data.secrets.push({ id: uid(), key: 'OPFS_KEY', value: 'v', tags: [], desc: '' });
         Store.change('secrets');
         await wait(900);
-        const f = await (await dir.getFileHandle('vault.frogmouth')).getFile();
+        const f = await (await dir.getFileHandle('vault.fm')).getFile();
         ok('opfs autosaves', (await f.text()).includes('OPFS_KEY') && Store.S.status === 'saved', Store.S.status);
         const ir = await Store.saveImage(new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }), 'x.png');
         ok('image saved to assets/', ir.path && ir.path.startsWith('assets/'));
@@ -517,7 +518,7 @@ import { App } from '../src/js/10-app.js';
         const all = await Store.listFiles();
         ok('list files sees both', all.includes('files/arch.excalidraw') && all.some((p) => p.startsWith('assets/')), JSON.stringify(all));
         await Store.setPassphrase('passphrase1');
-        const enc = await (await dir.getFileHandle('vault.frogmouth')).getFile();
+        const enc = await (await dir.getFileHandle('vault.fm')).getFile();
         const ej = JSON.parse(await enc.text());
         ok('encrypted on disk', ej.encrypted === true && !JSON.stringify(ej).includes('OPFS_KEY'));
         Store.close();
@@ -525,7 +526,29 @@ import { App } from '../src/js/10-app.js';
         ok('reopen asks for passphrase', again.locked);
         await Store.unlock('passphrase1', again.env);
         ok('unlock restores data', Store.S.data.secrets.some((s) => s.key === 'OPFS_KEY'));
+        // a change made outside the app is reloaded and shown (the board must not keep stale notes)
+        App.enter(); await wait(50);
+        const disk = JSON.parse(JSON.stringify(Store.S.data));
+        disk.notes.push({ id: 'ext1', html: '<p>Written by another window</p>', color: 'rose' });
+        disk.boards[0].items.push({ note: 'ext1', x: 900, y: 40, w: 260 });
+        const sealed2 = JSON.stringify(await Vcrypt.seal(Store.S.crypt, JSON.stringify(disk)));
+        const ew = await (await dir.getFileHandle('vault.fm')).createWritable(); await ew.write(sealed2); await ew.close();
+        await Store.reloadFrom(); await wait(80);
+        ok('external changes re-render the board', !!$('.note[data-id="ext1"]') && Board.current() === Store.S.data.boards[0], $$('.note').length);
+        // locking leaves nothing readable behind
+        App.openTab('secrets'); await wait(20);
+        Store.close(); await wait(20);
+        ok('closing clears notes and secrets from the page', !$$('.note').length && !$('.s-list').children.length && !Store.S.notes.size);
         await root.removeEntry(dir.name, { recursive: true });
+        // a vault made before the .fm rename opens, is copied to .fm, and the old file stays
+        const old = await root.getDirectoryHandle('fm-legacy-' + Date.now(), { create: true });
+        const legacyText = JSON.stringify({ frogmouth: 1, encrypted: false, data: { boards: [{ id: 'b1', name: 'Old', notes: [{ id: 'n1', html: '<p>From before</p>' }] }], secrets: [] } });
+        const ow = await (await old.getFileHandle('vault.frogmouth', { create: true })).createWritable(); await ow.write(legacyText); await ow.close();
+        Store.close();
+        const lr = await Store.openDir(old, 'opfs');
+        const names = []; for await (const [n] of old.entries()) names.push(n);
+        ok('legacy .frogmouth vault opens and is copied to .fm', lr.ok && lr.migrated && lr.migrated.to === 'vault.fm' && names.includes('vault.fm') && names.includes('vault.frogmouth') && Store.S.vault.file === 'vault.fm' && Store.S.data.notes[0].title === 'From before', JSON.stringify([lr, names]));
+        await root.removeEntry(old.name, { recursive: true });
       } catch (err) { ok('opfs flow', false, err && (err.stack || err.message)); }
     }
   } catch (err) {

@@ -183,5 +183,5 @@ export const HL = (() => {
     return code(src, L[l] || L.js);
   }
 
-  return { highlight, detect, norm, LANGS };
+  return { highlight, detect, LANGS };
 })();

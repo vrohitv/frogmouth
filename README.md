@@ -13,9 +13,9 @@ The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a
 
 1. Download `frogmouth.html` and open it in Chrome, Edge, Brave or Arc. Opening it straight from disk (`file://`) works.
 2. Click **Open a folder** and pick (or create) a folder for your vault.
-3. frogmouth creates `vault.frogmouth` in that folder and saves to it as you type.
+3. frogmouth creates `vault.fm` in that folder and saves to it as you type. (Vaults from older versions, `vault.frogmouth`, are copied to `vault.fm` on open; the old file is left as a backup.)
 
-Firefox and Safari cannot write to folders on disk. There you can use **Try it without saving** and **Import a .frogmouth file**, and download the vault with `⌘S`.
+Firefox and Safari cannot write to folders on disk. There you can use **Try it without saving** and **Import a .fm file**, and download the vault with `⌘S`.
 
 ## What it does
 
@@ -78,7 +78,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Images and tagged files in the folder are **not** encrypted.
 - There is no recovery for a forgotten passphrase.
 
-**Backups**: once a day, the vault file is copied to `.frogmouth-backups/`. The last 14 copies are kept.
+**Backups**: once a day, the vault file is copied to `.fm-backups/`. The last 14 copies are kept.
 
 ## Keyboard
 
@@ -123,14 +123,14 @@ Press `?` in the app for the full list.
 
 ```
 my-vault/
-  vault.frogmouth        # all boards, notes and secrets (JSON, or encrypted JSON)
+  vault.fm               # all boards, notes and secrets (JSON, or encrypted JSON)
   assets/                # images pasted or dropped into notes
   files/                 # other files dropped into notes
-  .frogmouth-backups/    # daily copies of vault.frogmouth
+  .fm-backups/           # daily copies of vault.fm
   anything-else.excalidraw   # any file here can be tagged with @
 ```
 
-Unencrypted, `vault.frogmouth` is pretty-printed JSON, so it diffs well in git. Notes are stored once; boards hold placements that point at them (vaults from before version 2, where boards owned their notes, are converted on open):
+Unencrypted, `vault.fm` is pretty-printed JSON, so it diffs well in git. Notes are stored once; boards hold placements that point at them (vaults from before version 2, where boards owned their notes, are converted on open):
 
 ```json
 {"frogmouth":1,"encrypted":false,"saved":"…","data":{
@@ -156,6 +156,8 @@ npm install
 npm run dev          # dev server with hot reload (the no-network policy is relaxed only here)
 npm run build        # -> frogmouth.html, the single file to ship
 npm test             # builds test/frogmouth.html and runs the smoke suite in headless Chrome
+npm run check        # build, confirm the committed frogmouth.html is current, test (what CI runs)
+npm run brand        # regenerate docs/brand and the favicon (pip install fonttools brotli)
 ```
 
 `npm test` needs Python 3 and Chrome (set `CHROME=/path/to/chrome` if it is not in the usual place).
@@ -169,7 +171,7 @@ src/fonts/            JetBrains Mono woff2 files + OFL license
 src/js/00-util.js     helpers, tags, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
 src/js/02-crypto.js   optional AES-GCM vault encryption
-src/js/03-store.js    state, the .frogmouth file, autosave, disk watching, images, files
+src/js/03-store.js    state, the .fm file, autosave, disk watching, images, files
 src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor
 src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images
@@ -184,6 +186,10 @@ vite.config.js        single-file build, test mode, dev-only CSP relaxation
 src/brand/mark.json   the frogmouth symbol (shared by the app and tools/brand.py)
 tools/brand.py        regenerates docs/brand/*.svg and the favicon (pip install fonttools brotli)
 ```
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for what frogmouth protects against, what it does not, and how to report a vulnerability.
 
 ## License
 

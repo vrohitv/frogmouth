@@ -1,4 +1,4 @@
-import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon } from './00-util.js';
+import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { Secrets } from './08-secrets.js';
@@ -9,6 +9,9 @@ import { App } from './10-app.js';
    >      commands      @  notes only      $  secrets only      #  boards only */
 export const Palette = (() => {
   let el, inp, list, foot, items = [], idx = 0, built = -1, idxNotes = [], idxBoards = [], idxSecrets = [];
+
+  // forget the search index (it holds note text) when the vault locks or closes
+  bus.on('closed', () => { built = -1; idxNotes = []; idxBoards = []; idxSecrets = []; if (el && el.isConnected) el.remove(); });
 
   function build() {
     if (built === Store.S.rev) return;
