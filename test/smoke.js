@@ -352,6 +352,29 @@ import { App } from '../src/js/10-app.js';
     Board.arrange();
     ok('arrange keeps notes', Board.current().items.length === count);
 
+    // a note reference (@link) is only a link: it never puts the linked note on this board
+    {
+      const here = Board.current(), d = Store.S.data;
+      const other = { id: uid(), name: 'Elsewhere', created: now(), items: [] }; d.boards.push(other);
+      const away = Store.createNote({ html: '<p>Lives elsewhere</p>' }); Store.place(other.id, away.id, { x: 0, y: 0 });
+      const loose = Store.createNote({ html: '<p>On no board</p>' });
+      Store.index(); Store.change('notes');
+      const before = here.items.map((m) => m.note).join();
+      const host = Board.addNote({ x: 40, y: 3400 }, false, `<p>Host</p><p>See <a class="mention" contenteditable="false" data-note="${away.id}">@x</a> and <a class="mention" contenteditable="false" data-note="${loose.id}">@y</a></p>`);
+      await wait(350);
+      const onHere = () => here.items.map((m) => m.note).filter((id) => id !== host.id).join();
+      ok('linking notes does not put them on this board', onHere() === before && !here.items.some((m) => m.note === away.id || m.note === loose.id) && !$(`.note[data-id="${away.id}"]`) && !$(`.note[data-id="${loose.id}"]`));
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${away.id}"]`).click(); await wait(80);
+      ok('clicking a link to a note on another board opens that board, and adds nothing', Board.current() === other && !here.items.some((m) => m.note === away.id) && other.items.length === 1);
+      App.openTab('b:' + here.id); await wait(60);
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${loose.id}"]`).click(); await wait(80);
+      ok('clicking a link to a note on no board opens All notes, and adds it nowhere', Store.S.data.ui.active === 'notes' && Store.noteRef(loose.id).boards.length === 0);
+      App.openTab('b:' + here.id); await wait(60);
+      ok('the board is exactly as it was', onHere() === before);
+      for (const id of [host.id, away.id, loose.id]) Board.removeEverywhere(id, true);
+      d.boards.splice(d.boards.indexOf(other), 1); Store.index(); Store.change('boards');
+    }
+
     // zoom percent and minimap
     {
       const frameP = () => new Promise((r) => requestAnimationFrame(() => r()));
