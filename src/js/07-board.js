@@ -9,7 +9,7 @@ import { App } from './10-app.js';
    library. Geometry lives on the placement, content on the note, so the
    same note can sit on several boards. Elements are keyed by note id. */
 export const Board = (() => {
-  const COLORS = ['straw', 'lichen', 'dusk', 'moth', 'rose', 'night'];
+  const COLORS = ['moth', 'straw', 'lichen', 'dusk', 'rose', 'night'];
   const GRID = 8;
   let vp, plane, empty, board = null, view = { x: 0, y: 0, z: 1 }, sel = null, maxZ = 1;
   const els = new Map();
@@ -369,7 +369,7 @@ export const Board = (() => {
   function addNote(at, focus, html = '<p><br></p>', extra = {}) {
     if (!board) return null;
     const p = at || freeSpot();
-    const n = Store.createNote({ html, color: extra.color || (sel && noteOf(sel) ? noteOf(sel).color : 'straw'), ...Editor.derive(html) });
+    const n = Store.createNote({ html, color: extra.color || (sel && noteOf(sel) ? noteOf(sel).color : 'moth'), ...Editor.derive(html) });
     const it = Store.place(board.id, n.id, { x: Math.round(p.x / GRID) * GRID, y: Math.round(p.y / GRID) * GRID, w: extra.w || 260, h: extra.h || null, z: ++maxZ });
     plane.append(build(it));
     updateEmpty();

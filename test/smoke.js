@@ -51,6 +51,8 @@ import { App } from '../src/js/10-app.js';
       await type('co');
     }
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
+    if (mode === 'shot-green') document.documentElement.dataset.accent = 'green';
+    if (mode === 'shot-purple') { document.documentElement.dataset.accent = 'purple'; document.documentElement.dataset.theme = 'day'; }
     if (mode === 'shot-secret-edit') { App.openTab('secrets'); await wait(50); Secrets.edit(Store.S.data.secrets[1]); }
     if (mode === 'shot-arm') { await wait(300); const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Today').note; Board.select(t.id); keydown(document.body, 'Delete'); }
     if (mode === 'shot-measure') {
@@ -119,6 +121,23 @@ import { App } from '../src/js/10-app.js';
     await wait(100);
     ok('board renders notes', $$('.note').length === 3, $$('.note').length);
     ok('code block highlighted on load', !!$('.note pre.code .t-k'));
+    {
+      const pre = $('.note pre.code'), code = pre.querySelector('code');
+      const lines = code.textContent.replace(/\n$/, '').split('\n').length;
+      ok('code blocks number every line', code.querySelectorAll('.ln').length === lines && lines > 3, code.querySelectorAll('.ln').length + ' vs ' + lines);
+      ok('line numbers are not part of the code text', !/^\s*1/.test(code.textContent) && code.textContent.startsWith('async function'), JSON.stringify(code.textContent.slice(0, 20)));
+      const ref = [...Store.S.notes.values()].find(({ note }) => note.title === 'Retry with backoff');
+      ok('saved note and search text have no line numbers', !/class="ln"/.test(ref.note.html) && /async function retry/.test(ref.note.text));
+    }
+    {
+      // a comment spanning lines stays coloured on every line, and nothing leaks between lines
+      const n2 = Board.addNote({ x: 1500, y: 600 }, false, '<p>Multi</p><pre class="code" data-lang="js"><code>' + esc('/* one\ntwo */\nlet x = 1;') + '</code></pre>');
+      await wait(10);
+      const c2 = $(`.note[data-id="${n2.id}"] pre.code code`);
+      const lns = [...c2.querySelectorAll('.ln')];
+      ok('multi-line tokens are split per line', lns.length === 3 && lns[0].querySelector('.t-c') && lns[1].querySelector('.t-c') && lns[2].querySelector('.t-k') && c2.textContent === '/* one\ntwo */\nlet x = 1;\n', c2.innerHTML);
+      Board.removeEverywhere(n2.id, true);
+    }
     ok('mention label refreshed', $$('.note a.mention').some((a) => a.textContent === '@Today'));
     ok('inferred titles', [...Store.S.notes.values()].every(({ note }) => note.title || Editor.derive(note.html).title));
 

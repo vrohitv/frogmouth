@@ -37,7 +37,7 @@ export const Store = (() => {
     const n1 = uid(), n2 = uid(), n3 = uid();
     const t = now();
     const notes = [
-      { id: n1, color: 'straw', created: t, updated: t,
+      { id: n1, color: 'moth', created: t, updated: t,
         html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.fm</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
@@ -64,7 +64,7 @@ export const Store = (() => {
 
   function normNote(n) {
     n.id = String(n.id || uid());
-    n.color = n.color || 'straw';
+    n.color = n.color || 'moth';
     n.html = typeof n.html === 'string' ? n.html : '';
     n.tags = Array.isArray(n.tags) ? [...new Set(n.tags.map(String).filter(Boolean))] : [];
     if (typeof n.title !== 'string' || typeof n.text !== 'string') Object.assign(n, Editor.derive(n.html));
@@ -120,7 +120,7 @@ export const Store = (() => {
   /* ── note operations ── */
   function createNote(fields = {}) {
     const t = now();
-    const n = normNote({ id: uid(), html: '<p><br></p>', color: 'straw', created: t, updated: t, ...fields });
+    const n = normNote({ id: uid(), html: '<p><br></p>', color: 'moth', created: t, updated: t, ...fields });
     S.data.notes.push(n);
     S.notes.set(n.id, { note: n, boards: [], board: null });
     return n;

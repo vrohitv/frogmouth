@@ -63,6 +63,10 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards.
 
+**Calm, readable UI**
+- Neutral dark or light theme with softened contrast, quiet note colours, and one accent you choose in the logo menu: **orange** (default), **green** or **purple**.
+- Code blocks show line numbers. They are drawn by the page, never part of the code: copying, saving and searching see only your code.
+
 **Sync icon** (top right), next to the name of the folder your vault lives in (or *Browser storage* / *No folder*). Hover it for the full path.
 - A file with a tick: everything is saved to the vault file.
 - A file with a dot: unsaved changes, saving shortly.

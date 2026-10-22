@@ -189,6 +189,7 @@ const ICONS = {
   dice: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><circle cx="5.5" cy="5.5" r=".8"/><circle cx="10.5" cy="10.5" r=".8"/><circle cx="8" cy="8" r=".8"/>',
   down: '<path d="M4 6l4 4 4-4"/>',
   tick: '<path d="M3.5 8.5l3 3 6-7"/>',
+  dot: '<circle cx="8" cy="8" r="2.5"/>',
   list: '<path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.5" cy="4" r=".6"/><circle cx="2.5" cy="8" r=".6"/><circle cx="2.5" cy="12" r=".6"/>',
   fileok: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M5.5 9.8l1.8 1.8 3.4-3.8"/>',
   filedot: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><circle cx="8" cy="10" r="1.7"/>',

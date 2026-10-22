@@ -11,6 +11,8 @@ First production release.
 - Secrets: key/value with plain and key:value tags, centred editor, JSON export.
 - Disk-change detection and conflict resolution. No encryption: frogmouth is a productivity tool, an alternative to a notepad.
 - Brand: frogmouth symbol, wordmark and logo system in `docs/brand/`.
+- Calm UI: neutral, untinted surfaces in dark and light, softened text contrast, muted note colours (dark tints at night, soft pastels by day, a neutral grey by default) and one accent of your choice: Anthropic orange (default), green or purple.
+- Line numbers in code blocks, drawn with CSS counters so they are never copied, saved or searched; a softer, familiar syntax palette.
 
 ### Fixed in the pre-release audit
 

@@ -195,13 +195,37 @@ export const Editor = (() => {
     const st = u.stack[j];
     paint(code, st.text, st.off);
   }
+  /* Wrap each line of highlighted HTML in <span class="ln">, closing and reopening any
+     token span that crosses a line break. The numbers come from a CSS counter on
+     .ln::before, so they are never part of the text: not copied, saved or searched,
+     and invisible to the caret-offset maths. The always-present trailing newline is
+     left outside, so it does not get a number of its own. */
+  function numberLines(html) {
+    let out = '<span class="ln">', open = null;
+    const parts = html.match(/<span class="[^"]+">|<\/span>|\n|[^<\n]+|</g) || [];
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i];
+      if (p === '\n') {
+        if (i === parts.length - 1) break; // the trailing newline
+        out += (open ? '</span>' : '') + '</span>\n<span class="ln">' + (open || '');
+      } else {
+        if (p.startsWith('<span')) open = p;
+        else if (p === '</span>') open = null;
+        out += p;
+      }
+    }
+    return out + (open ? '</span>' : '') + '</span>\n';
+  }
+
   function paint(code, text, off) {
     if (!text.endsWith('\n')) text += '\n';
     const pre = code.parentNode;
     const lang = pre.getAttribute('data-lang') || '';
     if (!lang) pre.setAttribute('data-auto', text.trim() ? HL.detect(text) : 'code');
     else pre.removeAttribute('data-auto');
-    code.innerHTML = HL.highlight(text, lang);
+    code.innerHTML = numberLines(HL.highlight(text, lang));
+    const lines = text.split('\n').length - 1;
+    code.style.setProperty('--lnw', Math.max(2, String(lines).length) + 'ch');
     if (off != null) setOff(code, off);
   }
   function rehl(code, keepCaret = true) {
