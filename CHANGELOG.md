@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-10-22)
 
 - **The note view**: clicking a note link opens the note full size over your board instead of taking you away. Read it, click to edit, follow its links in the same view (`‹` back); `↵` opens it on its board, `A` adds it here (or shows it if it is already here), `Esc` closes. Also used for "N notes link here" and for notes on no board.
 - **+ Note** button beside the zoom control: a new note (`N`) or an existing one (`A`), so adding existing notes to a board is visible.
