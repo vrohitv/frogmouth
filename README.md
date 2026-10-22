@@ -138,12 +138,13 @@ my-vault/
 
 ```json
 {"frogmouth":1,"saved":"…","data":{
- "version":2,
  "notes":[{"id":"n1","color":"straw","tags":["docs"],"html":"<p>Title</p>…","title":"Title","text":"…"}],
  "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}]}],
  "secrets":[{"id":"…","key":"DATABASE_URL","value":"…","tags":["env:prod","db"],"desc":""}],
  "ui":{"board":"…","active":"b:…"}}}
 ```
+
+The format is specified in [docs/format.md](docs/format.md). It is versioned (`"frogmouth": 1`): later releases may add fields, and every release keeps fields it does not know, so nothing is lost when versions mix. A release never opens a file from a newer, incompatible format, so it can never write over it.
 
 ## Privacy and security
 

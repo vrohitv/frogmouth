@@ -20,6 +20,7 @@ First release.
 - **Search** shows "Recently edited" notes (with how long ago) and boards by last opened when nothing is typed, and opening a note that matched in its text lands on the match.
 - **Display changes are exact**: the view is kept as the board point at the centre of the window plus the zoom, so plugging in or unplugging a monitor, resizing or browser zoom never moves notes or loses your place, and returning to a size restores the identical view. Arrange no longer depends on the window width. Dragged positions are whole pixels.
 - The `/` menu ranks a two-word command first when all of it is typed (`/delete row`).
+- **The .fm format is specified and versioned** ([docs/format.md](docs/format.md)): one version number (`"frogmouth": 1`), unknown fields kept on save, files from a newer format refused untouched, and JSON that is not a vault refused, including from Import.
 
 ### Fixed in the pre-release audit
 

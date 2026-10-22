@@ -54,7 +54,6 @@ export const Store = (() => {
       { note: n2, x: 440, y: 80, w: 380, h: null, z: 2 },
       { note: n3, x: 80, y: 440, w: 280, h: null, z: 1 });
     return {
-      version: 2,
       notes,
       boards: [b],
       secrets: [{ id: uid(), key: 'EXAMPLE_API_TOKEN', value: 'replace-me-' + uid(), tags: ['env:dev', 'example'], desc: 'Safe to delete', created: t, updated: t }],
@@ -105,7 +104,7 @@ export const Store = (() => {
     }
     d.ui = Object.assign({ board: null, active: null }, d.ui || {});
     d.ui.recent = Array.isArray(d.ui.recent) ? d.ui.recent.filter((id) => typeof id === 'string') : [];
-    d.version = 2;
+    delete d.version; // the format version is on the file ({"frogmouth": N}), not in the data
     return d;
   }
 
@@ -195,23 +194,32 @@ export const Store = (() => {
     const vault = { kind, dir, fh, name: kind === 'opfs' ? 'Browser storage' : dir.name, file: fh.name };
     const file = await fh.getFile();
     const text = created ? '' : await file.text();
+    const data = text.trim() ? parse(text, fh.name) : null; // an unreadable or newer file leaves the open vault as it was
     S.vault = vault;
     S.lastMod = file.lastModified;
     if (kind === 'dir') rememberRecent(dir);
-    if (!text.trim()) {
+    if (!data) {
       setData(blankData());
       await save();
       return { ok: true, fresh: true };
     }
-    setData(parse(text));
+    setData(data);
     backup(text);
     return { ok: true };
   }
 
-  function parse(text) {
+  /* The file format (docs/format.md). FORMAT is its version. Additions (new fields, new
+     kinds of blocks) keep the version: a field this version does not know is left as it
+     is and written back unchanged. Only a change that older versions would misread
+     raises it, and a version never opens a newer file, so it can never write over data
+     it does not understand. */
+  const FORMAT = 1;
+  function parse(text, name = S.vault ? S.vault.file : 'This file') {
     let j;
-    try { j = JSON.parse(text); } catch { throw new Error(`${S.vault ? S.vault.file : 'This file'} is not valid JSON. Fix it in a text editor or restore a backup from ${BACKUPS}.`); }
-    return j && j.data ? j.data : j; // the envelope, or a bare data object
+    try { j = JSON.parse(text); } catch { throw new Error(`${name} is not valid JSON. Fix it in a text editor or restore a backup from ${BACKUPS}.`); }
+    if (!j || typeof j !== 'object' || !Number.isInteger(j.frogmouth) || !j.data || typeof j.data !== 'object' || Array.isArray(j.data)) throw new Error(`${name} is not a frogmouth vault.`);
+    if (j.frogmouth > FORMAT) throw new Error(`${name} was saved by a newer frogmouth (format ${j.frogmouth}). Download the latest frogmouth.html to open it. Nothing was changed.`);
+    return j.data;
   }
 
   function openMemory(data, name = 'Scratch') {
@@ -241,7 +249,7 @@ export const Store = (() => {
 
   /* ── saving ── */
   function serialize() {
-    return '{"frogmouth":1,"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
+    return '{"frogmouth":' + FORMAT + ',"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
   }
 
   /* Write the vault. Each save records which change (S.rev) it wrote, so edits made
@@ -301,6 +309,9 @@ export const Store = (() => {
       toast('Reloaded — the vault changed on disk');
     } catch (err) {
       if (err && err.name === 'NotFoundError') setStatus('error', 'Vault file is missing');
+      // unreadable (mid-write by a sync tool, or from a newer frogmouth): say so; nothing is saved over it
+      // unasked, because the next save sees the newer file and stops on a conflict
+      else setStatus('error', err && err.message ? err.message : 'Could not read the vault file');
     }
   }
   setInterval(checkDisk, 2000);
@@ -457,7 +468,7 @@ export const Store = (() => {
   const linksOut = (note) => { const out = new Set(); const re = /data-note="([^"]+)"/g; let m; while ((m = re.exec(note.html))) if (S.notes.has(m[1])) out.add(m[1]); return [...out]; };
 
   return {
-    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, openMemory, close,
+    S, FILE, FORMAT, parse, canPickDir, canOPFS, blankData, normalize, index, openDir, openMemory, close,
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
   };

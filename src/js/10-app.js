@@ -87,10 +87,9 @@ export const App = (() => {
     inp.onchange = async () => {
       const f = inp.files[0]; inp.remove(); if (!f) return;
       try {
-        const j = JSON.parse(await f.text());
-        Store.openMemory(j.data || j, f.name);
+        Store.openMemory(Store.parse(await f.text(), f.name), f.name);
         enter();
-      } catch { toast('That file could not be read as a vault', { kind: 'warn' }); }
+      } catch (err) { toast(err.message, { kind: 'warn' }); }
     };
     document.body.append(inp); inp.click();
   }

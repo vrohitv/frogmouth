@@ -718,9 +718,19 @@ import { App } from '../src/js/10-app.js';
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === 1 && parsed.data.version === 2 && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === Store.FORMAT && Store.FORMAT === 1 && !('version' in parsed.data) && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
     ok('normalize round trip', re.boards[0].items.length === Store.S.data.boards[0].items.length && re.notes.length === Store.S.data.notes.length);
+    {
+      // fields a later release adds survive this release reading and saving the file
+      const fut = Store.normalize({ later: { a: 1 }, notes: [{ id: 'n', html: '<p>a</p>', later: 1 }], boards: [{ id: 'b', name: 'B', later: 2, items: [{ note: 'n', x: 1, y: 2, w: 300, later: 3 }] }], secrets: [{ id: 's', key: 'K', value: 'v', later: 4 }], ui: { later: 5 } });
+      const back = JSON.parse(JSON.stringify(fut));
+      ok('unknown fields from a newer release are kept when saving', back.later.a === 1 && back.notes[0].later === 1 && back.boards[0].later === 2 && back.boards[0].items[0].later === 3 && back.secrets[0].later === 4 && back.ui.later === 5);
+      const err = (text) => { try { Store.parse(text, 'x.fm'); return ''; } catch (e) { return e.message; } };
+      ok('a file from a newer frogmouth is refused, with what to do', /newer frogmouth \(format 2\).*latest frogmouth\.html.*Nothing was changed/.test(err(JSON.stringify({ frogmouth: 2, data: {} }))));
+      ok('JSON that is not a vault is refused', /not a frogmouth vault/.test(err(JSON.stringify([{ key: 'A', value: 'b' }]))) && /not a frogmouth vault/.test(err(JSON.stringify({ notes: [], boards: [] }))) && /not valid JSON/.test(err('{oops')));
+      ok('a version 1 vault is read', err(Store.serialize()) === '' && Array.isArray(Store.parse(Store.serialize()).notes));
+    }
 
     // notes are shared: one note on several boards; deleting a board keeps its notes
     {
@@ -824,6 +834,15 @@ import { App } from '../src/js/10-app.js';
         const ew = await (await dir.getFileHandle('vault.fm')).createWritable(); await ew.write(JSON.stringify({ frogmouth: 1, data: disk })); await ew.close();
         await Store.reloadFrom(); await wait(80);
         ok('external changes re-render the board', !!$('.note[data-id="ext1"]') && Board.current() === Store.S.data.boards[0], $$('.note').length);
+        // a vault saved by a newer frogmouth is never opened, so it can never be written over
+        const nd = await root.getDirectoryHandle('fm-newer-' + Date.now(), { create: true });
+        const newer = JSON.stringify({ frogmouth: 2, data: { shape: 'unknown to this version' } });
+        const nw = await (await nd.getFileHandle('vault.fm', { create: true })).createWritable(); await nw.write(newer); await nw.close();
+        const openBefore = Store.S.vault;
+        let refusal = ''; try { await Store.openDir(nd, 'opfs'); } catch (e) { refusal = e.message; }
+        ok('a newer vault is not opened and the open vault stays as it was', /newer frogmouth/.test(refusal) && Store.S.vault === openBefore, refusal);
+        ok('the newer file is left byte for byte', (await (await (await nd.getFileHandle('vault.fm')).getFile()).text()) === newer);
+        await root.removeEntry(nd.name, { recursive: true });
         // closing leaves nothing behind on the page
         App.openTab('secrets'); await wait(20);
         Store.close(); await wait(20);
