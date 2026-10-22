@@ -1,4 +1,4 @@
-import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText, isMac, isAltGr } from './00-util.js';
+import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText, isMac, isAltGr, kb } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { HL } from './04-highlight.js';
@@ -8,6 +8,7 @@ import { Board } from './07-board.js';
 /* ── note editor: contenteditable with / commands, @ tags, code, images ─
    Stored HTML is a small, sanitized subset:
    p h1 h2 h3 ul ol li blockquote pre.code hr b i u s code a br
+   table thead tbody tr th td
    a.mention[data-note]   – link to another note
    span.fref[data-path]    – tag of a file in the vault folder
    span.sref[data-secret]  – reference to a secret (click copies)
@@ -15,12 +16,12 @@ import { Board } from './07-board.js';
 export const Editor = (() => {
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch {}
   const exec = (c, v = null) => document.execCommand(c, false, v);
-  const BLOCK = /^(P|LI|H1|H2|H3|BLOCKQUOTE|PRE|DIV|FIGURE)$/;
+  const BLOCK = /^(P|LI|H1|H2|H3|BLOCKQUOTE|PRE|DIV|FIGURE|TD|TH)$/;
 
   /* ── sanitizing ───────────────────────────────────────────────── */
-  const KEEP = { P: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, DEL: 1, STRIKE: 1, CODE: 1, PRE: 1, H1: 1, H2: 1, H3: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, A: 1, HR: 1, SPAN: 1, FIGURE: 1, IMG: 1, MARK: 1 };
+  const KEEP = { P: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, DEL: 1, STRIKE: 1, CODE: 1, PRE: 1, H1: 1, H2: 1, H3: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, A: 1, HR: 1, SPAN: 1, FIGURE: 1, IMG: 1, MARK: 1, TABLE: 1, THEAD: 1, TBODY: 1, TR: 1, TH: 1, TD: 1 };
   const DROP = /^(SCRIPT|STYLE|TEMPLATE|IFRAME|OBJECT|EMBED|NOSCRIPT|SVG|MATH|CANVAS|VIDEO|AUDIO|BUTTON|INPUT|SELECT|TEXTAREA|FORM|META|LINK|HEAD|TITLE)$/;
-  const MAP = { DIV: 'P', H4: 'H3', H5: 'H3', H6: 'H3', SECTION: 'P', ARTICLE: 'P', HEADER: 'P', FOOTER: 'P', TR: 'P' };
+  const MAP = { DIV: 'P', H4: 'H3', H5: 'H3', H6: 'H3', SECTION: 'P', ARTICLE: 'P', HEADER: 'P', FOOTER: 'P', TFOOT: 'TBODY' };
   const safePath = (p) => typeof p === 'string' && /^[^:\\]+$/.test(p) && !p.split('/').includes('..');
   const safeImg = (p) => safePath(p) || /^data:image\/(png|jpe?g|gif|webp|avif|bmp);base64,[\w+/=]+$/i.test(p || '');
 
@@ -83,11 +84,34 @@ export const Editor = (() => {
         dst.append(el);
         continue;
       }
+      if (tag === 'TABLE') { table(n, el); dst.append(el); continue; }
       if (tag === 'UL' && n.getAttribute('data-type') === 'todo') el.setAttribute('data-type', 'todo');
       if (tag === 'LI' && n.hasAttribute('data-checked')) el.setAttribute('data-checked', n.getAttribute('data-checked') === 'true' ? 'true' : 'false');
       walk(n, el);
       dst.append(el);
     }
+  }
+
+  /* a table keeps only rows of cells, padded to the same width, so pasted
+     spreadsheets and web tables come in as plain grids */
+  function table(src, dst) {
+    const rows = Array.from(src.querySelectorAll('tr')).filter((tr) => tr.closest('table') === src);
+    const cols = Math.min(30, Math.max(1, ...rows.map((tr) => tr.cells.length)));
+    let head = null, bodyEl = null;
+    for (const tr of rows.slice(0, 500)) {
+      const isHead = tr.parentNode.tagName === 'THEAD' || (!bodyEl && !head && Array.from(tr.cells).every((c) => c.tagName === 'TH'));
+      const row = document.createElement('tr');
+      for (let i = 0; i < cols; i++) {
+        const c = tr.cells[i];
+        const cell = document.createElement(isHead ? 'th' : 'td');
+        if (c) walk(c, cell);
+        if (!cell.firstChild) cell.append(h('br'));
+        row.append(cell);
+      }
+      if (isHead && !bodyEl) { if (!head) { head = document.createElement('thead'); dst.append(head); } head.append(row); }
+      else { if (!bodyEl) { bodyEl = document.createElement('tbody'); dst.append(bodyEl); } bodyEl.append(row); }
+    }
+    if (!dst.firstChild) dst.append(h('tbody', null, h('tr', null, h('td', null, h('br')))));
   }
 
   /* ── serializing ──────────────────────────────────────────────── */
@@ -111,11 +135,13 @@ export const Editor = (() => {
   function derive(root) {
     if (typeof root === 'string') { const t = document.createElement('template'); t.innerHTML = root; root = t.content; }
     const lines = [];
-    const blocks = root.querySelectorAll ? root.querySelectorAll('p,h1,h2,h3,li,blockquote,pre') : [];
+    const blocks = root.querySelectorAll ? root.querySelectorAll('p,h1,h2,h3,li,blockquote,pre,tr') : [];
     for (const b of blocks) {
       if (b.tagName === 'BLOCKQUOTE' && b.querySelector('p')) continue;
       if (b.closest('li') && b.tagName !== 'LI') continue;
-      lines.push(b.textContent);
+      if (b.closest('td,th')) continue;
+      // a table row is one line, its cells separated by two spaces
+      lines.push(b.tagName === 'TR' ? Array.from(b.children, (c) => c.textContent.trim()).join('  ') : b.textContent);
     }
     if (!lines.length) lines.push(root.textContent || '');
     const text = lines.join('\n');
@@ -400,6 +426,7 @@ export const Editor = (() => {
     { id: 'code', label: 'Code block', hint: '``` lang', icon: 'cmd', k: 'code block snippet pre' },
     { id: 'quote', label: 'Quote', hint: '>', icon: 'cmd', k: 'quote blockquote' },
     { id: 'hr', label: 'Divider', hint: '---', icon: 'cmd', k: 'divider hr line rule' },
+    { id: 'table', label: 'Table', hint: '/table 4x3', icon: 'list', k: 'table grid rows columns cells' },
     { id: 'image', label: 'Image', hint: 'from vault or computer', icon: 'image', k: 'image picture png screenshot upload' },
     { id: 'file', label: 'File tag', hint: 'any file in the vault', icon: 'folder', k: 'file attach excalidraw pdf tag' },
     { id: 'mention', label: 'Link a note', hint: '@', icon: 'note', k: 'mention link note reference @' },
@@ -408,15 +435,28 @@ export const Editor = (() => {
     { id: 'date', label: 'Today’s date', hint: '', icon: 'cmd', k: 'date today time now' },
   ];
 
+  /* shown at the top of the / menu while the caret is in a table */
+  const TABLE_OPS = [
+    { id: 'row-below', label: 'Add row below', hint: kb('enter') + ' in the last row', icon: 'plus', k: 'table row insert add below' },
+    { id: 'row-above', label: 'Add row above', icon: 'plus', k: 'table row insert add above' },
+    { id: 'col-right', label: 'Add column right', icon: 'plus', k: 'table column col insert add right' },
+    { id: 'col-left', label: 'Add column left', icon: 'plus', k: 'table column col insert add left' },
+    { id: 'row-del', label: 'Delete row', icon: 'x', k: 'table row delete remove' },
+    { id: 'col-del', label: 'Delete column', icon: 'x', k: 'table column col delete remove' },
+    { id: 'table-del', label: 'Delete table', icon: 'x', k: 'table delete remove' },
+  ];
+  const cellAt = () => { const r = rng(); const n = r && r.startContainer; const e = n && (n.nodeType === 1 ? n : n.parentNode); return e && e.closest ? e.closest('td,th') : null; };
+
   function slashItems(q) {
     q = q.toLowerCase();
     const [cmd] = q.split(' ');
     const out = [];
-    for (const it of SLASH) {
+    for (const it of (cellAt() ? TABLE_OPS.concat(SLASH) : SLASH)) {
       const m = fuzzy(cmd, (it.label + ' ' + it.k).toLowerCase());
-      if (m) out.push({ ...it, sc: m.s + (it.label.toLowerCase().startsWith(cmd) ? 50 : 0) });
+      // a two-word label ("Delete row") wins when all of it is typed
+      if (m) out.push({ ...it, sc: m.s + (it.label.toLowerCase().startsWith(cmd) ? 50 : 0) + (q.trim() !== cmd && it.label.toLowerCase().startsWith(q.trim()) ? 100 : 0) });
     }
-    return cmd ? out.sort((a, b) => b.sc - a.sc) : SLASH.slice();
+    return cmd ? out.sort((a, b) => b.sc - a.sc) : (cellAt() ? TABLE_OPS.concat(SLASH) : SLASH.slice());
   }
 
   let filesCache = { at: 0, list: [] };
@@ -527,8 +567,8 @@ export const Editor = (() => {
   function insertPic(src) { insertBlock(h('figure', { class: 'pic', contenteditable: 'false', 'data-src': src })); }
 
   /* Chrome sometimes nests lists/blocks inside <p>; flatten, keeping the caret */
-  const NESTED = ':scope > :is(p,h1,h2,h3) > :is(ul,ol,pre,blockquote,p,h1,h2,h3,figure,hr)';
-  const BLOCKY = /^(UL|OL|PRE|BLOCKQUOTE|P|H1|H2|H3|FIGURE|HR)$/;
+  const NESTED = ':scope > :is(p,h1,h2,h3) > :is(ul,ol,pre,blockquote,p,h1,h2,h3,figure,hr,table)';
+  const BLOCKY = /^(UL|OL|PRE|BLOCKQUOTE|P|H1|H2|H3|FIGURE|HR|TABLE)$/;
   function fixNesting(body) {
     if (!body.querySelector(NESTED)) return;
     // Remember the caret by node, not by character count: in a fresh, empty
@@ -600,6 +640,18 @@ export const Editor = (() => {
         hr.after(p); placeCaret(p, false);
         break;
       }
+      case 'table': {
+        if (cellAt()) break; // no tables inside tables
+        const m = /^(\d{1,2})\s*[x×*]\s*(\d{1,3})$/i.exec(arg);
+        const cols = m ? clamp(+m[1], 1, 12) : 3, rows = m ? clamp(+m[2], 1, 100) : 2;
+        const t = h('table', null,
+          h('thead', null, h('tr', null, Array.from({ length: cols }, () => h('th', null, h('br'))))),
+          h('tbody', null, Array.from({ length: rows }, () => h('tr', null, Array.from({ length: cols }, () => h('td', null, h('br')))))));
+        insertBlock(t);
+        placeCaret(t.querySelector('th'), false);
+        break;
+      }
+      case 'row-below': case 'row-above': case 'col-right': case 'col-left': case 'row-del': case 'col-del': case 'table-del': tableOp(id, body); break;
       case 'date': exec('insertText', new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })); break;
       case 'mention': exec('insertText', '@'); startTrigger('@', body, ctx); break;
       case 'link': linkCmd(); break;
@@ -609,6 +661,75 @@ export const Editor = (() => {
     }
     fixNesting(body);
     commitSoon(body);
+  }
+
+  /* ── tables ──────────────────────────────────────────────────── */
+  const emptyCell = (tag) => h(tag, null, h('br'));
+  function tableOp(id, body, cell = cellAt()) {
+    if (!cell || !body.contains(cell)) return;
+    const tr = cell.parentNode, tbl = cell.closest('table'), col = cell.cellIndex;
+    const rows = Array.from(tbl.rows);
+    if (id === 'row-below' || id === 'row-above') {
+      const row = h('tr', null, Array.from(tr.cells, () => emptyCell('td')));
+      if (id === 'row-above' && tr.parentNode.tagName !== 'THEAD') tr.before(row);
+      else if (tr.parentNode.tagName === 'THEAD') { let tb = tbl.tBodies[0]; if (!tb) { tb = h('tbody'); tbl.append(tb); } tb.prepend(row); }
+      else tr.after(row);
+      placeCaret(row.cells[col] || row.cells[0], false);
+    } else if (id === 'col-right' || id === 'col-left') {
+      if (tr.cells.length >= 30) return;
+      for (const r of rows) {
+        const ref = r.cells[Math.min(col, r.cells.length - 1)];
+        const c = emptyCell(r.parentNode.tagName === 'THEAD' ? 'th' : 'td');
+        if (id === 'col-left') ref.before(c); else ref.after(c);
+      }
+      placeCaret(tr.cells[id === 'col-left' ? col : col + 1], false);
+    } else if (id === 'row-del') {
+      if (rows.length <= 1) return tableOp('table-del', body, cell);
+      const i = rows.indexOf(tr);
+      tr.remove();
+      if (tbl.tHead && !tbl.tHead.rows.length) tbl.tHead.remove();
+      const next = tbl.rows[Math.min(i, tbl.rows.length - 1)];
+      placeCaret(next.cells[Math.min(col, next.cells.length - 1)], false);
+    } else if (id === 'col-del') {
+      if (tr.cells.length <= 1) return tableOp('table-del', body, cell);
+      for (const r of rows) if (r.cells[col]) r.cells[col].remove();
+      placeCaret(tr.cells[Math.min(col, tr.cells.length - 1)], false);
+    } else if (id === 'table-del') {
+      const p = h('p', null, h('br'));
+      tbl.replaceWith(p);
+      placeCaret(p, false);
+    }
+    commitSoon(body);
+  }
+  /* Tab and Enter move between cells; past the last cell they add a row */
+  function tableKey(e, cell, body) {
+    const tbl = cell.closest('table'), cells = Array.from(tbl.querySelectorAll('th,td')), i = cells.indexOf(cell);
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) { if (i > 0) placeCaret(cells[i - 1]); return true; }
+      if (i < cells.length - 1) { placeCaret(cells[i + 1]); return true; }
+      tableOp('row-below', body, cell);
+      placeCaret(tbl.rows[tbl.rows.length - 1].cells[0], false);
+      return true;
+    }
+    if (e.key === 'Enter' && modKey(e)) { // leave the table
+      e.preventDefault();
+      let next = tbl.nextElementSibling;
+      if (!next || next.tagName !== 'P') { next = h('p', null, h('br')); tbl.after(next); }
+      placeCaret(next, false);
+      return true;
+    }
+    if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); exec('insertLineBreak'); return true; }
+    if (e.key === 'Enter') { // the cell below, or a new row
+      e.preventDefault();
+      const tr = cell.parentNode, rows = Array.from(tbl.rows), below = rows[rows.indexOf(tr) + 1];
+      if (below) placeCaret(below.cells[Math.min(cell.cellIndex, below.cells.length - 1)]);
+      else tableOp('row-below', body, cell);
+      return true;
+    }
+    // Backspace at the start of a cell stays in the cell instead of merging cells
+    if (e.key === 'Backspace' && textBefore(cell) === '' && rng().collapsed) { e.preventDefault(); if (i > 0) placeCaret(cells[i - 1]); return true; }
+    return false;
   }
 
   async function linkCmd() {
@@ -703,9 +824,9 @@ export const Editor = (() => {
     const f = await Store.fileAt(path);
     if (!f) { toast(`${path} isn't in the vault folder`, { kind: 'warn' }); chip.classList.add('missing'); return; }
     chip.classList.remove('missing');
-    const kb = f.size < 1024 * 1024 ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : (f.size / 1048576).toFixed(1) + ' MB';
+    const size = f.size < 1024 * 1024 ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : (f.size / 1048576).toFixed(1) + ' MB';
     Popup.open({
-      x: r.left, y: r.bottom, title: `${path}  ${kb}`,
+      x: r.left, y: r.bottom, title: `${path}  ${size}`,
       items: [
         { id: 'open', label: 'Open in a new tab', icon: 'eye' },
         { id: 'save', label: 'Save a copy…', icon: 'down' },
@@ -812,6 +933,8 @@ export const Editor = (() => {
         return;
       }
       if (e.key === 'Escape') { e.preventDefault(); if (Popup.isOpen()) Popup.close(); else body.blur(); return; }
+      const cell = r && cellAt();
+      if (cell && body.contains(cell) && tableKey(e, cell, body)) { commit(); return; }
       if (modKey(e) && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); toggleInlineCode(); commit(); return; }
       if (modKey(e) && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); exec('strikeThrough'); commit(); return; }
       if (modKey(e) && (isMac ? e.altKey : e.shiftKey && !e.altKey) && /^Digit[0-3]$/.test(e.code)) {

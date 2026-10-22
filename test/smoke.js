@@ -91,6 +91,25 @@ import { App } from '../src/js/10-app.js';
       Object.assign(Board.item(long.id), { h: 300, w: 320 }); Store.change('notes'); App.openTab('secrets'); App.openTab('b:' + Store.S.data.boards[0].id);
       await wait(200); const lb = document.querySelector(`.note[data-id="${long.id}"] .note-body`); lb.scrollTop = 120; lb.querySelector('pre').scrollLeft = 60;
     }
+    if (mode === 'shot-table') {
+      Board.addNote({ x: 760, y: 120 }, false, '<p>Service ports</p><table><thead><tr><th>service</th><th>port</th><th>owner</th></tr></thead><tbody><tr><td>api-gateway</td><td>8080</td><td>platform</td></tr><tr><td>payments</td><td>8443</td><td>billing</td></tr><tr><td>kafka</td><td>9092</td><td>data</td></tr></tbody></table><p>Staging adds 10000 to each.</p>', { w: 340 });
+    }
+    if (mode === 'shot-multi' || mode === 'shot-find') {
+      for (let i = 0; i < 9; i++) Board.addNote({ x: 760 + (i % 3) * 280, y: 120 + Math.floor(i / 3) * 170 }, false, `<p>${['Kafka runbook', 'Deploy steps', 'On-call notes', 'Retro', 'Kafka lag alert', 'DB failover', 'Reading', 'Ideas', 'Infra costs'][i]}</p><p>${i % 4 === 0 ? 'restart the kafka broker, then watch consumer lag' : 'nothing about streams here'}</p>`);
+      await wait(50);
+      if (mode === 'shot-multi') {
+        const ids = Board.current().items.slice(-9).map((m) => m.note);
+        Board.select(ids[0]);
+        for (const id of [ids[1], ids[4]]) document.querySelector(`.note[data-id="${id}"] .note-body`).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, shiftKey: true }));
+        const vp = document.querySelector('.board-vp'), r = document.querySelector(`.note[data-id="${ids[6]}"]`).getBoundingClientRect();
+        vp.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, shiftKey: true, clientX: r.left - 20, clientY: r.top - 16 }));
+        window.dispatchEvent(new PointerEvent('pointermove', { clientX: r.right + 120, clientY: r.bottom + 30 }));
+      } else {
+        Board.select(null);
+        Board.find('kafka');
+      }
+    }
+    if (mode === 'shot-recent') Palette.show('');
     document.body.dataset.ready = '1';
     return;
   }
@@ -302,6 +321,200 @@ import { App } from '../src/js/10-app.js';
     Board.arrange();
     ok('arrange keeps notes', Board.current().items.length === count);
 
+    // a display change (external monitor unplugged, then plugged back in) never moves notes,
+    // keeps the same board point centred, and returning gives back exactly the same view
+    {
+      const shell = $('.shell'), vpEl = $('.board-vp');
+      // stand-ins for a different display: the app's shell sized like that screen
+      const size = (w, hh) => Object.assign(shell.style, { right: 'auto', bottom: 'auto', width: w + 'px', height: hh + 'px' });
+      const unsize = () => Object.assign(shell.style, { right: '', bottom: '', width: '', height: '' });
+      Board.zoomAt(0.85); Board.zoomAt(0.85 * 1.2, 333, 211); // an arbitrary, non-round camera
+      await wait(350); // let the camera save
+      const big = Board.view(), W = vpEl.clientWidth, H = vpEl.clientHeight;
+      const mid = (v, w, hh) => [(w / 2 - v.x) / v.z, (hh / 2 - v.y) / v.z];
+      const notesBefore = JSON.stringify(Board.current().items.map((m) => [m.note, m.x, m.y, m.w, m.h]));
+      const rev = Store.S.rev;
+      const sizes = [[1280, 720], [701, 433], [1920, 1080]];
+      let centred = true; const seen = [];
+      for (const [w, hh] of sizes) {
+        size(w, hh);
+        await frame(); await frame();
+        const v = Board.view(), a = mid(v, vpEl.clientWidth, vpEl.clientHeight), b = mid(big, W, H);
+        seen.push([vpEl.clientWidth, vpEl.clientHeight, v.z, a.map((n) => +n.toFixed(3)), mid(big, W, H).map((n) => +n.toFixed(3))]);
+        if (vpEl.clientWidth !== w || vpEl.clientHeight !== hh) centred = false; // the viewport really changed size
+        if (Math.abs(a[0] - b[0]) > 1e-6 || Math.abs(a[1] - b[1]) > 1e-6 || v.z !== big.z) centred = false;
+      }
+      ok('other screen sizes keep the same board point in the middle at the same zoom', centred, JSON.stringify(seen));
+      unsize();
+      await frame(); await frame();
+      const back = Board.view();
+      ok('back on the first screen the view is exactly the same', back.x === big.x && back.y === big.y && back.z === big.z, JSON.stringify([big, back]));
+      ok('screen changes never move notes or touch the vault', JSON.stringify(Board.current().items.map((m) => [m.note, m.x, m.y, m.w, m.h])) === notesBefore && Store.S.rev === rev);
+      // reopening the board on a different screen centres the same point too
+      const id = Board.current().id;
+      size(900, 600); await frame(); await frame();
+      Board.unmount(); Board.mount(Store.board(id)); await frame();
+      const re = mid(Board.view(), vpEl.clientWidth, vpEl.clientHeight), was = mid(big, W, H);
+      ok('a board reopened on another screen size centres the same point', Math.abs(re[0] - was[0]) < 1e-6 && Math.abs(re[1] - was[1]) < 1e-6);
+      unsize(); await frame(); await frame();
+      // arrange depends only on the notes, not on the window
+      const layout = () => JSON.stringify(Board.current().items.map((m) => [m.x, m.y]));
+      Board.arrange(); const wide = layout();
+      size(640, 480); await frame(); await frame();
+      Board.arrange(); const narrow = layout();
+      unsize(); await frame(); await frame();
+      ok('arrange gives the same layout on any screen size', wide === narrow);
+    }
+
+    // several notes at once: shift-click, a shift-drag box, moving and acting on all of them
+    {
+      const mod = { metaKey: isMac, ctrlKey: !isMac };
+      const g1 = Board.addNote({ x: 3000, y: 3000 }, false, '<p>Group one</p>');
+      const g2 = Board.addNote({ x: 3300, y: 3000 }, false, '<p>Group two</p>');
+      const g3 = Board.addNote({ x: 3600, y: 3000 }, false, '<p>Group three</p>');
+      await wait(30);
+      const el = (n) => $(`.note[data-id="${n.id}"]`);
+      const ptr = (type, target, o = {}) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, ...o }));
+      Board.select(g1.id);
+      ptr('pointerdown', el(g2).querySelector('.note-body'), { shiftKey: true });
+      ok('shift-click adds a note to the selection', Board.selection().length === 2 && el(g1).classList.contains('sel') && el(g2).classList.contains('sel'), Board.selection().length);
+      ptr('pointerdown', el(g2).querySelector('.note-body'), { shiftKey: true });
+      ok('shift-click again takes it out', Board.selection().length === 1 && !el(g2).classList.contains('sel'));
+      Board.select(null);
+      const r1 = el(g1).getBoundingClientRect(), r3 = el(g3).getBoundingClientRect();
+      ptr('pointerdown', $('.board-vp'), { shiftKey: true, clientX: r1.left - 10, clientY: r1.top - 10 });
+      ptr('pointermove', window, { clientX: r3.right + 10, clientY: r3.bottom + 10 });
+      ok('a shift-drag box shows while drawing', !!$('.marquee'));
+      ptr('pointerup', window, { clientX: r3.right + 10, clientY: r3.bottom + 10 });
+      const sel3 = Board.selection();
+      ok('the box selects every note it touches', sel3.length === 3 && [g1, g2, g3].every((n) => sel3.includes(n.id)) && !$('.marquee'), JSON.stringify(sel3));
+      const its = [g1, g2, g3].map((n) => Board.item(n.id)), xs = its.map((m) => m.x), ys = its.map((m) => m.y);
+      const b1 = el(g1).querySelector('.note-body').getBoundingClientRect();
+      ptr('pointerdown', el(g1).querySelector('.note-body'), { clientX: b1.left + 20, clientY: b1.top + 20 });
+      ptr('pointermove', window, { clientX: b1.left + 20 + 96 * Board.zoom(), clientY: b1.top + 20 + 48 * Board.zoom() });
+      ptr('pointerup', window, { clientX: b1.left + 20 + 96 * Board.zoom(), clientY: b1.top + 20 + 48 * Board.zoom() });
+      ok('dragging one selected note moves them all', its.every((m, i) => m.x - xs[i] === 96 && m.y - ys[i] === 48) && Board.selection().length === 3, JSON.stringify(its.map((m, i) => [m.x - xs[i], m.y - ys[i]])));
+      keydown(document.body, 'ArrowRight');
+      ok('arrows nudge every selected note', its.every((m, i) => m.x - xs[i] === 104));
+      keydown(document.body, '3');
+      ok('a colour key colours every selected note', [g1, g2, g3].every((n) => n.color === 'lichen' && el(n).classList.contains('paper-lichen')));
+      const onBoard = Board.current().items.length;
+      keydown(document.body, 'Delete');
+      ok('Del asks once for the whole selection', Board.current().items.length === onBoard && $$('.note.arming').length === 3 && /Remove 3\?/.test($('.note-x.armed').textContent), $$('.note.arming').length);
+      keydown(document.body, 'Delete');
+      ok('a second Del removes them all from the board', Board.current().items.length === onBoard - 3 && [g1, g2, g3].every((n) => !!Store.noteRef(n.id)));
+      keydown(document.body, 'z', mod);
+      ok('one undo puts them all back, still selected', Board.current().items.length === onBoard && Board.selection().length === 3 && [g1, g2, g3].every((n) => !!el(n)));
+      ptr('pointerdown', el(g2).querySelector('.note-body'));
+      ptr('pointerup', window);
+      ok('a plain click on one of them selects just that one', Board.selection().length === 1 && Board.selected() === g2.id);
+      keydown(document.body, 'a', mod);
+      ok(`${kb('mod+a')} selects every note on the board`, Board.selection().length === Board.current().items.length);
+      Board.select(g1.id);
+      ptr('pointerdown', el(g3).querySelector('.note-body'), { shiftKey: true });
+      keydown(document.body, 'Delete', { shiftKey: true });
+      ok('shift+Del asks before deleting all of them everywhere', !!$('.modal') && /Delete 2 notes everywhere/.test($('.modal').textContent));
+      $('.modal .btn.primary').click();
+      await wait(30);
+      ok('they are deleted everywhere', !Store.noteRef(g1.id) && !Store.noteRef(g3.id) && !!Store.noteRef(g2.id));
+      keydown(document.body, 'z', mod);
+      ok('undo restores both', !!Store.noteRef(g1.id) && !!Store.noteRef(g3.id) && !!el(g1) && !!el(g3));
+      for (const n of [g1, g2, g3]) Board.removeEverywhere(n.id, true);
+      Board.select(null);
+    }
+
+    // tables
+    {
+      const mod = { metaKey: isMac, ctrlKey: !isMac };
+      const nt = Board.addNote({ x: 40, y: 1400 }, false, '<p>Ports</p><p><br></p>');
+      await wait(30);
+      Board.focusBody(nt.id);
+      const tb = $(`.note[data-id="${nt.id}"] .note-body`);
+      await type('/');
+      await type('table 3x2');
+      keydown(tb, 'Enter');
+      const tbl = tb.querySelector('table');
+      ok('/table 3x2 inserts a table with a header row', !!tbl && tbl.rows.length === 3 && tbl.rows[0].cells.length === 3 && tbl.rows[0].cells[0].tagName === 'TH', tb.innerHTML);
+      if (tbl) {
+        await type('service');
+        keydown(tb, 'Tab'); await type('port');
+        keydown(tb, 'Tab'); await type('notes');
+        keydown(tb, 'Tab'); await type('api');
+        ok('Tab moves to the next cell', tbl.rows[0].cells[1].textContent === 'port' && tbl.rows[1].cells[0].textContent === 'api', tbl.innerHTML);
+        keydown(tb, 'Enter'); await type('db');
+        ok('Enter moves to the cell below', tbl.rows[2].cells[0].textContent === 'db');
+        keydown(tb, 'Enter');
+        ok('Enter in the last row adds a row', tbl.rows.length === 4);
+        for (let i = 0; i < 3; i++) keydown(tb, 'Tab');
+        keydown(tb, 'Tab');
+        ok('Tab past the last cell adds a row', tbl.rows.length === 5);
+        await type('/');
+        ok('the / menu offers table actions inside a table', Popup.isOpen() && /Add column right/.test($('.pop').textContent));
+        await type('delete row');
+        keydown(tb, 'Enter');
+        ok('a table action from the / menu works', tbl.rows.length === 4, tbl.rows.length);
+        keydown(tb, 'Enter', mod);
+        await type('after');
+        ok(`${kb('mod+enter')} leaves the table`, tbl.nextElementSibling && tbl.nextElementSibling.textContent === 'after');
+        tb.blur(); await wait(400);
+        ok('a table is saved and searchable', /<table>/.test(nt.html) && /service {2}port {2}notes/.test(nt.text) && /api/.test(nt.text), nt.text);
+      }
+      const pasted = Editor.sanitize('<table style="color:red"><tr><td onclick="x()">a</td><td>b</td></tr><tr><td>c</td></tr><script>bad()</script></table>');
+      const box = document.createElement('div'); box.append(pasted);
+      ok('pasted tables keep rows and cells only, padded to the same width', !/style|onclick|script/.test(box.innerHTML) && box.querySelectorAll('tr').length === 2 && box.querySelectorAll('tr')[1].cells.length === 2, box.innerHTML);
+      Board.removeEverywhere(nt.id, true);
+    }
+
+    // find on the board
+    {
+      const f1 = Board.addNote({ x: 40, y: 2000 }, false, '<p>Runbook</p><p>restart the kafka broker</p><p>then check kafka lag</p>');
+      const f2 = Board.addNote({ x: 400, y: 2000 }, false, '<p>Other</p><p>nothing here</p>');
+      const f3 = Board.addNote({ x: 760, y: 2000 }, false, '<p>Infra</p><pre class="code"><code>kafka-topics --list</code></pre>');
+      await wait(30);
+      Board.select(null); // find starts from the selected note, like a browser's find starts from the caret
+      keydown(document.body, 'f', { metaKey: isMac, ctrlKey: !isMac });
+      ok(`${kb('mod+f')} opens the find bar`, !!$('.find-bar') && document.activeElement === $('.find-input'));
+      $('.find-input').value = 'KAFKA';
+      $('.find-input').dispatchEvent(new Event('input'));
+      await wait(30);
+      ok('find counts every match in every note', /of 3 in 2 notes/.test($('.find-count').textContent), $('.find-count').textContent);
+      ok('notes without a match fade back', $('.board-vp').classList.contains('finding') && $(`.note[data-id="${f1.id}"]`).classList.contains('found') && !$(`.note[data-id="${f2.id}"]`).classList.contains('found'));
+      ok('matches are painted without touching the note', !('highlights' in CSS) || CSS.highlights.get('fm-find').size === 3);
+      ok('the note text itself is unchanged', !/mark/.test($(`.note[data-id="${f1.id}"] .note-body`).innerHTML));
+      keydown($('.find-input'), 'Enter'); keydown($('.find-input'), 'Enter');
+      ok('Enter steps to the next match, in the next note', /^3 of 3/.test($('.find-count').textContent) && Board.selected() === f3.id, $('.find-count').textContent + ' ' + Board.selected());
+      keydown($('.find-input'), 'Enter', { shiftKey: true });
+      ok('Shift+Enter steps back', /^2 of 3/.test($('.find-count').textContent) && Board.selected() === f1.id);
+      $('.find-input').value = 'zzzz'; $('.find-input').dispatchEvent(new Event('input'));
+      ok('no match says so', $('.find-count').textContent === 'No matches' && $('.find-bar').classList.contains('none'));
+      keydown($('.find-input'), 'Escape');
+      ok('Esc closes find and clears it', !$('.find-bar') && !$('.board-vp').classList.contains('finding') && !$$('.note.found').length);
+      // search opens the note at its match
+      const hit = Palette.search('broker').find((x) => x.id === f1.id);
+      ok('search remembers which word matched in the text', hit && hit.hit === 'broker', JSON.stringify(hit));
+      Palette.show('broker'); await wait(20);
+      keydown($('.pal-input'), 'Enter');
+      await wait(120);
+      ok('opening a text match from search finds it in the note', !!$('.find-bar') && $('.find-input').value === 'broker' && Board.selected() === f1.id, $('.find-bar') && $('.find-input').value);
+      keydown($('.find-input'), 'Escape');
+      for (const n of [f1, f2, f3]) Board.removeEverywhere(n.id, true);
+      const back = Store.S.data.ui.active;
+      App.openTab('notes'); await wait(20);
+      keydown(document.body, 'f', { metaKey: isMac, ctrlKey: !isMac });
+      ok(`${kb('mod+f')} on All notes jumps to its filter`, document.activeElement && document.activeElement.matches('.notes-page .s-filter'));
+      document.activeElement.blur();
+      App.openTab(back); await wait(20);
+    }
+
+    // search with nothing typed: what you edited last
+    {
+      const recent = Palette.search('');
+      ok('empty search lists recently edited notes, newest first, then boards', recent[0].group === 'Recently edited' && recent.some((x) => x.group === 'Boards') && recent.filter((x) => x.type === 'note').every((x, i, a) => !i || a[i - 1].upd >= x.upd), JSON.stringify(recent.slice(0, 3).map((x) => [x.group, x.title])));
+      Palette.show(''); await wait(20);
+      ok('search shows section headings', $$('.pal-group').length >= 2 && $$('.pal-group')[0].textContent === 'Recently edited' && /ago|just now/.test($('.pal-item .pal-sub').textContent), $$('.pal-group').map((x) => x.textContent).join());
+      Palette.hide();
+    }
+
     // palette search
     const hits = Palette.search('backoff');
     ok('palette finds note by title', hits[0] && hits[0].title === 'Retry with backoff', JSON.stringify(hits.slice(0, 2).map((x) => x.title)));
@@ -327,7 +540,7 @@ import { App } from '../src/js/10-app.js';
       $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       ok('clicking outside closes the editor', $('.s-drawer').hidden);
     }
-    ok('tag row lists every tag', $$('.s-tagrow .chip').length === 7, $$('.s-tagrow .chip').length);
+    ok('tag row lists every tag', $$('.secrets .s-tagrow .chip').length === 7, $$('.secrets .s-tagrow .chip').map((c) => c.textContent).join());
     ok('switcher shows secrets active', $('.hud-switch [data-view="secrets"]').classList.contains('on'));
     $('.hud-switch [data-view="board"]').click();
     ok('switcher returns to the board', !$('.board-vp').hidden && $('.secrets').hidden);

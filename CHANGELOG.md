@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Several notes at once**: `⇧`-click, a `⇧`-drag box or `⌘A`. Move, nudge, colour, duplicate, remove or delete them together, with one undo.
+- **Find on a board** (`⌘F` / `Ctrl+F`): every match in every note, a count, notes without a match faded, stepping with `↵`, scrolling inside long notes and wide code blocks. Highlights use the CSS Custom Highlight API, so notes are never modified.
+- **Tables** in notes: `/table` or `/table 4x3`, `Tab` / `↵` between cells, row and column actions in the `/` menu inside a table, and clean pasting from spreadsheets and web pages. Table text is part of search.
+- **Search** shows "Recently edited" notes (with how long ago) and boards by last opened when nothing is typed, and opening a note that matched in its text lands on the match.
+- **Display changes are exact**: the view is kept as the board point at the centre of the window plus the zoom, so plugging in or unplugging a monitor, resizing or browser zoom never moves notes or loses your place, and returning to a size restores the identical view. Arrange no longer depends on the window width. Dragged positions are whole pixels.
+- Leaving a note no longer leaves a text caret blinking in it.
+- The `/` menu ranks a two-word command first when all of it is typed (`/delete row`).
+
 ## 1.0.0
 
 First production release.

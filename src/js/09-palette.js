@@ -1,6 +1,7 @@
-import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus, kb } from './00-util.js';
+import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus, kb, relTime } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
+import { Board } from './07-board.js';
 import { Secrets } from './08-secrets.js';
 import { App } from './10-app.js';
 
@@ -18,13 +19,13 @@ export const Palette = (() => {
     built = Store.S.rev;
     idxNotes = []; idxBoards = []; idxSecrets = [];
     for (const b of Store.S.data.boards) {
-      idxBoards.push({ type: 'board', id: b.id, title: b.name, t: b.name.toLowerCase(), sub: `${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'}` });
+      idxBoards.push({ type: 'board', id: b.id, title: b.name, t: b.name.toLowerCase(), sub: `${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'}`, opened: b.opened || 0 });
     }
     for (const { note: n, boards } of Store.S.notes.values()) {
       const title = n.title || 'Untitled';
       const tg = (n.tags || []).join(' ');
       const where = boards.length ? boards.map((b) => b.name).join(', ') : 'on no board';
-      idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${where}  ${tg}` : where, upd: n.updated || 0 });
+      idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${where}  ${tg}` : where, where, upd: n.updated || 0 });
     }
     for (const x of Store.S.data.secrets) {
       const tags = x.tags.join(' ');
@@ -41,18 +42,18 @@ export const Palette = (() => {
   }
 
   function score(it, terms) {
-    let total = 0, pos = [], snip = '';
+    let total = 0, pos = [], snip = '', hit = '';
     for (const term of terms) {
       const m = fuzzy(term, it.t);
       if (m && m.s > 0) { total += m.s; pos = pos.concat(m.p); continue; }
       if (it.body) {
         const j = it.body.indexOf(term);
-        if (j >= 0) { total += 30 - Math.min(20, j / 50); if (!snip && it.raw) snip = snippet(it.raw, it.body, term); continue; }
+        if (j >= 0) { total += 30 - Math.min(20, j / 50); if (!snip && it.raw) { snip = snippet(it.raw, it.body, term); hit = term; } continue; }
       }
       if (m) { total += m.s; pos = pos.concat(m.p); continue; }
       return null;
     }
-    return { s: total, p: pos, snip };
+    return { s: total, p: pos, snip, hit };
   }
 
   function search(q) {
@@ -67,14 +68,16 @@ export const Palette = (() => {
     }
     const pools = mode === '@' ? [idxNotes] : mode === '$' ? [idxSecrets] : mode === '#' ? [idxBoards] : [idxNotes, idxBoards, idxSecrets];
     if (!terms.length) {
-      // recent notes first, then boards
-      const recent = mode === '' || mode === '@' ? idxNotes.slice().sort((a, b) => b.upd - a.upd).slice(0, mode ? 60 : 8) : [];
-      return recent.concat(mode === '' || mode === '#' ? idxBoards : [], mode === '$' ? idxSecrets.slice(0, 60) : []);
+      // nothing typed: the notes you edited last, then boards by when you last opened them
+      const recent = mode === '' || mode === '@' ? idxNotes.slice().sort((a, b) => b.upd - a.upd).slice(0, mode ? 60 : 10)
+        .map((it) => ({ ...it, group: 'Recently edited', sub: `${relTime(it.upd)} · ${it.where}` })) : [];
+      const boards = mode === '' || mode === '#' ? idxBoards.slice().sort((a, b) => b.opened - a.opened).map((it) => ({ ...it, group: 'Boards' })) : [];
+      return recent.concat(boards, mode === '$' ? idxSecrets.slice(0, 60) : []);
     }
     const out = [];
     for (const pool of pools) for (const it of pool) {
       const r = score(it, terms);
-      if (r) out.push({ ...it, s: r.s + (it.type === 'board' ? 5 : 0), p: r.p, snip: r.snip });
+      if (r) out.push({ ...it, s: r.s + (it.type === 'board' ? 5 : 0), p: r.p, snip: r.snip, hit: r.hit });
     }
     out.sort((a, b) => b.s - a.s || (b.upd || 0) - (a.upd || 0));
     return out.slice(0, 80);
@@ -89,10 +92,12 @@ export const Palette = (() => {
       return;
     }
     list.innerHTML = items.map((it, i) =>
+      (it.group && (i === 0 || items[i - 1].group !== it.group) ? `<div class="pal-group">${esc(it.group)}</div>` : '') +
       `<div class="pal-item${i === idx ? ' on' : ''}" data-i="${i}">${icon(TYPE_ICON[it.type] || 'cmd')}` +
       `<div class="pal-main"><div class="pal-title">${markPositions(it.title, it.p)}</div>${it.snip ? `<div class="pal-snip">${it.snip}</div>` : ''}</div>` +
       `<span class="pal-sub">${it.type === 'cmd' ? (it.key ? `<kbd>${esc(it.key)}</kbd>` : '') : esc(it.sub || '')}${it.type === 'secret' && i === idx ? ` <kbd>${kb('enter')} copy</kbd>` : ''}</span></div>`).join('');
-    const on = list.children[idx]; if (on) on.scrollIntoView({ block: 'nearest' });
+    const on = list.querySelector(`[data-i="${idx}"]`);
+    if (on) { on.scrollIntoView({ block: 'nearest' }); if (idx === 0 && on.previousElementSibling) list.scrollTop = 0; }
   }
 
   function update() {
@@ -133,7 +138,12 @@ export const Palette = (() => {
   function run(it, e) {
     hide();
     if (it.type === 'cmd') return it.run();
-    if (it.type === 'note') return App.gotoNote(it.id, true);
+    if (it.type === 'note') {
+      App.gotoNote(it.id);
+      // matched in the text: open the board's find bar on that match
+      if (it.hit) requestAnimationFrame(() => requestAnimationFrame(() => { if (Board.item(it.id)) Board.find(it.hit, it.id); }));
+      return;
+    }
     if (it.type === 'board') return App.openTab('b:' + it.id);
     if (it.type === 'secret') {
       const x = Store.secret(it.id);

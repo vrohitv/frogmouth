@@ -211,6 +211,7 @@ const ICONS = {
   link: '<path d="M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9 7a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.8-.8"/>',
   dice: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><circle cx="5.5" cy="5.5" r=".8"/><circle cx="10.5" cy="10.5" r=".8"/><circle cx="8" cy="8" r=".8"/>',
   down: '<path d="M4 6l4 4 4-4"/>',
+  up: '<path d="M4 10l4-4 4 4"/>',
   tick: '<path d="M3.5 8.5l3 3 6-7"/>',
   dot: '<circle cx="8" cy="8" r="2.5"/>',
   pin: '<path d="M6 2.5h4l-.5 4 2.5 2.5H4L6.5 6.5z"/><path d="M8 9v4.5"/>',

@@ -30,13 +30,17 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - `A` on a board pulls in an existing note; on the All notes page, **+** next to the boards (or `a`) puts a note on another board.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
+- **Work on several notes at once.** `⇧`-click adds a note to the selection, `⇧`-drag on empty board draws a box around notes, and `⌘A` selects them all. Drag any selected note to move the group; arrows nudge, `1`–`6` colour, `⌘D` duplicates and `Del` `Del` removes them all, with one undo.
+- **Find on a board** with `⌘F`: every match in every note, counted ("2 of 9 in 4 notes"). Notes without a match fade back, `↵` / `⇧↵` step through the matches, and long notes and wide code blocks scroll to each one. The notes themselves are never changed. On the All notes and Secrets pages `⌘F` jumps to their filter.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.
+- **Screens come and go; notes stay put.** Note positions are board coordinates, never screen pixels, and the view remembers which point of the board is in the middle of the window. Plug in a big display, unplug it, resize the window or change the browser zoom: the same notes stay centred, nothing moves, and going back to a size gives back exactly the view you had there. **Arrange notes** gives the same layout on any screen.
 - **Arrange notes** tidies a board into columns. **Fit** shows everything at once.
 - The first line of a note is its title. Nothing else is needed.
 
 **The editor**
 - `/` opens the block menu: headings, lists, todos, code, quote, divider, image, file tag, note link, secret reference and date.
 - Markdown shortcuts: `# `, `## `, `- `, `1. `, `[] `, `> `, `---`, ```` ```lang ````, and `` `inline code` ``.
+- **Tables**: `/table` (or `/table 4x3` for 4 columns, 3 rows). `Tab` goes to the next cell and adds a row at the end, `↵` goes to the cell below, `⇧↵` breaks a line inside a cell and `⌘↵` leaves the table. Type `/` in a cell to add or delete rows and columns. Tables pasted from a spreadsheet or a web page come in as plain grids, and table text is searchable.
 - `@` links another note **or tags any file in the vault folder**, such as `diagram.excalidraw`. Clicking a note link jumps to that note. Clicking a file tag opens the file, saves a copy, or copies its path.
 - Notes that link to a note are listed at its foot ("2 notes link here").
 - Code blocks are syntax-highlighted as you type: JS/TS, Python, Go, Rust, C-family, shell, SQL, JSON, YAML, CSS, HTML, Ruby, PHP and diff. They auto-indent, take `Tab`, and have their own undo. The language label is a menu.
@@ -62,7 +66,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - **Export JSON** downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
 - Generate random values.
 
-**Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards.
+**Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards. With nothing typed it shows the notes you edited most recently, then your boards by when you last opened them. Opening a note that matched in its text (not its title) opens the board's find bar on that word, so you land on the exact spot.
 
 **Calm, readable UI**
 - Neutral dark or light theme with softened contrast, quiet note colours, and one accent you choose in the logo menu: **orange** (default), **green** or **purple**.
@@ -103,6 +107,8 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `⌘D` | Duplicate |
 | `T` | Tag the note |
 | `A` | Add an existing note to this board |
+| `⇧`-click, `⇧`-drag, `⌘A` | Select several notes |
+| `⌘F` | Find in every note on the board |
 | `Del` `Del` / `⇧Del` | Remove from this board (confirm with a second `Del`) / delete everywhere (asks first) |
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
 

@@ -639,6 +639,39 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .note .tag-input { background: color-mix(in srgb, var(--paper) 85%, var(--ink)); color: var(--ink); }
 .pop .chip { pointer-events: none; }
 
+/* ── tables in notes ── */
+.note-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 6px 0 8px; font-size: 12.5px; line-height: 1.45; }
+.note-body th, .note-body td { border: 1px solid var(--rule); padding: 3px 8px; min-width: 4ch; vertical-align: top; text-align: left; }
+.note-body th { font-weight: 700; background: var(--rule); }
+.note-body td p, .note-body th p { margin: 0; }
+
+/* ── selecting several notes ── */
+.marquee { position: absolute; z-index: 5; pointer-events: none; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 2px; }
+
+/* ── find on this board ── */
+.find-bar {
+  position: absolute; z-index: 6; top: 72px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 6px 0 12px; width: min(460px, calc(100% - 32px));
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .15), 0 8px 24px -14px rgba(0, 0, 0, .6);
+  animation: find-in .12s ease-out;
+}
+@keyframes find-in { from { opacity: 0; transform: translate(-50%, -4px); } }
+.find-bar.none { border-color: var(--danger); }
+.find-ic { display: grid; color: var(--muted); }
+.find-input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: none; color: var(--text); font: 14px var(--sans); }
+.find-count { font-size: 12px; white-space: nowrap; }
+.find-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+.find-btn:hover { background: var(--panel-2); color: var(--text); }
+.board-vp.finding .note:not(.found) { opacity: .28; transition: opacity .15s; }
+::highlight(fm-find) { background-color: var(--accent-soft); color: inherit; }
+::highlight(fm-find-on) { background-color: var(--accent); color: var(--accent-ink); }
+
+/* ── search: section headings ── */
+.pal-group { padding: 10px 14px 4px; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+
 /* ── small screens ── */
 @media (max-width: 1100px) {
   .hud-search { width: auto; padding: 0 10px; }
