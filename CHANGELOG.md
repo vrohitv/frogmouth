@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-10-22)
 
 - **Minimap and zoom control** at the bottom right of the board: the zoom percentage with `−` / `+` / Fit (click the percentage for 100%), and a minimap of every note in its colour with the visible area framed; click or drag in it to move. `M` toggles the minimap. The view is now always derived from the saved camera, so the same camera at the same window size gives bit-for-bit the same view.
 - **Nine note colours that switch with the theme**, like Keep or Samsung Notes: each is a light/dark pair designed in OKLCH, so every colour has the same perceived lightness (soft pastels by day, calm charcoal tints at night) and keeps its hue in both themes, with text at 9.7:1 contrast or better. New: apricot, heather (lilac) and sea (teal); keys `1`–`9`. A colour name from a newer release shows as moth.

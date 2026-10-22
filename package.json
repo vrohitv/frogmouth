@@ -1,6 +1,6 @@
 {
   "name": "frogmouth",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sticky notes and secrets in one local file. One HTML page, no server, no network.",
   "license": "MIT",
   "private": true,
