@@ -507,8 +507,11 @@ export const Editor = (() => {
   const BLOCKY = /^(UL|OL|PRE|BLOCKQUOTE|P|H1|H2|H3|FIGURE|HR)$/;
   function fixNesting(body) {
     if (!body.querySelector(NESTED)) return;
+    // Remember the caret by node, not by character count: in a fresh, empty
+    // list item "after N characters" also matches the end of the line above.
     const r = rng();
     const had = r && body.contains(r.startContainer);
+    const saved = had && { sc: r.startContainer, so: r.startOffset, ec: r.endContainer, eo: r.endOffset };
     const [a, b] = had ? getOff(body) : [0, 0];
     for (const child of body.querySelectorAll(NESTED)) {
       const parent = child.parentNode;
@@ -521,7 +524,17 @@ export const Editor = (() => {
       }
       parent.replaceWith(...out.filter((n) => !(n.tagName === parent.tagName && !BLOCKY.test(n.firstChild && n.firstChild.nodeName) && !n.textContent.replace(/[\s\u200b]/g, '') && !n.querySelector('br,a,span,code'))));
     }
-    if (had) setOff(body, a, b);
+    if (!had) return;
+    if (body.contains(saved.sc) && body.contains(saved.ec)) {
+      try {
+        const nr = document.createRange();
+        nr.setStart(saved.sc, Math.min(saved.so, saved.sc.nodeType === 3 ? saved.sc.length : saved.sc.childNodes.length));
+        nr.setEnd(saved.ec, Math.min(saved.eo, saved.ec.nodeType === 3 ? saved.ec.length : saved.ec.childNodes.length));
+        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(nr);
+        return;
+      } catch {}
+    }
+    setOff(body, a, b);
   }
 
   /* ── block commands ──────────────────────────────────────────── */
@@ -771,6 +784,11 @@ export const Editor = (() => {
       if (e.key === 'Tab' && r) {
         const li = lineBlock(r.startContainer, body);
         if (li && li.tagName === 'LI') { e.preventDefault(); exec(e.shiftKey ? 'outdent' : 'indent'); commit(); return; }
+      }
+      // Enter on an empty quote line leaves the quote, like an empty list item leaves the list
+      if (e.key === 'Enter' && !e.shiftKey && r && r.collapsed) {
+        const b = lineBlock(r.startContainer, body);
+        if (b && b.tagName === 'BLOCKQUOTE' && !b.textContent.replace(/[\s\u200b]/g, '')) { e.preventDefault(); exec('formatBlock', 'p'); commit(); return; }
       }
       if (e.key === 'Backspace' && r && r.collapsed) {
         const b = lineBlock(r.startContainer, body);

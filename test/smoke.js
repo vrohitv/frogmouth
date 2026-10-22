@@ -144,6 +144,41 @@ import { App } from '../src/js/10-app.js';
     await wait(450);
     ok('escape leaves edit mode', !first.classList.contains('editing') && !first.querySelector('.note-body').isContentEditable);
 
+    // markdown shortcuts must leave the caret in the new block, not on the line above
+    {
+      const nm = Board.addNote({ x: 1400, y: 100 }, false, '<p>Caret check</p><p>first line</p><p><br></p>');
+      await wait(10);
+      Board.focusBody(nm.id);
+      const bm = $(`.note[data-id="${nm.id}"] .note-body`);
+      await type('- ');
+      await type('milk');
+      const li = bm.querySelector('ul li');
+      ok('- then typing lands in the bullet', li && li.textContent === 'milk' && bm.querySelectorAll('p')[1].textContent === 'first line', bm.innerHTML);
+      document.execCommand('insertParagraph'); document.execCommand('insertParagraph');
+      await type('1. ');
+      await type('one');
+      const oli = bm.querySelector('ol li');
+      ok('1. then typing lands in the numbered item', oli && oli.textContent === 'one', bm.innerHTML);
+      document.execCommand('insertParagraph'); document.execCommand('insertParagraph');
+      await type('[] ');
+      await type('task');
+      const tli = bm.querySelector('ul[data-type="todo"] li');
+      ok('[] then typing lands in the todo', tli && tli.textContent === 'task', bm.innerHTML);
+      document.execCommand('insertParagraph'); document.execCommand('insertParagraph');
+      await type('> ');
+      await type('said');
+      const bq = bm.querySelector('blockquote');
+      ok('> then typing lands in the quote', bq && bq.textContent === 'said', bm.innerHTML);
+      document.execCommand('insertParagraph');
+      keydown(bm, 'Enter'); // Enter on the empty quote line leaves the quote
+      await type('## ');
+      await type('Next');
+      ok('## then typing lands in the heading', bm.querySelector('h2') && bm.querySelector('h2').textContent === 'Next', bm.innerHTML);
+      ok('no blocks left nested in paragraphs', !bm.querySelector('p ul, p ol, p blockquote, p h2'), bm.innerHTML);
+      bm.blur();
+      Board.remove(nm.id, true);
+    }
+
     // new note + typing + markdown shortcuts
     const n = Board.addNote({ x: 900, y: 100 }, false);
     await wait(10);
