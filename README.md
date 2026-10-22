@@ -17,8 +17,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 ## What it does
 
 **Boards of sticky notes**
-- The notes get the whole window. Only a few controls float over it: the logo with the current board's name (click it for the board menu), a notes/secrets switch, search, and the sync icon.
-- Multiple boards: switch from the board menu, with `⌥1`–`⌥9`, or with `⌘K` then `#`.
+- The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, encryption and shortcuts), a notes/secrets switch, the board pills, search, and the sync icon.
+- Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board. `⌥1`–`⌥9` and `⌘K` then `#` work too.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.

@@ -96,6 +96,13 @@
 }
 
 * { box-sizing: border-box; }
+/* modern scrollbars: thin translucent thumb, no track, so the surface being
+   scrolled (board, note paper, code block) shows through */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, currentColor 22%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, currentColor 40%, transparent); }
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg);
@@ -243,13 +250,40 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .hud-bird .fm { position: absolute; left: -2px; bottom: -14px; width: 48px; height: auto; }
 .hud-logo { display: flex; }
 .hud-logo .fm { height: 22px; width: auto; }
-.hud-board {
-  display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 6px 0 8px; min-width: 0;
-  border: 0; border-left: 1px solid var(--line); border-radius: 0 6px 6px 0; background: none; color: var(--muted); cursor: pointer;
+.hud-left { flex: 1; min-width: 0; }
+.hud-menu {
+  display: grid; place-items: center; width: 22px; height: 30px; padding: 0; margin-left: -2px;
+  border: 0; border-radius: 6px; background: none; color: var(--faint); cursor: pointer;
 }
-.hud-board span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-board .ic { width: 13px; height: 13px; }
-.hud-board:hover { color: var(--text); background: var(--panel-2); }
+.hud-menu .ic { width: 13px; height: 13px; }
+.hud-menu:hover { color: var(--text); background: var(--panel-2); }
+
+/* board pills */
+.hud-boards { min-width: 0; overflow-x: auto; overflow-y: hidden; padding: 0 4px; gap: 2px; scrollbar-width: none; }
+.hud-boards::-webkit-scrollbar { display: none; }
+.board-pill {
+  position: relative; flex: none; display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px;
+  border-radius: 7px; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none;
+}
+.board-pill:hover { color: var(--text); background: var(--panel-2); }
+.board-pill.on { color: var(--text); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.board-pill.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--iris); }
+.board-pill.dragging { opacity: .35; }
+.board-pill.drop-before { box-shadow: inset 2px 0 0 var(--iris); }
+.board-pill.drop-after { box-shadow: inset -2px 0 0 var(--iris); }
+.bp-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+.bp-x {
+  display: grid; place-items: center; width: 16px; height: 16px; margin-right: -7px; padding: 0;
+  border: 0; border-radius: 4px; background: none; color: inherit; cursor: pointer; opacity: 0;
+}
+.bp-x .ic { width: 10px; height: 10px; stroke-width: 1.8; }
+.board-pill:hover .bp-x { opacity: .55; }
+.bp-x:hover { opacity: 1 !important; background: var(--line); }
+.bp-input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--iris); border-radius: 5px; height: 24px; padding: 0 6px; outline: none; margin: 0 -6px; }
+.bp-add { flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+.bp-add .ic { width: 15px; height: 15px; }
+.bp-add:hover { color: var(--iris); background: var(--panel-2); }
+
 .hud-btn {
   display: grid; place-items: center; width: 34px; height: 32px; padding: 0; position: relative;
   border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer;
@@ -319,8 +353,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note-body {
   flex: 1; min-height: 0; overflow: auto; padding: 0 14px 10px; outline: none;
   font: 13px/1.55 var(--sans); cursor: text; overflow-wrap: anywhere;
-  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
 }
+.note-body:hover { scrollbar-color: color-mix(in srgb, var(--ink) 38%, transparent) transparent; }
 .note-body.drop { box-shadow: inset 0 0 0 2px var(--iris); }
 .note-body > :first-child { margin-top: 2px; }
 .note-body > p:first-child { font-weight: 700; font-size: 14px; line-height: 1.35; margin-bottom: 6px; }
@@ -376,8 +411,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
   position: relative; margin: 6px -4px 8px; padding: 22px 12px 10px;
   background: #0e1518; color: #d9e4e1; border-radius: 4px;
   font: 12px/1.6 var(--mono); white-space: pre; overflow-x: auto; tab-size: 2;
-  scrollbar-width: thin;
+  scrollbar-color: rgba(220, 230, 227, .16) transparent;
 }
+.note-body pre.code:hover { scrollbar-color: rgba(220, 230, 227, .34) transparent; }
 .note-body pre.code code { font: inherit; background: none; padding: 0; display: block; min-width: max-content; outline: none; }
 .note-body pre.code::after {
   position: absolute; top: 3px; right: 6px; font: 10.5px/16px var(--sans); color: #6d817c;
@@ -567,7 +603,8 @@ mark { background: none; color: var(--iris); font-weight: 700; }
   .hud { top: 8px; left: 8px; right: 8px; }
   .hud-search { width: auto; padding: 0 10px; }
   .hud-search span, .hud-search kbd { display: none; }
-  .hud-board span { max-width: 10ch; }
+  .bp-name { max-width: 10ch; }
+  .hud-logo { display: none; }
   .s-head { display: none; }
   .srow { grid-template-columns: 1fr auto; grid-template-areas: "k a" "v v" "t t"; row-gap: 4px; }
   .s-key { grid-area: k; } .s-val { grid-area: v; } .s-tags { grid-area: t; } .s-act { grid-area: a; }
@@ -3647,7 +3684,7 @@ const Palette = (() => {
 /* ── 10-app.js ── */
 /* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
 const App = (() => {
-  let shell, welcome, boardVp, secretsEl, boardBtn, switchEl, syncEl;
+  let shell, welcome, boardVp, secretsEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
   let lastActivity = now();
 
@@ -3810,29 +3847,66 @@ const App = (() => {
   /* ── floating chrome ── */
   function renderChrome() {
     if (!Store.S.data) return;
-    const ui = Store.S.data.ui, b = Store.board(ui.board);
-    boardBtn.querySelector('span').textContent = isSecrets() ? 'Secrets' : b ? b.name : '';
     for (const btn of switchEl.children) btn.classList.toggle('on', (btn.dataset.view === 'secrets') === isSecrets());
+    renderBoards();
     renderSync();
   }
 
-  function boardMenu() {
-    const d = Store.S.data, cur = d.ui.board, r = boardBtn.getBoundingClientRect();
-    const items = d.boards.map((b, i) => ({ id: 'board', board: b, label: b.name, icon: b.id === cur && !isSecrets() ? 'tick' : 'board', hint: (i < 9 ? `${ALT}${i + 1}  ` : '') + `${b.notes.length}` }));
-    items.push(
-      { id: 'new', label: 'New board…', icon: 'plus' },
-      { id: 'rename', label: 'Rename this board…', icon: 'edit', hint: 'F2' },
-      { id: 'delete', label: 'Delete this board…', icon: 'trash' },
+  /* board pills: click to open, double-click to rename, drag to reorder, × to delete, + to add */
+  function renderBoards() {
+    const d = Store.S.data;
+    const many = d.boards.length > 1;
+    boardsEl.replaceChildren(...d.boards.map((b, i) => {
+      const on = !isSecrets() && d.ui.board === b.id;
+      const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
+        title: `${b.name}${i < 9 ? `  (${ALT}${i + 1})` : ''}. Double-click to rename, drag to reorder.` },
+        h('span', { class: 'bp-name', text: b.name }),
+        many ? h('button', { class: 'bp-x', title: 'Delete board', 'aria-label': `Delete ${b.name}`, html: icon('x'), tabindex: '-1' }) : null);
+      pill.addEventListener('click', (e) => {
+        if (e.target.closest('.bp-x')) { e.stopPropagation(); deleteBoard(b.id); return; }
+        if (pill.querySelector('input')) return;
+        activate('b:' + b.id);
+      });
+      pill.addEventListener('dblclick', (e) => { if (!e.target.closest('.bp-x')) renameBoard(b.id); });
+      pill.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-board', b.id); e.dataTransfer.effectAllowed = 'move'; pill.classList.add('dragging'); });
+      pill.addEventListener('dragend', () => pill.classList.remove('dragging'));
+      pill.addEventListener('dragover', (e) => {
+        if (!Array.from(e.dataTransfer.types).includes('text/x-board')) return;
+        e.preventDefault();
+        const r = pill.getBoundingClientRect();
+        pill.classList.toggle('drop-before', e.clientX < r.left + r.width / 2);
+        pill.classList.toggle('drop-after', e.clientX >= r.left + r.width / 2);
+      });
+      pill.addEventListener('dragleave', () => pill.classList.remove('drop-before', 'drop-after'));
+      pill.addEventListener('drop', (e) => {
+        const id = e.dataTransfer.getData('text/x-board');
+        const after = pill.classList.contains('drop-after');
+        pill.classList.remove('drop-before', 'drop-after');
+        if (!id || id === b.id) return;
+        e.preventDefault();
+        const bs = d.boards, moving = bs.find((x) => x.id === id);
+        bs.splice(bs.indexOf(moving), 1);
+        bs.splice(bs.indexOf(b) + (after ? 1 : 0), 0, moving);
+        Store.change('boards');
+      });
+      return pill;
+    }), h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard }));
+    const on = boardsEl.querySelector('.board-pill.on');
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function appMenu() {
+    const r = menuBtn.getBoundingClientRect();
+    const items = [
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       Store.S.crypt ? { id: 'lock', label: 'Lock vault', icon: 'lock', hint: `${MOD}⇧L` } : { id: 'encrypt', label: 'Encrypt with a passphrase…', icon: 'lock' },
+      Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: `${MOD}S` } : { id: 'download', label: 'Download a copy', icon: 'down' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
-      { id: 'close', label: 'Close vault', icon: 'x' });
+      { id: 'close', label: 'Close vault', icon: 'x' },
+    ];
     Popup.open({
-      x: r.left, y: r.bottom + 4, title: 'Boards', items,
-      onPick: (it) => ({
-        board: () => activate('b:' + it.board.id), new: newBoard, rename: () => renameBoard(cur), delete: () => deleteBoard(cur),
-        theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), keys: shortcuts, close: closeVault,
-      })[it.id](),
+      x: r.left, y: r.bottom + 4, items,
+      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -3877,21 +3951,37 @@ const App = (() => {
   }
 
   /* ── boards ── */
-  async function newBoard() {
-    const name = await Modal.prompt('New board', '', { placeholder: 'e.g. Infra, Reading list, Sprint 42', label: 'Create board' });
-    if (!name || !name.trim()) return;
-    const b = { id: uid(), name: name.trim(), created: now(), notes: [] };
+  function newBoard() {
+    const b = { id: uid(), name: 'New board', created: now(), notes: [] };
     Store.S.data.boards.push(b);
     Store.change('boards');
-    openTab('b:' + b.id);
+    activate('b:' + b.id);
+    renameBoard(b.id);
   }
-  async function renameBoard(id) {
+  /* rename in place on the pill */
+  function renameBoard(id) {
     const b = Store.board(id); if (!b) return;
-    const name = await Modal.prompt('Rename board', b.name, { label: 'Rename' });
-    if (!name || !name.trim() || name.trim() === b.name) return;
-    b.name = name.trim();
-    Store.change('boards');
-    renderChrome();
+    renderBoards();
+    const pill = boardsEl.querySelector(`.board-pill[data-id="${CSS.escape(id)}"]`);
+    if (!pill) return;
+    const inp = h('input', { class: 'bp-input', value: b.name, spellcheck: 'false', 'aria-label': 'Board name', size: String(Math.max(6, b.name.length + 1)) });
+    pill.replaceChildren(inp);
+    pill.draggable = false;
+    let done = false;
+    const finish = (save) => {
+      if (done) return; done = true;
+      const v = inp.value.trim();
+      if (save && v && v !== b.name) { b.name = v; Store.change('boards'); }
+      renderBoards();
+    };
+    inp.addEventListener('input', () => { inp.size = Math.max(6, inp.value.length + 1); });
+    inp.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', () => finish(true));
+    inp.focus(); inp.select();
   }
   async function deleteBoard(id) {
     const d = Store.S.data;
@@ -4059,18 +4149,20 @@ const App = (() => {
     welcome = h('div', { class: 'welcome' });
     boardVp = h('div', { class: 'board-vp', hidden: true });
     secretsEl = h('div', { class: 'secrets', hidden: true });
-    boardBtn = h('button', { class: 'hud-board', title: 'Boards and settings', html: `<span></span>${icon('down')}`, onclick: boardMenu });
+    menuBtn = h('button', { class: 'hud-menu', title: 'Theme, encryption, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
+    boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
+    boardsEl.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { boardsEl.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
       h('button', { class: 'hud-btn', 'data-view': 'board', title: `Notes (${ALT}S)`, 'aria-label': 'Notes', html: icon('board'), onclick: () => { if (isSecrets()) toggleView(); } }),
       h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (!isSecrets()) toggleView(); } }));
     syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
-      h('div', { class: 'hud-group' },
+      h('div', { class: 'hud-group hud-left' },
         h('div', { class: 'hud-pill hud-brand' },
           h('span', { class: 'hud-bird', title: 'frogmouth' }, Bird.make('icon')),
-          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('mini')), boardBtn),
-        switchEl),
+          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('mini')), menuBtn),
+        switchEl, boardsEl),
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill' }, syncEl)));

@@ -1,6 +1,6 @@
 /* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
 const App = (() => {
-  let shell, welcome, boardVp, secretsEl, boardBtn, switchEl, syncEl;
+  let shell, welcome, boardVp, secretsEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
   let lastActivity = now();
 
@@ -163,29 +163,66 @@ const App = (() => {
   /* ── floating chrome ── */
   function renderChrome() {
     if (!Store.S.data) return;
-    const ui = Store.S.data.ui, b = Store.board(ui.board);
-    boardBtn.querySelector('span').textContent = isSecrets() ? 'Secrets' : b ? b.name : '';
     for (const btn of switchEl.children) btn.classList.toggle('on', (btn.dataset.view === 'secrets') === isSecrets());
+    renderBoards();
     renderSync();
   }
 
-  function boardMenu() {
-    const d = Store.S.data, cur = d.ui.board, r = boardBtn.getBoundingClientRect();
-    const items = d.boards.map((b, i) => ({ id: 'board', board: b, label: b.name, icon: b.id === cur && !isSecrets() ? 'tick' : 'board', hint: (i < 9 ? `${ALT}${i + 1}  ` : '') + `${b.notes.length}` }));
-    items.push(
-      { id: 'new', label: 'New board…', icon: 'plus' },
-      { id: 'rename', label: 'Rename this board…', icon: 'edit', hint: 'F2' },
-      { id: 'delete', label: 'Delete this board…', icon: 'trash' },
+  /* board pills: click to open, double-click to rename, drag to reorder, × to delete, + to add */
+  function renderBoards() {
+    const d = Store.S.data;
+    const many = d.boards.length > 1;
+    boardsEl.replaceChildren(...d.boards.map((b, i) => {
+      const on = !isSecrets() && d.ui.board === b.id;
+      const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
+        title: `${b.name}${i < 9 ? `  (${ALT}${i + 1})` : ''}. Double-click to rename, drag to reorder.` },
+        h('span', { class: 'bp-name', text: b.name }),
+        many ? h('button', { class: 'bp-x', title: 'Delete board', 'aria-label': `Delete ${b.name}`, html: icon('x'), tabindex: '-1' }) : null);
+      pill.addEventListener('click', (e) => {
+        if (e.target.closest('.bp-x')) { e.stopPropagation(); deleteBoard(b.id); return; }
+        if (pill.querySelector('input')) return;
+        activate('b:' + b.id);
+      });
+      pill.addEventListener('dblclick', (e) => { if (!e.target.closest('.bp-x')) renameBoard(b.id); });
+      pill.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-board', b.id); e.dataTransfer.effectAllowed = 'move'; pill.classList.add('dragging'); });
+      pill.addEventListener('dragend', () => pill.classList.remove('dragging'));
+      pill.addEventListener('dragover', (e) => {
+        if (!Array.from(e.dataTransfer.types).includes('text/x-board')) return;
+        e.preventDefault();
+        const r = pill.getBoundingClientRect();
+        pill.classList.toggle('drop-before', e.clientX < r.left + r.width / 2);
+        pill.classList.toggle('drop-after', e.clientX >= r.left + r.width / 2);
+      });
+      pill.addEventListener('dragleave', () => pill.classList.remove('drop-before', 'drop-after'));
+      pill.addEventListener('drop', (e) => {
+        const id = e.dataTransfer.getData('text/x-board');
+        const after = pill.classList.contains('drop-after');
+        pill.classList.remove('drop-before', 'drop-after');
+        if (!id || id === b.id) return;
+        e.preventDefault();
+        const bs = d.boards, moving = bs.find((x) => x.id === id);
+        bs.splice(bs.indexOf(moving), 1);
+        bs.splice(bs.indexOf(b) + (after ? 1 : 0), 0, moving);
+        Store.change('boards');
+      });
+      return pill;
+    }), h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard }));
+    const on = boardsEl.querySelector('.board-pill.on');
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function appMenu() {
+    const r = menuBtn.getBoundingClientRect();
+    const items = [
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       Store.S.crypt ? { id: 'lock', label: 'Lock vault', icon: 'lock', hint: `${MOD}⇧L` } : { id: 'encrypt', label: 'Encrypt with a passphrase…', icon: 'lock' },
+      Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: `${MOD}S` } : { id: 'download', label: 'Download a copy', icon: 'down' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
-      { id: 'close', label: 'Close vault', icon: 'x' });
+      { id: 'close', label: 'Close vault', icon: 'x' },
+    ];
     Popup.open({
-      x: r.left, y: r.bottom + 4, title: 'Boards', items,
-      onPick: (it) => ({
-        board: () => activate('b:' + it.board.id), new: newBoard, rename: () => renameBoard(cur), delete: () => deleteBoard(cur),
-        theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), keys: shortcuts, close: closeVault,
-      })[it.id](),
+      x: r.left, y: r.bottom + 4, items,
+      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -230,21 +267,37 @@ const App = (() => {
   }
 
   /* ── boards ── */
-  async function newBoard() {
-    const name = await Modal.prompt('New board', '', { placeholder: 'e.g. Infra, Reading list, Sprint 42', label: 'Create board' });
-    if (!name || !name.trim()) return;
-    const b = { id: uid(), name: name.trim(), created: now(), notes: [] };
+  function newBoard() {
+    const b = { id: uid(), name: 'New board', created: now(), notes: [] };
     Store.S.data.boards.push(b);
     Store.change('boards');
-    openTab('b:' + b.id);
+    activate('b:' + b.id);
+    renameBoard(b.id);
   }
-  async function renameBoard(id) {
+  /* rename in place on the pill */
+  function renameBoard(id) {
     const b = Store.board(id); if (!b) return;
-    const name = await Modal.prompt('Rename board', b.name, { label: 'Rename' });
-    if (!name || !name.trim() || name.trim() === b.name) return;
-    b.name = name.trim();
-    Store.change('boards');
-    renderChrome();
+    renderBoards();
+    const pill = boardsEl.querySelector(`.board-pill[data-id="${CSS.escape(id)}"]`);
+    if (!pill) return;
+    const inp = h('input', { class: 'bp-input', value: b.name, spellcheck: 'false', 'aria-label': 'Board name', size: String(Math.max(6, b.name.length + 1)) });
+    pill.replaceChildren(inp);
+    pill.draggable = false;
+    let done = false;
+    const finish = (save) => {
+      if (done) return; done = true;
+      const v = inp.value.trim();
+      if (save && v && v !== b.name) { b.name = v; Store.change('boards'); }
+      renderBoards();
+    };
+    inp.addEventListener('input', () => { inp.size = Math.max(6, inp.value.length + 1); });
+    inp.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', () => finish(true));
+    inp.focus(); inp.select();
   }
   async function deleteBoard(id) {
     const d = Store.S.data;
@@ -412,18 +465,20 @@ const App = (() => {
     welcome = h('div', { class: 'welcome' });
     boardVp = h('div', { class: 'board-vp', hidden: true });
     secretsEl = h('div', { class: 'secrets', hidden: true });
-    boardBtn = h('button', { class: 'hud-board', title: 'Boards and settings', html: `<span></span>${icon('down')}`, onclick: boardMenu });
+    menuBtn = h('button', { class: 'hud-menu', title: 'Theme, encryption, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
+    boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
+    boardsEl.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { boardsEl.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
       h('button', { class: 'hud-btn', 'data-view': 'board', title: `Notes (${ALT}S)`, 'aria-label': 'Notes', html: icon('board'), onclick: () => { if (isSecrets()) toggleView(); } }),
       h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (!isSecrets()) toggleView(); } }));
     syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
-      h('div', { class: 'hud-group' },
+      h('div', { class: 'hud-group hud-left' },
         h('div', { class: 'hud-pill hud-brand' },
           h('span', { class: 'hud-bird', title: 'frogmouth' }, Bird.make('icon')),
-          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('mini')), boardBtn),
-        switchEl),
+          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('mini')), menuBtn),
+        switchEl, boardsEl),
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill' }, syncEl)));

@@ -65,6 +65,13 @@
 }
 
 * { box-sizing: border-box; }
+/* modern scrollbars: thin translucent thumb, no track, so the surface being
+   scrolled (board, note paper, code block) shows through */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, currentColor 22%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, currentColor 40%, transparent); }
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg);
@@ -212,13 +219,40 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .hud-bird .fm { position: absolute; left: -2px; bottom: -14px; width: 48px; height: auto; }
 .hud-logo { display: flex; }
 .hud-logo .fm { height: 22px; width: auto; }
-.hud-board {
-  display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 6px 0 8px; min-width: 0;
-  border: 0; border-left: 1px solid var(--line); border-radius: 0 6px 6px 0; background: none; color: var(--muted); cursor: pointer;
+.hud-left { flex: 1; min-width: 0; }
+.hud-menu {
+  display: grid; place-items: center; width: 22px; height: 30px; padding: 0; margin-left: -2px;
+  border: 0; border-radius: 6px; background: none; color: var(--faint); cursor: pointer;
 }
-.hud-board span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-board .ic { width: 13px; height: 13px; }
-.hud-board:hover { color: var(--text); background: var(--panel-2); }
+.hud-menu .ic { width: 13px; height: 13px; }
+.hud-menu:hover { color: var(--text); background: var(--panel-2); }
+
+/* board pills */
+.hud-boards { min-width: 0; overflow-x: auto; overflow-y: hidden; padding: 0 4px; gap: 2px; scrollbar-width: none; }
+.hud-boards::-webkit-scrollbar { display: none; }
+.board-pill {
+  position: relative; flex: none; display: flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px;
+  border-radius: 7px; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none;
+}
+.board-pill:hover { color: var(--text); background: var(--panel-2); }
+.board-pill.on { color: var(--text); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.board-pill.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--iris); }
+.board-pill.dragging { opacity: .35; }
+.board-pill.drop-before { box-shadow: inset 2px 0 0 var(--iris); }
+.board-pill.drop-after { box-shadow: inset -2px 0 0 var(--iris); }
+.bp-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+.bp-x {
+  display: grid; place-items: center; width: 16px; height: 16px; margin-right: -7px; padding: 0;
+  border: 0; border-radius: 4px; background: none; color: inherit; cursor: pointer; opacity: 0;
+}
+.bp-x .ic { width: 10px; height: 10px; stroke-width: 1.8; }
+.board-pill:hover .bp-x { opacity: .55; }
+.bp-x:hover { opacity: 1 !important; background: var(--line); }
+.bp-input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--iris); border-radius: 5px; height: 24px; padding: 0 6px; outline: none; margin: 0 -6px; }
+.bp-add { flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+.bp-add .ic { width: 15px; height: 15px; }
+.bp-add:hover { color: var(--iris); background: var(--panel-2); }
+
 .hud-btn {
   display: grid; place-items: center; width: 34px; height: 32px; padding: 0; position: relative;
   border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer;
@@ -288,8 +322,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note-body {
   flex: 1; min-height: 0; overflow: auto; padding: 0 14px 10px; outline: none;
   font: 13px/1.55 var(--sans); cursor: text; overflow-wrap: anywhere;
-  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
 }
+.note-body:hover { scrollbar-color: color-mix(in srgb, var(--ink) 38%, transparent) transparent; }
 .note-body.drop { box-shadow: inset 0 0 0 2px var(--iris); }
 .note-body > :first-child { margin-top: 2px; }
 .note-body > p:first-child { font-weight: 700; font-size: 14px; line-height: 1.35; margin-bottom: 6px; }
@@ -345,8 +380,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
   position: relative; margin: 6px -4px 8px; padding: 22px 12px 10px;
   background: #0e1518; color: #d9e4e1; border-radius: 4px;
   font: 12px/1.6 var(--mono); white-space: pre; overflow-x: auto; tab-size: 2;
-  scrollbar-width: thin;
+  scrollbar-color: rgba(220, 230, 227, .16) transparent;
 }
+.note-body pre.code:hover { scrollbar-color: rgba(220, 230, 227, .34) transparent; }
 .note-body pre.code code { font: inherit; background: none; padding: 0; display: block; min-width: max-content; outline: none; }
 .note-body pre.code::after {
   position: absolute; top: 3px; right: 6px; font: 10.5px/16px var(--sans); color: #6d817c;
@@ -536,7 +572,8 @@ mark { background: none; color: var(--iris); font-weight: 700; }
   .hud { top: 8px; left: 8px; right: 8px; }
   .hud-search { width: auto; padding: 0 10px; }
   .hud-search span, .hud-search kbd { display: none; }
-  .hud-board span { max-width: 10ch; }
+  .bp-name { max-width: 10ch; }
+  .hud-logo { display: none; }
   .s-head { display: none; }
   .srow { grid-template-columns: 1fr auto; grid-template-areas: "k a" "v v" "t t"; row-gap: 4px; }
   .s-key { grid-area: k; } .s-val { grid-area: v; } .s-tags { grid-area: t; } .s-act { grid-area: a; }

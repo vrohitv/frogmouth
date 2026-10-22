@@ -40,6 +40,14 @@
       await type('co');
     }
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
+    if (mode === 'shot-boards') {
+      for (const name of ['Infra', 'Reading list', 'Sprint 42']) Store.S.data.boards.push({ id: uid(), name, created: now(), notes: [] });
+      Store.change('boards');
+      const long = Board.addNote({ x: 880, y: 120 }, false, '<p>Scrolling note</p>' + Array.from({ length: 14 }, (_, i) => `<p>line ${i + 1} of a note taller than its box</p>`).join('') +
+        '<pre class="code" data-lang="sh"><code>' + esc('kubectl -n payments rollout restart deployment/api-gateway && kubectl -n payments rollout status deployment/api-gateway --timeout=120s') + '</code></pre>');
+      long.h = 300; long.w = 320; Store.change('notes'); App.openTab('secrets'); App.openTab('b:' + Store.S.data.boards[0].id);
+      await wait(200); const lb = document.querySelector(`.note[data-id="${long.id}"] .note-body`); lb.scrollTop = 120; lb.querySelector('pre').scrollLeft = 60;
+    }
     document.body.dataset.ready = '1';
     return;
   }
@@ -223,10 +231,28 @@
     ok('memory vault shows no-file sync icon', $('.hud-sync').classList.contains('sync-none'));
     App.openTab('secrets');
 
+    // board pills: + adds a board and renames it in place, click switches, x deletes (undoable)
+    App.openTab('b:' + Store.S.data.boards[0].id);
+    const nBoards = Store.S.data.boards.length;
+    $('.bp-add').click();
+    const inp = $('.bp-input');
+    ok('+ creates a board with an inline name field', Store.S.data.boards.length === nBoards + 1 && !!inp);
+    if (inp) { inp.value = 'Infra'; keydown(inp, 'Enter'); }
+    const infra = Store.S.data.boards.find((b) => b.name === 'Infra');
+    ok('inline rename saves', !!infra && $$('.board-pill .bp-name').some((e) => e.textContent === 'Infra'));
+    ok('new board is active', Store.S.data.ui.active === 'b:' + infra.id && $('.board-pill.on .bp-name').textContent === 'Infra');
+    $$('.board-pill')[0].click();
+    ok('clicking a pill switches board', Store.S.data.ui.active === 'b:' + Store.S.data.boards[0].id);
+    $(`.board-pill[data-id="${infra.id}"] .bp-x`).click();
+    ok('x deletes an empty board', !Store.board(infra.id) && $$('.board-pill').length === nBoards);
+    keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+    ok('undo restores the board', !!Store.board(infra.id));
+    App.openTab('secrets');
+
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === 1 && parsed.encrypted === false && parsed.data.boards.length === 1 && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === 1 && parsed.encrypted === false && parsed.data.boards.length === 2 && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
     ok('normalize round trip', re.boards[0].notes.length === Store.S.data.boards[0].notes.length);
 
