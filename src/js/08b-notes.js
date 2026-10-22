@@ -116,7 +116,8 @@ export const NotesList = (() => {
     editTags(el, r.note.tags || [], (tags) => {
       if (tags && tags.join(' ') !== (r.note.tags || []).join(' ')) { r.note.tags = tags; r.note.updated = now(); Store.change('note'); }
       render();
-      list.focus({ preventScroll: true });
+      // back to the list, unless the click that ended the edit put focus somewhere (the filter)
+      if (!document.activeElement || document.activeElement === document.body) list.focus({ preventScroll: true });
     });
   }
   function linksMenu(r, dir, anchor) {

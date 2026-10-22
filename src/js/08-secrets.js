@@ -51,8 +51,8 @@ export const Secrets = (() => {
       else if (a && a.dataset.a === 'key') copyKey(x);
       else { mark(); }
     });
-    // a click on the dimmed page outside the editor closes it
-    root.addEventListener('mousedown', (e) => { if (e.target === root && closeEditor) closeEditor(); });
+    // a click on the dimmed page outside the editor closes it, keeping any changes
+    root.addEventListener('mousedown', (e) => { if (e.target === root && closeEditor) { e.preventDefault(); closeEditor(); } }); // focus stays in the editor if it stays open
     // a locked or closed vault leaves nothing behind: no rows, no revealed values
     bus.on('closed', () => { revealed.clear(); rows = []; cur = 0; filterInp.value = ''; list.replaceChildren(); tagsRow.replaceChildren(); drawer.hidden = true; drawer.replaceChildren(); root.classList.remove('drawer-open'); closeEditor = null; });
     list.addEventListener('dblclick', (e) => { const row = e.target.closest('.srow'); if (row && !e.target.closest('button')) edit(Store.secret(row.dataset.id)); });
@@ -178,7 +178,9 @@ export const Secrets = (() => {
       list.focus();
     };
     const close = () => { drawer.hidden = true; drawer.replaceChildren(); editingId = null; closeEditor = null; root.classList.remove('drawer-open'); };
-    closeEditor = () => { close(); list.focus(); };
+    // a click outside keeps what was typed: it saves (or asks for the key), and closes when nothing changed
+    const fields = () => [keyI.value, valI.value, tagI.value, descI.value].join('\u0000'), was = fields();
+    closeEditor = () => { if (fields() !== was) save(); else { close(); list.focus(); } };
 
     drawer.replaceChildren(...[
       h('div', { class: 'd-head' }, h('h3', { text: isNew ? 'New secret' : x.key }), h('button', { class: 'icon-btn', title: 'Close (Esc)', html: icon('x'), onclick: () => { close(); list.focus(); } })),

@@ -2,7 +2,7 @@ import { $, kb, isMac, isAltGr, modKey, now, h, uid, esc, isTypingTarget, bus, t
 import { Bird } from './01-bird.js';
 import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
-import { Popup, Modal } from './05-ui.js';
+import { Popup, Modal, inlineField } from './05-ui.js';
 import { Board } from './07-board.js';
 import { Peek } from './07b-peek.js';
 import { Secrets } from './08-secrets.js';
@@ -307,20 +307,17 @@ export const App = (() => {
     function pin(r) { if (!r || r.create) return; r.b.pinned = !r.b.pinned; if (!r.b.pinned) delete r.b.pinned; Store.change('boards'); paint(); }
     function rename(r) {
       if (!r || r.create) return;
-      const row = list.children[rows.indexOf(r)]; if (!row) return;
+      if (renaming) renaming(true); // one rename at a time: the one in progress is kept
+      const row = list.children[rows.findIndex((x) => x.b === r.b)]; if (!row) return;
       const name = row.querySelector('.bd-name');
       const ri = h('input', { class: 'bp-input bd-rename', value: r.b.name, spellcheck: 'false', 'aria-label': 'Board name' });
       name.replaceChildren(ri);
-      renaming = ri;
-      const done = (save) => {
-        if (renaming !== ri) return;
+      renaming = inlineField(ri, (save) => {
         renaming = null;
         const v = ri.value.trim();
         if (save && v && v !== r.b.name) { r.b.name = v; Store.change('boards'); }
-        build(); inp.focus();
-      };
-      ri.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); done(true); } if (e.key === 'Escape') { e.preventDefault(); done(false); } });
-      ri.addEventListener('blur', () => done(true));
+        if (panel) { build(); inp.focus(); }
+      });
       ri.focus(); ri.select();
     }
     async function remove(r) {
@@ -423,28 +420,24 @@ export const App = (() => {
     renameBoard(b.id);
   }
   /* rename in place on the pill */
+  let renamingPill = null;
   function renameBoard(id) {
     const b = Store.board(id); if (!b) return;
+    if (renamingPill) renamingPill(true); // one rename at a time: the one in progress is kept
     renderBoards();
     const pill = boardsEl.querySelector(`.board-pill[data-id="${CSS.escape(id)}"]`);
     if (!pill) return;
     const inp = h('input', { class: 'bp-input', value: b.name, spellcheck: 'false', 'aria-label': 'Board name', size: String(Math.max(6, b.name.length + 1)) });
     pill.replaceChildren(inp);
     pill.draggable = false;
-    let done = false;
     const finish = (save) => {
-      if (done) return; done = true;
+      renamingPill = null;
       const v = inp.value.trim();
       if (save && v && v !== b.name) { b.name = v; Store.change('boards'); }
       renderBoards();
     };
     inp.addEventListener('input', () => { inp.size = Math.max(6, inp.value.length + 1); });
-    inp.addEventListener('keydown', (e) => {
-      e.stopPropagation();
-      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-    });
-    inp.addEventListener('blur', () => finish(true));
+    renamingPill = inlineField(inp, finish);
     inp.focus(); inp.select();
   }
   /* deleting a board removes the board and its placements; every note stays in the library */

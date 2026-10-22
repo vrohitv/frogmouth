@@ -63,6 +63,15 @@ export const Peek = (() => {
     body.setAttribute('aria-label', 'Note text: click to edit');
     // reading first; a click in the text (not on a link or image) starts editing there
     body.addEventListener('pointerdown', (e) => { if (!e.target.closest('a, .fref, .sref, figure.pic')) body.contentEditable = 'true'; });
+    // and a click anywhere else goes back to reading, with no caret left in the text (not while its / or @ menu is open)
+    const text = body, settle = () => {
+      if (!text.isConnected || text.contains(document.activeElement)) return;
+      if (Popup.isOpen()) { setTimeout(settle, 250); return; }
+      text.contentEditable = 'false';
+      const s = getSelection();
+      if (s.rangeCount && text.contains(s.anchorNode)) s.removeAllRanges();
+    };
+    text.addEventListener('blur', () => setTimeout(settle, 120));
     const where = r.boards.length ? r.boards.map((b) => `<span class="pk-board">${icon('board')}${esc(b.name)}</span>`).join('') : '<span class="pk-board none">on no board</span>';
     card.replaceChildren(
       h('div', { class: 'pk-head' },

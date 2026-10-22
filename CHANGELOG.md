@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Inline fields confirm when you leave them.** Note tags (on the board and in All notes) and board names (on the pill and in the Boards panel) now share one behaviour: `↵` saves and closes the field, `Esc` cancels, and a click anywhere else saves, including on the board, another note or the floating bar.
+- Fixed: pressing `↵` in a board note's tag field saved the tags but left the field on screen, so the chips never came back; each further edit stacked another field.
+- Fixed: clicking the board while renaming a board pill kept the field open, and clicking another pill while renaming saved the name but did not switch to that board.
+- Fixed: two renames at once in the Boards panel could lose one; clicking another row now keeps the rename in progress.
+- The secret editor keeps what you typed when you click outside it: it saves, or asks for the key if there is none. `Esc`, Cancel and × still discard.
+- The note view goes back to reading when you click outside the text, with no caret left in it.
+- After editing tags in All notes, a click into the filter keeps focus there.
+- `↵` that finishes an IME composition no longer saves an inline field halfway.
+
 ## 1.2.1 (2026-10-22)
 
 - **Colour picker**: each note has one small colour button instead of a row of nine swatches. It opens a compact 3 × 3 picker of the papers in the current theme, with the current one marked: click, press `1`–`9`, or use the arrows and `↵`; `Esc` or a click outside closes it. With several notes selected it colours all of them. The `1`–`9` keys on the board work as before.

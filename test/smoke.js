@@ -26,6 +26,11 @@ import { App } from '../src/js/10-app.js';
     el.dispatchEvent(ev);
     return ev;
   };
+  // a press somewhere: down and up, as a pointer does (the board cancels its pointerdown, so focus stays put)
+  const press = async (el) => {
+    for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, button: 0, isPrimary: true }));
+    await wait(20);
+  };
   const type = async (s) => { for (const ch of s) { document.execCommand('insertText', false, ch); await Promise.resolve(); await Promise.resolve(); } };
 
   function demoData() {
@@ -818,6 +823,18 @@ import { App } from '../src/js/10-app.js';
       ok('secret editor opens centred', Math.abs(r.left + r.width / 2 - innerWidth / 2) < 2 && Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2, JSON.stringify([r.left, r.top, r.width, r.height, innerWidth, innerHeight]));
       $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       ok('clicking outside closes the editor', $('.s-drawer').hidden);
+      Secrets.edit(null);
+      $('.s-drawer input').value = 'OUTSIDE_KEY';
+      $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      const added = Store.S.data.secrets.find((x) => x.key === 'OUTSIDE_KEY');
+      ok('clicking outside keeps what was typed', $('.s-drawer').hidden && !!added);
+      Store.S.data.secrets.splice(Store.S.data.secrets.indexOf(added), 1); Store.change('secrets'); Secrets.render();
+      Secrets.edit(null);
+      $('.s-drawer textarea').value = 'a value and no key';
+      $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      ok('without a key it stays open and asks for one', !$('.s-drawer').hidden && $('.s-drawer input').classList.contains('bad'));
+      keydown($('.s-drawer input'), 'Escape');
+      ok('Esc discards it', $('.s-drawer').hidden && Store.S.data.secrets.length === 5, Store.S.data.secrets.length);
     }
     ok('tag row is a pivot: plain tags, then each key with its values', $$('.secrets .s-tagrow > .chip').map((c) => c.dataset.tag).join() === 'aws,billing,db,example' && $$('.secrets .tp-group .tp-k').length === 1 && $$('.secrets .tp-group .tp-v').map((c) => c.dataset.tag).join() === 'env:dev,env:prod,env:staging', $$('.secrets .s-tagrow .chip').map((c) => c.dataset.tag).join());
     {
@@ -877,6 +894,13 @@ import { App } from '../src/js/10-app.js';
     const infra = Store.S.data.boards.find((b) => b.name === 'Infra');
     ok('inline rename saves', !!infra && $$('.board-pill .bp-name').some((e) => e.textContent === 'Infra'));
     ok('new board is active', Store.S.data.ui.active === 'b:' + infra.id && $('.board-pill.on .bp-name').textContent === 'Infra');
+    $('.board-pill.on').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    if ($('.bp-input')) $('.bp-input').value = 'Infra ops';
+    await press($('.board-vp'));
+    ok('a press on the board saves a rename', infra.name === 'Infra ops' && !$('.bp-input') && $('.board-pill.on .bp-name').textContent === 'Infra ops', infra.name);
+    $('.board-pill.on').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    if ($('.bp-input')) { $('.bp-input').value = 'Nope'; keydown($('.bp-input'), 'Escape'); }
+    ok('Esc cancels a rename', infra.name === 'Infra ops' && !$('.bp-input'));
     $$('.board-pill')[0].click();
     ok('clicking a pill switches board', Store.S.data.ui.active === 'b:' + Store.S.data.boards[0].id);
     $(`.board-pill[data-id="${infra.id}"] .bp-x`).click();
@@ -905,6 +929,20 @@ import { App } from '../src/js/10-app.js';
       keydown(ti, 'Enter');
     }
     ok('tags saved on the note', ['snippet', 'lang:js', 'env:prod', 'retry'].every((t) => retryRef.note.tags.includes(t)), JSON.stringify(retryRef.note.tags));
+    {
+      const foot = $(`.note[data-id="${retryRef.note.id}"] .note-foot`);
+      ok('Enter closes the tag editor and shows the chips', !foot.querySelector('.tag-input') && foot.querySelectorAll('.chip').length === 4, foot.innerHTML);
+      keydown(document.body, 't');
+      const t2 = foot.querySelector('.tag-input');
+      if (t2) t2.value += 'later';
+      await press($('.board-vp'));
+      ok('a press outside saves the tags and closes the editor', !foot.querySelector('.tag-input') && retryRef.note.tags.includes('later') && foot.querySelectorAll('.chip').length === 5, foot.innerHTML);
+      keydown(document.body, 't');
+      const t3 = foot.querySelector('.tag-input');
+      if (t3) { t3.value = 'nope'; keydown(t3, 'Escape'); }
+      ok('Esc leaves the tags as they were', !foot.querySelector('.tag-input') && retryRef.note.tags.includes('later') && !retryRef.note.tags.includes('nope'));
+      retryRef.note.tags = retryRef.note.tags.filter((t) => t !== 'later'); Store.change('note');
+    }
     $('.hud-switch [data-view="notes"]').click();
     await wait(30);
     ok('notes page lists every note', $$('.nrow').length === Store.S.notes.size, $$('.nrow').length + ' vs ' + Store.S.notes.size);
