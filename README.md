@@ -7,7 +7,7 @@
 
 <p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
-The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, and looks thoroughly unimpressed while doing it. In the app its amber eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
+The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its amber eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
 
 ## Use it
 

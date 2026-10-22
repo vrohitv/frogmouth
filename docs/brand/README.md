@@ -1,20 +1,41 @@
 # frogmouth brand
 
-The symbol is a tawny frogmouth seen head on. Tawny frogmouths are often mistaken for owls, so the drawing leans on what is only theirs: a broad, flat head with no ear tufts, pale brow stripes, a gape almost as wide as the face, a horn-coloured hooked beak with a bristle tuft, and heavy lids over amber eyes. The heavy lids give it its expression: calm, unimpressed, watching. A fair attitude for something that guards your secrets.
+![The five expressions: rest, squint, eyes closed, wide, gape](frogmouth-expressions.svg)
 
-The wordmark is set in JetBrains Mono ExtraBold, the app's own typeface. Its two o's are the bird's eyes, with the same lids.
+The symbol is a tawny frogmouth seen head on. Tawny frogmouths are often mistaken for owls, so the drawing leans on what is only theirs: a broad, flat head with no ear tufts, pale brow stripes, a gape almost as wide as the face, a horn-coloured hooked beak with a bristle tuft, and heavy lids over amber eyes.
 
-## Files
+Character: calm and watchful, never cross. The **brows** carry the sharp lines; the **lids** are level and droop gently, so the bird looks sleepy-wise rather than angry. The wordmark is set in JetBrains Mono ExtraBold, the app's typeface, and its two o's are the same eyes.
 
-| File | Use |
+## The logo system
+
+Use the largest level that fits. Smaller levels are redrawn for their size, not shrunk.
+
+| Level | File | Use | Minimum |
+|---|---|---|---|
+| Full | `frogmouth-stacked-on-dark.svg`, `-on-light.svg` | Symbol above wordmark. Splash screens, README, square or centred layouts. | 96 px tall |
+| Primary | `frogmouth-lockup-on-dark.svg`, `-on-light.svg` | Symbol beside wordmark, the wordmark's eyes level with the symbol's. The default logo. | 160 px wide |
+| Compact | `frogmouth-wordmark-on-dark.svg`, `-on-light.svg` | Wordmark alone, where the symbol already appears nearby. | 96 px wide |
+| Icon | `frogmouth-mark.svg` | The symbol alone: avatars, app UI, social. Works on dark and light. | 33 px |
+| Small icon | `frogmouth-mark-small.svg` | Redrawn for 16 to 32 px (no throat shading, ridge or bristles; bigger eyes, heavier mouth line). The favicon. | 16 px |
+| App icon | `frogmouth-app-icon.svg` | The symbol on a slate rounded square, 512 × 512. | 32 px |
+
+One colour, for print, embossing, stamps and anywhere full colour is not possible: `frogmouth-mark-mono-ink.svg` on light backgrounds, `frogmouth-mark-mono-white.svg` (reversed) on dark ones. Full colour is always preferred.
+
+## Clear space
+
+The unit is one eye: the diameter of an eye in the symbol (26 / 128 of its width), or of an eye-o in the wordmark. Keep at least one unit clear on every side of every level. Nothing else (text, edges, other logos) goes inside it.
+
+## Expressions
+
+A mascot is a set of faces, not one. The app shows them live; `frogmouth-expressions.svg` has them side by side.
+
+| Expression | When |
 |---|---|
-| `frogmouth-mark.svg` | The symbol alone. Favicons, avatars, small spaces. Works on dark and light. |
-| `frogmouth-lockup-on-dark.svg`, `-on-light.svg` | Symbol and wordmark side by side; the wordmark's eyes sit level with the symbol's. The default logo. |
-| `frogmouth-stacked-on-dark.svg`, `-on-light.svg` | Symbol above wordmark, for square or centred layouts. |
-| `frogmouth-wordmark-on-dark.svg`, `-on-light.svg` | The wordmark alone, where the symbol already appears nearby. |
-| `frogmouth-app-icon.svg` | The symbol on a slate rounded square, 512 × 512. |
-
-The lockups blink every few seconds when shown as images (CSS inside the SVG; still for people who prefer reduced motion). In the app the eyes are live: they follow the pointer or the text caret, squint when idle, and close while a secret or passphrase is typed. Click the bird and it does what real tawny frogmouths do when startled: eyes wide, and the beak drops open to show a bright yellow mouth.
+| Rest | Default. Heavy, level lids; the eyes follow the pointer or text caret. |
+| Squint | After 30 seconds idle, the way a frogmouth narrows its eyes to stay hidden. Sleepier still after two minutes. |
+| Eyes closed | While a secret value or passphrase is being typed. |
+| Wide | On search, and when startled. |
+| Gape | Click the bird: eyes wide, the beak drops open to show a bright yellow mouth, the frogmouth's real threat display. |
 
 ## Colours
 
@@ -25,21 +46,25 @@ The lockups blink every few seconds when shown as images (CSS inside the SVG; st
 | Lid | `#454D4B` | Eyelids |
 | Brow | `#D3D9D6` | Brow stripes, bristles |
 | Horn | `#B8AE90` | The beak |
+| Mouth | `#E9C93F` | Inside the gape (only when open) |
 | Night slate | `#121A1D` | Dark background |
 | Leaf grey | `#DCE6E3` | Wordmark on dark |
-| Ink | `#17232A` | Wordmark on light |
+| Ink | `#17232A` | Wordmark on light, one-colour symbol |
 | Eucalyptus mist | `#EDF2F0` | Light background |
 
-## Use
+## Do not
 
-- Keep clear space around the logo of at least the height of one eye in the wordmark.
-- Use the `on-dark` files on dark backgrounds and `on-light` on light ones; the symbol works on both.
-- Do not recolour the bird, stretch it, add ear tufts, or swap the eye-o's for plain o's.
-- Below 24 px, use the symbol alone.
+- Angle the lids toward the beak (it reads as anger) or add ear tufts (it reads as an owl).
+- Recolour the bird, stretch it, rotate it, or add outlines, shadows or gradients.
+- Swap the eye-o's for plain o's, or set the wordmark in another typeface.
+- Use the full-colour symbol below 33 px; use the small icon.
+- Put the logo on busy images or low-contrast backgrounds.
 
-## Editing
+## Construction and editing
 
-The symbol's shapes and colours live in `src/brand/mark.json`; the app draws its live bird from it. After changing it, regenerate the files here and the favicon:
+The symbol is drawn on a 128-unit grid with a 2-unit base; eyes are 13 units in radius, centred 44 units apart, level with the wordmark's eye-o's in the primary lockup. Its shapes and colours live once in `src/brand/mark.json`, which the app draws its live bird from. Layers flagged `detail` are dropped for the small icon; `jaw` and `mouth` layers make the gape.
+
+After changing it, regenerate everything here and the favicon:
 
 ```sh
 pip install fonttools brotli

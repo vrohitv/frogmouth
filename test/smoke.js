@@ -54,6 +54,7 @@ import { App } from '../src/js/10-app.js';
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
     if (mode === 'shot-secret-edit') { App.openTab('secrets'); await wait(50); Secrets.edit(Store.S.data.secrets[1]); }
     if (mode === 'shot-arm') { await wait(300); const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Today').note; Board.select(t.id); keydown(document.body, 'Delete'); }
+    if (mode === 'shot-welcome') { App.showWelcome(); await wait(1200); }
     if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
       const infra = { id: uid(), name: 'Infra', created: now(), items: [] };

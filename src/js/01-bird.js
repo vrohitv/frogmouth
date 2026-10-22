@@ -12,7 +12,7 @@ export const Bird = (() => {
   const FONT = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
   const eyes = new Set();
   const heads = new Set();
-  const LID = { wide: 0.0, rest: 0.2, squint: 0.6, sleepy: 0.84, closed: 1.06 };
+  const LID = { wide: 0.0, rest: 0.2, squint: 0.45, sleepy: 0.8, closed: 1.06 };
   let px = innerWidth / 2, py = innerHeight / 3, focusPt = null, focusT = 0;
   let mood = 'rest', lastAct = now(), raf = 0, clipN = 0, blinking = false;
 
@@ -30,22 +30,21 @@ export const Bird = (() => {
     return ctx.measureText(text).width;
   }
 
-  /* One amber eye. slant 0: a level lid; slant -1 / 1: the brand's heavy lid,
-     higher at the outer edge and lower toward the beak (left / right eye).
+  /* One amber eye. heavy: the brand's calm lid, level and gently drooping
+     (never angled toward the beak, which reads as anger); otherwise a light lid.
      Lids move by translateY, so blinking and squinting work the same for both. */
-  function eye(cx, cy, r, svg, slant = 0) {
+  function eye(cx, cy, r, svg, heavy = true) {
     const id = 'fmeye' + ++clipN;
     const pupil = s('g', { class: 'fm-pupil' }, [
-      s('circle', { r: r * 0.47, class: 'fm-pup' }),
-      s('circle', { r: r * 0.15, cx: -r * 0.17, cy: -r * 0.2, class: 'fm-glint' }),
+      s('circle', { r: r * 0.47, cy: heavy ? r * 0.15 : 0, class: 'fm-pup' }),
+      s('circle', { r: r * 0.15, cx: -r * 0.17, cy: heavy ? -r * 0.05 : -r * 0.2, class: 'fm-glint' }),
     ]);
     let lidD, edgeD;
-    if (slant) {
-      // rest position (see setLid) puts this edge at -0.55r outside and +0.1r inside
-      const k = 0.936, out = (-0.55 + k) * r, inn = (0.1 + k) * r, w = r * 1.4;
-      const yl = slant < 0 ? out : inn, yr = slant < 0 ? inn : out, mid = (yl + yr) / 2 + r * 0.1;
-      lidD = `M${-w} ${-r * 3}H${w}V${yr}Q0 ${mid} ${-w} ${yl}Z`;
-      edgeD = `M${-w} ${yl}Q0 ${mid} ${w} ${yr}`;
+    if (heavy) {
+      // at rest (see setLid) the edge sits at -0.42r at the sides, drooping to about -0.17r mid-eye
+      const k = 0.936, side = (-0.42 + k) * r, ctrl = (0.08 + k) * r, w = r * 1.4;
+      lidD = `M${-w} ${-r * 3}H${w}V${side}Q0 ${ctrl} ${-w} ${side}Z`;
+      edgeD = `M${-w} ${side}Q0 ${ctrl} ${w} ${side}`;
     } else {
       lidD = `M${-r * 1.3} ${-r * 2.6}H${r * 1.3}V0Q0 ${r * 0.42} ${-r * 1.3} 0Z`;
       edgeD = `M${-r * 1.3} 0Q0 ${r * 0.42} ${r * 1.3} 0`;
@@ -82,7 +81,7 @@ export const Bird = (() => {
         ? { d: l.d, fill: 'none', stroke: C[l.stroke], 'stroke-width': l.width, 'stroke-linecap': 'round' }
         : { d: l.d, fill: C[l.fill], ...(l.opacity ? { opacity: l.opacity } : {}) });
       MARK.back.forEach((l) => head.append(layer(l)));
-      es = MARK.eyes.map((e) => eye(e.cx, e.cy, e.r, svg, e.slant));
+      es = MARK.eyes.map((e) => eye(e.cx, e.cy, e.r, svg));
       es.forEach((e) => head.append(e.g));
       // the beak is a jaw over a hidden yellow mouth: click and the bird gapes
       const jaw = s('g', { class: 'fm-jaw' });
@@ -106,7 +105,7 @@ export const Bird = (() => {
         return el;
       };
       head.append(s('g', { class: 'fm-word' }, [txt('fr', leftX, 'end'), txt('gm', 0, 'middle'), txt('uth', rightX, 'start')]));
-      es = [eye(-E, 0, R, svg, -1), eye(E, 0, R, svg, 1)];
+      es = [eye(-E, 0, R, svg), eye(E, 0, R, svg)];
       es.forEach((e) => head.append(e.g));
       const minX = leftX - frW - 4, maxX = rightX + uthW + 4, minY = -R - 6, maxY = base + fs * 0.26;
       svg.setAttribute('viewBox', `${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`);
