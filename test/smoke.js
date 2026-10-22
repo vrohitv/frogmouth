@@ -588,6 +588,11 @@ import { App } from '../src/js/10-app.js';
     $('.hud-switch [data-view="notes"]').click();
     await wait(30);
     ok('notes page lists every note', $$('.nrow').length === Store.S.notes.size, $$('.nrow').length + ' vs ' + Store.S.notes.size);
+    {
+      const hudBottom = Math.max(...$$('.hud-pill').map((p) => p.getBoundingClientRect().bottom));
+      const filterTop = $('.notes-page .s-filter').getBoundingClientRect().top;
+      ok('the page filter sits clear of the floating bar', filterTop - hudBottom >= 20, [hudBottom, filterTop]);
+    }
     NotesList.setFilter('env:prod');
     ok('notes page filters by kv tag', $$('.nrow').length === 1 && $('.nrow .n-title b').textContent === 'Retry with backoff');
     NotesList.setFilter('-lang:js');

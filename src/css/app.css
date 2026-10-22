@@ -181,6 +181,8 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 }
 .hud-brand { flex: none; padding: 0 4px 0 8px; gap: 8px; }
 .hud { top: 22px; }
+/* where the floating bar ends (its top + 40px pills); pages and the find bar start a clear gap below it */
+:root { --hud-bottom: 62px; }
 /* the bird perches on the logo pill, its head above the edge, its belly tucked behind it */
 .hud-bird { display: flex; margin-left: -2px; }
 .hud-bird .fm { height: 34px; width: auto; }
@@ -530,7 +532,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
 
 /* ── secrets ── */
-.page { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto auto 1fr; background: var(--bg); padding-top: 60px; }
+.page { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto auto 1fr; background: var(--bg); padding-top: calc(var(--hud-bottom) + 18px); }
 .s-tagrow { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; max-width: 1040px; margin: -4px auto 10px; padding: 0 16px; }
 .s-tagrow:empty { display: none; }
 .s-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; }
@@ -650,7 +652,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 
 /* ── find on this board ── */
 .find-bar {
-  position: absolute; z-index: 6; top: 72px; left: 50%; transform: translateX(-50%);
+  position: absolute; z-index: 6; top: calc(var(--hud-bottom) + 16px); left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 6px 0 12px; width: min(460px, calc(100% - 32px));
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -678,6 +680,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
   .hud-search span, .hud-search kbd { display: none; }
 }
 @media (max-width: 760px) {
+  :root { --hud-bottom: 48px; }
   .hud { top: 8px; left: 8px; right: 8px; }
   .hud-search { width: auto; padding: 0 10px; }
   .hud-search span, .hud-search kbd { display: none; }
