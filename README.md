@@ -153,13 +153,13 @@ Plain JavaScript modules and CSS, no runtime dependencies. [Vite](https://vite.d
 npm install
 npm run dev          # dev server with hot reload (the no-network policy is relaxed only here)
 npm run build        # -> frogmouth.html, the single file to ship
-npm test             # builds test/frogmouth.test.html and runs the smoke suite in headless Chrome
+npm test             # builds test/frogmouth.html and runs the smoke suite in headless Chrome
 ```
 
 `npm test` needs Python 3 and Chrome (set `CHROME=/path/to/chrome` if it is not in the usual place).
 
 ```
-src/index.html        page shell + Content-Security-Policy
+src/frogmouth.html    page shell + Content-Security-Policy (built to ./frogmouth.html)
 src/main.js           entry: imports the styles and boots the app
 src/css/00-fonts.css  JetBrains Mono @font-face (Vite inlines the woff2 files)
 src/css/app.css       all styles (night and day themes)

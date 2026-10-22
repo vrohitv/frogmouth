@@ -1,23 +1,24 @@
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
-import { readFileSync, renameSync, rmSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
-/* One self-contained HTML file: `npm run build` -> frogmouth.html,
-   `npm run build:test` -> test/frogmouth.test.html (with test/smoke.js). */
+/* One self-contained HTML file, written straight to where it is used:
+   `npm run build` -> ./frogmouth.html, `npm run build:test` -> ./test/frogmouth.html
+   (the same page with test/smoke.js bundled in). */
 export default defineConfig(({ mode }) => {
   const test = mode === 'test';
-  const outDir = here(test ? './.build-test' : './.build');
-  const target = here(test ? './test/frogmouth.test.html' : './frogmouth.html');
   return {
     root: here('./src'),
     base: './',
+    publicDir: false,
     define: { __TEST__: JSON.stringify(test) },
     build: {
-      outDir,
-      emptyOutDir: true,
+      outDir: here(test ? './test' : '.'),
+      emptyOutDir: false, // the output folder is the project (or test) folder: never wipe it
+      rollupOptions: { input: here('./src/frogmouth.html') },
       target: 'es2022',
       modulePreload: false,
       reportCompressedSize: false,
@@ -40,11 +41,11 @@ export default defineConfig(({ mode }) => {
         transformIndexHtml: (html) => html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\n?/, ''),
       },
       {
-        name: 'frogmouth-output',
-        apply: 'build',
-        closeBundle() {
-          renameSync(`${outDir}/index.html`, target);
-          rmSync(outDir, { recursive: true, force: true });
+        // the dev server serves the page at / as well as /frogmouth.html
+        name: 'frogmouth-dev-root',
+        apply: 'serve',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => { if (req.url === '/' || req.url === '/index.html') req.url = '/frogmouth.html'; next(); });
         },
       },
     ],

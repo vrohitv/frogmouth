@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the smoke suite in headless Chrome, no dependencies.
 
-Builds test/frogmouth.test.html with `npm run build:test`, serves it on 127.0.0.1 (so the Origin
+Builds test/frogmouth.html with `npm run build:test`, serves it on 127.0.0.1 (so the Origin
 Private File System is available for real file writes), drives Chrome over
 the DevTools pipe and prints the results. Exit code 1 on any failure.
 
@@ -70,7 +70,7 @@ def main():
         print("npm not found; install Node.js (see README)"); return 2
     subprocess.run([npm, "run", "--silent", "build:test"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     srv = serve()
-    url = f"http://127.0.0.1:{srv.server_address[1]}/test/frogmouth.test.html#smoke"
+    url = f"http://127.0.0.1:{srv.server_address[1]}/test/frogmouth.html#smoke"
     chrome = Pipe("about:blank")
     try:
         targets = chrome.call("Target.getTargets")["targetInfos"]

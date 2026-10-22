@@ -1,7 +1,5 @@
 node_modules/
-.build/
-.build-test/
-test/frogmouth.test.html
+test/frogmouth.html
 *.frogmouth
 .frogmouth-backups/
 .DS_Store

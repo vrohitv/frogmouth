@@ -11,7 +11,7 @@ import { Palette } from '../src/js/09-palette.js';
 import { App } from '../src/js/10-app.js';
 
 /* Smoke tests. Only included by `python3 build.py --test`.
-   Open test/frogmouth.test.html#smoke (served over http for OPFS),
+   Open test/frogmouth.html#smoke (served over http for OPFS),
    or #shot-board / #shot-secrets / #shot-palette for screenshots. */
 (async () => {
   const mode = location.hash.slice(1);
