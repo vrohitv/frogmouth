@@ -829,8 +829,8 @@ export const Board = (() => {
     for (const id of ids) els.get(id).classList.add('arming');
     const x = els.get(ids.includes(sel) ? sel : ids[0]).querySelector('.note-x');
     x.classList.add('armed');
-    // armed: a red bin (with the count for several); the tooltip says what a second click does
-    x.innerHTML = icon('trash') + (ids.length > 1 ? `<span>${ids.length}</span>` : '');
+    // armed: the × turns red (with the count for several); the tooltip says what a second click does
+    x.innerHTML = icon('x') + (ids.length > 1 ? `<span>${ids.length}</span>` : '');
     x.title = `Click again (or press Del or Enter) to remove ${ids.length > 1 ? `these ${ids.length} notes` : 'it'} from this board`;
     x.setAttribute('aria-label', x.title);
     armTimer = setTimeout(disarm, 3000);
