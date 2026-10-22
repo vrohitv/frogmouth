@@ -9,7 +9,8 @@ import { App } from './10-app.js';
    library. Geometry lives on the placement, content on the note, so the
    same note can sit on several boards. Elements are keyed by note id. */
 export const Board = (() => {
-  const COLORS = ['moth', 'straw', 'lichen', 'dusk', 'rose', 'night'];
+  // keys 1–9, in hue order; the names are part of the file format (docs/format.md)
+  const COLORS = ['moth', 'straw', 'apricot', 'rose', 'heather', 'dusk', 'sea', 'lichen', 'night'];
   const GRID = 8;
   let vp, plane, empty, board = null, view = { x: 0, y: 0, z: 1 }, sel = null, maxZ = 1;
   const els = new Map();
@@ -428,7 +429,7 @@ export const Board = (() => {
     const all = many ? ids : [n.id];
     if ((k === 'Delete' || k === 'Backspace') && (e.shiftKey || modKey(e))) { confirmDeleteEverywhere(all); return true; }
     if (k === 'Delete' || k === 'Backspace') { askRemove(all); return true; }
-    if (/^[1-6]$/.test(k) && !modKey(e)) { for (const id of all) setColor(noteOf(id), COLORS[+k - 1]); return true; }
+    if (/^[1-9]$/.test(k) && !modKey(e)) { for (const id of all) setColor(noteOf(id), COLORS[+k - 1]); return true; }
     if (modKey(e) && k.toLowerCase() === 'd') { const out = all.map((id) => duplicate(itemOf(id))).filter(Boolean); setGroup(out.map((c) => c.id)); return true; }
     const d = e.shiftKey ? GRID * 5 : GRID;
     const mv = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d] }[k];

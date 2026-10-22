@@ -41,7 +41,7 @@ Notes live once, in `notes`. Boards only place them, so the same note can be on 
 | `title` | string | First non-empty line of the text. Derived from `html`; rebuilt if missing |
 | `text` | string | Plain text, one line per block, for search. Derived from `html`; rebuilt if missing |
 | `tags` | string[] | Plain (`docs`) or key:value (`env:prod`) |
-| `color` | string | `moth`, `straw`, `lichen`, `dusk`, `rose` or `night` |
+| `color` | string | `moth`, `straw`, `apricot`, `rose`, `heather`, `dusk`, `sea`, `lichen` or `night`. A name a release does not know is kept, and shown as `moth` |
 | `created`, `updated` | number | |
 
 **Note HTML** is sanitized on every load and paste. It may contain only:

@@ -113,6 +113,11 @@ import { App } from '../src/js/10-app.js';
       }
     }
     if (mode === 'shot-recent') Palette.show('');
+    if (mode === 'shot-papers' || mode === 'shot-papers-day') {
+      if (mode === 'shot-papers-day') document.documentElement.dataset.theme = 'day';
+      Board.COLORS.forEach((c, i) => Board.addNote({ x: 80 + (i % 5) * 230, y: 520 + Math.floor(i / 5) * 150 }, false, `<p>${c[0].toUpperCase() + c.slice(1)}</p><p>Key ${i + 1}. Calm in both themes, with <code>code</code> and a #tag.</p>`, { color: c, w: 210 }));
+      Board.fit();
+    }
     document.body.dataset.ready = '1';
     return;
   }
@@ -422,7 +427,24 @@ import { App } from '../src/js/10-app.js';
       keydown(document.body, 'ArrowRight');
       ok('arrows nudge every selected note', its.every((m, i) => m.x - xs[i] === 104));
       keydown(document.body, '3');
-      ok('a colour key colours every selected note', [g1, g2, g3].every((n) => n.color === 'lichen' && el(n).classList.contains('paper-lichen')));
+      {
+        // nine adaptive colours: each a light and a dark pair, all readable, unknown names shown as moth
+        const probe = document.createElement('div'); $('.plane').append(probe);
+        const rgb = (c) => c.match(/\d+/g).slice(0, 3).map(Number);
+        const L = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const ratio = (a, b) => { const [x, y] = [L(a), L(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+        const look = (theme, c) => { document.documentElement.dataset.theme = theme; probe.className = 'note paper-' + c; const cs = getComputedStyle(probe); return [cs.backgroundColor, cs.color]; };
+        const was = document.documentElement.dataset.theme, rows = [];
+        for (const c of Board.COLORS) rows.push([c, look('night', c), look('day', c)]);
+        const fallback = look('day', 'some-future-colour')[0] === look('day', 'moth')[0] && look('night', 'some-future-colour')[0] === look('night', 'moth')[0];
+        document.documentElement.dataset.theme = was; probe.remove();
+        ok('nine note colours, keys 1 to 9', Board.COLORS.length === 9);
+        ok('every colour switches between a light and a dark paper', rows.every(([c, n, d]) => c === 'night' ? true : L(d[0]) > 0.6 && L(n[0]) < 0.08), JSON.stringify(rows.map(([c, n, d]) => [c, n[0], d[0]])));
+        ok('every colour is distinct in both themes', new Set(rows.map((r) => r[1][0])).size === 9 && new Set(rows.map((r) => r[2][0])).size === 9);
+        ok('text on every paper is very readable (AAA, 7:1 or more) in both themes', rows.every(([, n, d]) => ratio(...n) >= 7 && ratio(...d) >= 7), JSON.stringify(rows.map(([c, n, d]) => [c, ratio(...n).toFixed(1), ratio(...d).toFixed(1)])));
+        ok('a colour from a newer release is shown as moth', fallback);
+      }
+      ok('a colour key colours every selected note', [g1, g2, g3].every((n) => n.color === 'apricot' && el(n).classList.contains('paper-apricot')));
       const onBoard = Board.current().items.length;
       keydown(document.body, 'Delete');
       ok('Del asks once for the whole selection', Board.current().items.length === onBoard && $$('.note.arming').length === 3 && /Remove 3\?/.test($('.note-x.armed').textContent), $$('.note.arming').length);
@@ -563,7 +585,8 @@ import { App } from '../src/js/10-app.js';
       ok('asleep: the head breathes', mark.querySelector('.fm-head').getAnimations().length === 1);
       ok('the wordmark sleeps too, without z\'s', $('.hud-logo .fm').classList.contains('asleep') && !$('.hud-logo .fm .fm-z'));
       keydown(document.body, 'Shift');
-      await wait(800); // it wakes with a double blink
+      await wait(600); // it wakes with a double blink (and may blink again at random: wait for open eyes)
+      for (let i = 0; i < 20 && lidY(mark) >= 0; i++) await wait(100);
       ok('a key wakes it: z\'s gone, eyes open', !mark.classList.contains('asleep') && !mark.querySelector('.fm-z').getAnimations().length && lidY(mark) < 0, mark.querySelector('.fm-lidg').style.transform);
     }
 

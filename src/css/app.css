@@ -280,20 +280,31 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .plane.glide { transition: transform .36s cubic-bezier(.2, .8, .3, 1); }
 .plane.arranging .note { transition: transform .4s cubic-bezier(.2, .8, .3, 1); }
 
-/* paper colours */
-/* paper colours, per theme: muted dark tints at night (bright paper on a dark board is tiring), soft pastels by day */
-.paper-straw  { --paper: #36362a; --ink: #e8e6d2; --rule: rgba(232, 230, 210, .14); }
-.paper-lichen { --paper: #2c362e; --ink: #d9e4d9; --rule: rgba(217, 228, 217, .14); }
-.paper-dusk   { --paper: #2b323d; --ink: #d9e1ec; --rule: rgba(217, 225, 236, .14); }
-.paper-moth   { --paper: #323337; --ink: #deded9; --rule: rgba(222, 222, 217, .14); }
-.paper-rose   { --paper: #3d2f2e; --ink: #ecdbd8; --rule: rgba(236, 219, 216, .14); }
-.paper-night  { --paper: #222327; --ink: #d4d3cf; --rule: rgba(212, 211, 207, .12); }
-[data-theme="day"] .paper-straw  { --paper: #f3f0cf; --ink: #2d2c1e; --rule: rgba(45, 44, 30, .12); }
-[data-theme="day"] .paper-lichen { --paper: #dde7d8; --ink: #1f2a1f; --rule: rgba(31, 42, 31, .12); }
-[data-theme="day"] .paper-dusk   { --paper: #dbe3ee; --ink: #1e2633; --rule: rgba(30, 38, 51, .12); }
-[data-theme="day"] .paper-moth   { --paper: #e8e8e5; --ink: #2a2b2e; --rule: rgba(42, 43, 46, .12); }
-[data-theme="day"] .paper-rose   { --paper: #f1ddd8; --ink: #392421; --rule: rgba(57, 36, 33, .12); }
-[data-theme="day"] .paper-night  { --paper: #2e3035; --ink: #e6e6e3; --rule: rgba(230, 230, 227, .14); }
+/* paper colours: adaptive pairs, one per name, swapped with the theme (like Keep or Samsung Notes).
+   Designed in OKLCH so every colour has the same perceived lightness: soft pastels at L 0.935 by day,
+   deep muted tints at L 0.335 at night (bright paper on a dark board is tiring), each keeping its hue
+   in both themes. Ink is the same hue at L 0.27 / 0.93: at least 9.6:1 contrast everywhere. "night"
+   stays dark in both themes. A colour this version does not know falls back to moth. */
+.note { --paper: #373733; --ink: #e9e8e3; --rule: rgba(233, 232, 227, .14); }
+[data-theme="day"] .note { --paper: #ebe9e5; --ink: #272623; --rule: rgba(39, 38, 35, .12); }
+.paper-moth    { --paper: #373733; --ink: #e9e8e3; --rule: rgba(233, 232, 227, .14); }
+.paper-straw   { --paper: #3b3725; --ink: #ebe8db; --rule: rgba(235, 232, 219, .14); }
+.paper-apricot { --paper: #423327; --ink: #f1e6dc; --rule: rgba(241, 230, 220, .14); }
+.paper-rose    { --paper: #453032; --ink: #f4e3e4; --rule: rgba(244, 227, 228, .14); }
+.paper-heather { --paper: #3c3243; --ink: #ebe5f1; --rule: rgba(235, 229, 241, .14); }
+.paper-dusk    { --paper: #2b3847; --ink: #e0e9f4; --rule: rgba(224, 233, 244, .14); }
+.paper-sea     { --paper: #253b3b; --ink: #dbeceb; --rule: rgba(219, 236, 235, .14); }
+.paper-lichen  { --paper: #2e3b2c; --ink: #e1ebe0; --rule: rgba(225, 235, 224, .14); }
+.paper-night   { --paper: #212326; --ink: #dcdee2; --rule: rgba(220, 222, 226, .14); }
+[data-theme="day"] .paper-moth    { --paper: #ebe9e5; --ink: #272623; --rule: rgba(39, 38, 35, .12); }
+[data-theme="day"] .paper-straw   { --paper: #f4ebbb; --ink: #2a2715; --rule: rgba(42, 39, 21, .12); }
+[data-theme="day"] .paper-apricot { --paper: #ffe4ce; --ink: #312317; --rule: rgba(49, 35, 23, .12); }
+[data-theme="day"] .paper-rose    { --paper: #fce2e3; --ink: #332122; --rule: rgba(51, 33, 34, .12); }
+[data-theme="day"] .paper-heather { --paper: #f2e3fe; --ink: #2b2232; --rule: rgba(43, 34, 50, .12); }
+[data-theme="day"] .paper-dusk    { --paper: #dcebfe; --ink: #1c2735; --rule: rgba(28, 39, 53, .12); }
+[data-theme="day"] .paper-sea     { --paper: #cff2f1; --ink: #132b2b; --rule: rgba(19, 43, 43, .12); }
+[data-theme="day"] .paper-lichen  { --paper: #d9f2d6; --ink: #1e2a1d; --rule: rgba(30, 42, 29, .12); }
+[data-theme="day"] .paper-night   { --paper: #2b2e32; --ink: #e5e8ec; --rule: rgba(229, 232, 236, .14); }
 
 .note {
   position: absolute; left: 0; top: 0;
