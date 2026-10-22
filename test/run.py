@@ -82,7 +82,8 @@ def main():
                 print(text)
                 return 0 if "\nFAIL" not in text else 1
             time.sleep(0.25)
-        print("timed out waiting for results"); return 1
+        res = chrome.call("Runtime.evaluate", {"expression": "JSON.stringify((window.__smoke||[]).slice(-4))", "returnByValue": True}, session)
+        print("timed out waiting for results; last recorded:", res.get("result", {}).get("value")); return 1
     finally:
         chrome.close(); srv.shutdown()
 

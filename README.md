@@ -18,7 +18,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Boards of sticky notes**
 - Multiple boards, opened as tabs like files in an editor.
-- Drag notes by their top edge (or `⌥`-drag from anywhere), resize from the corner, and pick from six paper colours.
+- Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
+- Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.
 - **Arrange notes** tidies a board into columns. **Fit** shows everything at once.
 - The first line of a note is its title. Nothing else is needed.
@@ -73,7 +74,8 @@ Press `?` in the app for the full list.
 |---|---|
 | `N` or double-click | New note |
 | `Tab` | Next note |
-| `↵` / `Esc` | Edit / stop editing |
+| click, drag | Select, move |
+| double-click, `↵` / `Esc` | Edit / stop editing |
 | arrows | Nudge |
 | `1`–`6` | Colour |
 | `⌘D` | Duplicate |

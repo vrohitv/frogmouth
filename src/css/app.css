@@ -127,7 +127,7 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 /* ── the bird ── */
 .fm { display: block; overflow: visible; cursor: pointer; }
 .fm text { font-weight: 800; fill: var(--text); letter-spacing: -.01em; user-select: none; }
-.fm-big text { stroke: var(--word-stroke); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
+.fm-big text, .fm-face text { stroke: var(--word-stroke); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
 .fm-iris { fill: #e19a26; }
 .fm-iris-in { fill: #f5c55a; opacity: .75; }
 .fm-ring { fill: none; stroke: #3a2810; stroke-width: 2.5; }
@@ -183,10 +183,11 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 @keyframes shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
 
 /* ── shell ── */
-.shell { position: fixed; inset: 0; display: grid; grid-template-rows: 38px 1fr 24px; }
+.shell { position: fixed; inset: 0; display: grid; grid-template-rows: 44px 1fr 24px; }
 .top { display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
 .brand { width: var(--side-w); flex: none; display: flex; align-items: center; padding: 0 14px; border-right: 1px solid var(--line); }
-.brand .fm { height: 22px; width: auto; }
+.brand .fm { height: 36px; width: auto; }
+.brand .fm-face text { stroke: var(--panel); }
 .shell.no-side .brand { width: auto; }
 .tabs { display: flex; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
@@ -298,7 +299,7 @@ button.st-item:hover { background: var(--panel-2); color: var(--text); }
   box-shadow: 0 1px 1px rgba(0, 0, 0, .22), 0 14px 26px -16px rgba(0, 0, 0, .7);
   min-height: 72px;
 }
-.note.sel { outline: 2px solid var(--iris); outline-offset: 2px; }
+.note.sel { outline-offset: 2px; }
 .note.editing { box-shadow: 0 1px 1px rgba(0, 0, 0, .22), 0 20px 40px -18px rgba(0, 0, 0, .8); }
 .note.dragging { box-shadow: 0 2px 2px rgba(0, 0, 0, .2), 0 26px 50px -18px rgba(0, 0, 0, .8); cursor: grabbing; }
 .note.flash { animation: flash 1.1s ease-out; }
@@ -422,9 +423,25 @@ figure.pic.missing::after { content: attr(title); position: absolute; inset: 0; 
 .note-foot:empty { min-height: 6px; }
 .backlinks { border: 0; background: none; color: var(--ink); opacity: .55; font-size: 11px; padding: 0 0 6px 4px; cursor: pointer; }
 .backlinks:hover { opacity: 1; text-decoration: underline; }
-.note-resize { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
-.note-resize::after { content: ""; position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; border: solid var(--ink); border-width: 0 1.5px 1.5px 0; opacity: 0; }
-.note:hover .note-resize::after { opacity: .3; }
+/* resize from the right edge, bottom edge or corner; the hit areas reach past the paper */
+.rz { position: absolute; z-index: 2; }
+.rz-e { top: 18px; bottom: 16px; right: -6px; width: 12px; cursor: ew-resize; }
+.rz-s { left: 0; right: 16px; bottom: -6px; height: 12px; cursor: ns-resize; }
+.rz-se { right: -7px; bottom: -7px; width: 22px; height: 22px; cursor: nwse-resize; }
+.rz-se::after { content: ""; position: absolute; right: 10px; bottom: 10px; width: 7px; height: 7px; border: solid var(--ink); border-width: 0 2px 2px 0; opacity: 0; transition: opacity .12s; }
+.note:hover .rz-se::after, .note.sel .rz-se::after { opacity: .35; }
+.rz-e::after, .rz-s::after { content: ""; position: absolute; background: var(--iris); opacity: 0; transition: opacity .12s; border-radius: 2px; }
+.rz-e::after { top: 0; bottom: 0; left: 5px; width: 2px; }
+.rz-s::after { left: 0; right: 0; top: 5px; height: 2px; }
+.rz-e:hover::after, .rz-s:hover::after, .note.resizing .rz::after { opacity: .7; }
+.note.resizing .rz-se::after { opacity: 0; }
+
+/* view mode vs edit mode */
+.note:not(.editing) .note-body { cursor: default; user-select: none; -webkit-user-select: none; }
+.note:not(.editing) .note-body .mention, .note:not(.editing) .note-body .fref, .note:not(.editing) .note-body .sref, .note:not(.editing) .note-body a[href] { cursor: pointer; }
+.note.dragging, .note.dragging * { cursor: grabbing !important; }
+.note.editing { outline: 2px solid var(--iris); outline-offset: 2px; }
+.note.sel:not(.editing) { outline: 2px dashed var(--iris); }
 
 /* ── popups ── */
 .pop {
@@ -495,6 +512,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .s-search .ic { position: absolute; left: 10px; }
 .s-search .field { padding-left: 32px; height: 34px; font-family: var(--mono); font-size: 12.5px; }
 .s-count { font-size: 12px; min-width: 70px; text-align: right; }
+.s-bar, .s-head, .srow, .s-empty { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
 .s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 64px; gap: 14px; align-items: center; padding: 0 16px; }
 .s-head { height: 26px; color: var(--faint); font-size: 11.5px; border-bottom: 1px solid var(--line); }
 .s-list { overflow-y: auto; outline: none; padding-bottom: 40px; }
@@ -526,7 +544,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .s-empty { padding: 48px 16px; text-align: center; }
 .s-empty p { margin: 4px 0; }
 .s-drawer {
-  position: absolute; top: 0; right: 0; bottom: 0; width: min(400px, 100%); z-index: 5;
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(360px, 100%); z-index: 5;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: var(--shadow);
   padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
 }
@@ -546,7 +564,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 @media (max-width: 760px) {
   :root { --side-w: 220px; }
   .main { grid-template-columns: 0 1fr; }
-  .side { position: absolute; z-index: 20; top: 38px; bottom: 24px; left: 0; width: var(--side-w); box-shadow: var(--shadow); }
+  .side { position: absolute; z-index: 20; top: 44px; bottom: 24px; left: 0; width: var(--side-w); box-shadow: var(--shadow); }
   .brand { width: auto; }
   .top-search { min-width: 0; }
   .top-search span, .top-search kbd { display: none; }

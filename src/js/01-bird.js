@@ -56,9 +56,10 @@ const Bird = (() => {
     e.lid.style.transform = `translateY(${((-1.42 + amt * 2.42) * e.r).toFixed(2)}px)`;
   }
 
-  /* Build an SVG. kind = 'big' (welcome: full bird) | 'mini' (header). */
+  /* Build an SVG. kind = 'big' (welcome: whole bird on a branch)
+     | 'face' (header: head, brows and beak around the wordmark) | 'mini' (wordmark only). */
   function make(kind = 'mini') {
-    const big = kind === 'big';
+    const big = kind === 'big', face = big || kind === 'face';
     const R = big ? 27 : 26; // eye radius
     const E = 100; // eye centre x offset from 0
     const pad = big ? 12 : 9;
@@ -95,6 +96,21 @@ const Bird = (() => {
       streaks.forEach(([x1, y1, x2, y2]) => plume.append(s('path', { class: 'fm-streak', d: `M${x1} ${y1} Q${(x1 + x2) / 2 + 4} ${(y1 + y2) / 2} ${x2} ${y2}` })));
       // feet gripping the branch
       plume.append(s('path', { class: 'fm-feet', d: 'M-38 340 l-9 14 M-30 342 l0 15 M-22 342 l7 13 M22 342 l-7 13 M30 342 l0 15 M38 340 l9 14' }));
+      svg.append(plume);
+    }
+    if (face && !big) {
+      // compact head for the header: same bird, flatter so the letters stay readable
+      head.append(s('path', { class: 'fm-skull', d: 'M-176 8 C-180 -38 -116 -62 -36 -64 Q0 -65 36 -64 C116 -62 180 -38 176 8 C170 52 112 86 0 92 C-112 86 -170 52 -176 8Z' }));
+      const brow = (sx) => {
+        const g = s('g', { class: 'fm-brow' });
+        [[30, -34, 90, -58, 156, -48], [44, -38, 104, -66, 172, -64], [18, -30, 70, -46, 128, -30]].forEach(([a, b, c, d, e, f]) =>
+          g.append(s('path', { d: `M${sx * a} ${b} Q${sx * c} ${d} ${sx * e} ${f}` })));
+        return g;
+      };
+      head.append(brow(-1), brow(1));
+      head.append(s('path', { class: 'fm-beak', d: 'M-92 46 Q0 28 92 46 Q70 72 22 84 Q8 90 0 98 Q-8 90 -22 84 Q-70 72 -92 46Z' }));
+      head.append(s('path', { class: 'fm-gape', d: 'M-92 46 Q-46 68 0 72 Q46 68 92 46' }));
+    } else if (face) {
       // very broad, flat head
       head.append(s('path', { class: 'fm-skull', d: 'M-192 18 C-198 -48 -128 -92 -40 -96 Q0 -98 40 -96 C128 -92 198 -48 192 18 C186 74 132 116 0 126 C-132 116 -186 74 -192 18Z' }));
       // mottled crown
@@ -112,7 +128,6 @@ const Bird = (() => {
       head.append(s('path', { class: 'fm-beak-top', d: 'M-60 50 Q0 40 60 50 Q30 70 0 76 Q-30 70 -60 50Z' }));
       head.append(s('path', { class: 'fm-gape', d: 'M-118 54 Q-60 86 0 92 Q60 86 118 54' }));
       head.append(s('path', { class: 'fm-bristle', d: 'M-22 48 l-8 -12 M-8 46 l-3 -14 M8 46 l3 -14 M22 48 l8 -12' }));
-      svg.append(plume);
     } else {
       // little brow strokes so the mini mark still reads as a face
       head.append(s('path', { class: 'fm-mini-brow', d: `M${-E - R * 1.15} ${-R * 1.25} Q${-E} ${-R * 1.75} ${-E + R * 1.1} ${-R * 1.15}` }));
@@ -125,13 +140,13 @@ const Bird = (() => {
     head.append(e1.g, e2.g);
     svg.append(head);
 
-    const minX = Math.min(leftX - frW, big ? -310 : 1e9) - 6;
-    const maxX = Math.max(rightX + uthW, big ? 310 : -1e9) + 6;
-    const minY = big ? -140 : -R * 1.9;
-    const maxY = big ? 462 : base + fs * 0.26;
+    const minX = Math.min(leftX - frW, big ? -310 : face ? -180 : 1e9) - 6;
+    const maxX = Math.max(rightX + uthW, big ? 310 : face ? 180 : -1e9) + 6;
+    const minY = big ? -132 : face ? -70 : -R * 1.9;
+    const maxY = big ? 462 : face ? 100 : base + fs * 0.26;
     svg.setAttribute('viewBox', `${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`);
 
-    if (big) heads.add({ svg, head });
+    if (face) heads.add({ svg, head });
     svg.addEventListener('click', () => startle(svg));
     // wake up: eyes open with a slow blink, once.
     setTimeout(() => { setLid(e1, lidAmt()); setLid(e2, lidAmt()); }, big ? 650 : 250);

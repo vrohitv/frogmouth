@@ -834,6 +834,7 @@ const Editor = (() => {
       const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
       if (!files.length) return;
       e.preventDefault(); e.stopPropagation();
+      body.contentEditable = 'true';
       body.focus();
       const pos = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
       if (pos && body.contains(pos.startContainer)) { const s = getSelection(); s.removeAllRanges(); s.addRange(pos); }
@@ -906,7 +907,7 @@ const Editor = (() => {
 
   /* create the body element for a note */
   function mount(note, onCommit) {
-    const body = h('div', { class: 'note-body', contenteditable: 'true', spellcheck: 'false', 'data-gramm': 'false' });
+    const body = h('div', { class: 'note-body', contenteditable: 'false', spellcheck: 'false', 'data-gramm': 'false' });
     body.append(sanitize(note.html));
     hydrate(body);
     attach(body, { note, onCommit });

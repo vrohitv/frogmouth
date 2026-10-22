@@ -140,7 +140,7 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 /* ── the bird ── */
 .fm { display: block; overflow: visible; cursor: pointer; }
 .fm text { font-weight: 800; fill: var(--text); letter-spacing: -.01em; user-select: none; }
-.fm-big text { stroke: var(--word-stroke); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
+.fm-big text, .fm-face text { stroke: var(--word-stroke); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
 .fm-iris { fill: #e19a26; }
 .fm-iris-in { fill: #f5c55a; opacity: .75; }
 .fm-ring { fill: none; stroke: #3a2810; stroke-width: 2.5; }
@@ -196,10 +196,11 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 @keyframes shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
 
 /* ── shell ── */
-.shell { position: fixed; inset: 0; display: grid; grid-template-rows: 38px 1fr 24px; }
+.shell { position: fixed; inset: 0; display: grid; grid-template-rows: 44px 1fr 24px; }
 .top { display: flex; align-items: stretch; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
 .brand { width: var(--side-w); flex: none; display: flex; align-items: center; padding: 0 14px; border-right: 1px solid var(--line); }
-.brand .fm { height: 22px; width: auto; }
+.brand .fm { height: 36px; width: auto; }
+.brand .fm-face text { stroke: var(--panel); }
 .shell.no-side .brand { width: auto; }
 .tabs { display: flex; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
@@ -311,7 +312,7 @@ button.st-item:hover { background: var(--panel-2); color: var(--text); }
   box-shadow: 0 1px 1px rgba(0, 0, 0, .22), 0 14px 26px -16px rgba(0, 0, 0, .7);
   min-height: 72px;
 }
-.note.sel { outline: 2px solid var(--iris); outline-offset: 2px; }
+.note.sel { outline-offset: 2px; }
 .note.editing { box-shadow: 0 1px 1px rgba(0, 0, 0, .22), 0 20px 40px -18px rgba(0, 0, 0, .8); }
 .note.dragging { box-shadow: 0 2px 2px rgba(0, 0, 0, .2), 0 26px 50px -18px rgba(0, 0, 0, .8); cursor: grabbing; }
 .note.flash { animation: flash 1.1s ease-out; }
@@ -435,9 +436,25 @@ figure.pic.missing::after { content: attr(title); position: absolute; inset: 0; 
 .note-foot:empty { min-height: 6px; }
 .backlinks { border: 0; background: none; color: var(--ink); opacity: .55; font-size: 11px; padding: 0 0 6px 4px; cursor: pointer; }
 .backlinks:hover { opacity: 1; text-decoration: underline; }
-.note-resize { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
-.note-resize::after { content: ""; position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; border: solid var(--ink); border-width: 0 1.5px 1.5px 0; opacity: 0; }
-.note:hover .note-resize::after { opacity: .3; }
+/* resize from the right edge, bottom edge or corner; the hit areas reach past the paper */
+.rz { position: absolute; z-index: 2; }
+.rz-e { top: 18px; bottom: 16px; right: -6px; width: 12px; cursor: ew-resize; }
+.rz-s { left: 0; right: 16px; bottom: -6px; height: 12px; cursor: ns-resize; }
+.rz-se { right: -7px; bottom: -7px; width: 22px; height: 22px; cursor: nwse-resize; }
+.rz-se::after { content: ""; position: absolute; right: 10px; bottom: 10px; width: 7px; height: 7px; border: solid var(--ink); border-width: 0 2px 2px 0; opacity: 0; transition: opacity .12s; }
+.note:hover .rz-se::after, .note.sel .rz-se::after { opacity: .35; }
+.rz-e::after, .rz-s::after { content: ""; position: absolute; background: var(--iris); opacity: 0; transition: opacity .12s; border-radius: 2px; }
+.rz-e::after { top: 0; bottom: 0; left: 5px; width: 2px; }
+.rz-s::after { left: 0; right: 0; top: 5px; height: 2px; }
+.rz-e:hover::after, .rz-s:hover::after, .note.resizing .rz::after { opacity: .7; }
+.note.resizing .rz-se::after { opacity: 0; }
+
+/* view mode vs edit mode */
+.note:not(.editing) .note-body { cursor: default; user-select: none; -webkit-user-select: none; }
+.note:not(.editing) .note-body .mention, .note:not(.editing) .note-body .fref, .note:not(.editing) .note-body .sref, .note:not(.editing) .note-body a[href] { cursor: pointer; }
+.note.dragging, .note.dragging * { cursor: grabbing !important; }
+.note.editing { outline: 2px solid var(--iris); outline-offset: 2px; }
+.note.sel:not(.editing) { outline: 2px dashed var(--iris); }
 
 /* ── popups ── */
 .pop {
@@ -508,6 +525,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .s-search .ic { position: absolute; left: 10px; }
 .s-search .field { padding-left: 32px; height: 34px; font-family: var(--mono); font-size: 12.5px; }
 .s-count { font-size: 12px; min-width: 70px; text-align: right; }
+.s-bar, .s-head, .srow, .s-empty { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
 .s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 64px; gap: 14px; align-items: center; padding: 0 16px; }
 .s-head { height: 26px; color: var(--faint); font-size: 11.5px; border-bottom: 1px solid var(--line); }
 .s-list { overflow-y: auto; outline: none; padding-bottom: 40px; }
@@ -539,7 +557,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .s-empty { padding: 48px 16px; text-align: center; }
 .s-empty p { margin: 4px 0; }
 .s-drawer {
-  position: absolute; top: 0; right: 0; bottom: 0; width: min(400px, 100%); z-index: 5;
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(360px, 100%); z-index: 5;
   background: var(--panel); border-left: 1px solid var(--line); box-shadow: var(--shadow);
   padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
 }
@@ -559,7 +577,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 @media (max-width: 760px) {
   :root { --side-w: 220px; }
   .main { grid-template-columns: 0 1fr; }
-  .side { position: absolute; z-index: 20; top: 38px; bottom: 24px; left: 0; width: var(--side-w); box-shadow: var(--shadow); }
+  .side { position: absolute; z-index: 20; top: 44px; bottom: 24px; left: 0; width: var(--side-w); box-shadow: var(--shadow); }
   .brand { width: auto; }
   .top-search { min-width: 0; }
   .top-search span, .top-search kbd { display: none; }
@@ -840,9 +858,10 @@ const Bird = (() => {
     e.lid.style.transform = `translateY(${((-1.42 + amt * 2.42) * e.r).toFixed(2)}px)`;
   }
 
-  /* Build an SVG. kind = 'big' (welcome: full bird) | 'mini' (header). */
+  /* Build an SVG. kind = 'big' (welcome: whole bird on a branch)
+     | 'face' (header: head, brows and beak around the wordmark) | 'mini' (wordmark only). */
   function make(kind = 'mini') {
-    const big = kind === 'big';
+    const big = kind === 'big', face = big || kind === 'face';
     const R = big ? 27 : 26; // eye radius
     const E = 100; // eye centre x offset from 0
     const pad = big ? 12 : 9;
@@ -879,6 +898,21 @@ const Bird = (() => {
       streaks.forEach(([x1, y1, x2, y2]) => plume.append(s('path', { class: 'fm-streak', d: `M${x1} ${y1} Q${(x1 + x2) / 2 + 4} ${(y1 + y2) / 2} ${x2} ${y2}` })));
       // feet gripping the branch
       plume.append(s('path', { class: 'fm-feet', d: 'M-38 340 l-9 14 M-30 342 l0 15 M-22 342 l7 13 M22 342 l-7 13 M30 342 l0 15 M38 340 l9 14' }));
+      svg.append(plume);
+    }
+    if (face && !big) {
+      // compact head for the header: same bird, flatter so the letters stay readable
+      head.append(s('path', { class: 'fm-skull', d: 'M-176 8 C-180 -38 -116 -62 -36 -64 Q0 -65 36 -64 C116 -62 180 -38 176 8 C170 52 112 86 0 92 C-112 86 -170 52 -176 8Z' }));
+      const brow = (sx) => {
+        const g = s('g', { class: 'fm-brow' });
+        [[30, -34, 90, -58, 156, -48], [44, -38, 104, -66, 172, -64], [18, -30, 70, -46, 128, -30]].forEach(([a, b, c, d, e, f]) =>
+          g.append(s('path', { d: `M${sx * a} ${b} Q${sx * c} ${d} ${sx * e} ${f}` })));
+        return g;
+      };
+      head.append(brow(-1), brow(1));
+      head.append(s('path', { class: 'fm-beak', d: 'M-92 46 Q0 28 92 46 Q70 72 22 84 Q8 90 0 98 Q-8 90 -22 84 Q-70 72 -92 46Z' }));
+      head.append(s('path', { class: 'fm-gape', d: 'M-92 46 Q-46 68 0 72 Q46 68 92 46' }));
+    } else if (face) {
       // very broad, flat head
       head.append(s('path', { class: 'fm-skull', d: 'M-192 18 C-198 -48 -128 -92 -40 -96 Q0 -98 40 -96 C128 -92 198 -48 192 18 C186 74 132 116 0 126 C-132 116 -186 74 -192 18Z' }));
       // mottled crown
@@ -896,7 +930,6 @@ const Bird = (() => {
       head.append(s('path', { class: 'fm-beak-top', d: 'M-60 50 Q0 40 60 50 Q30 70 0 76 Q-30 70 -60 50Z' }));
       head.append(s('path', { class: 'fm-gape', d: 'M-118 54 Q-60 86 0 92 Q60 86 118 54' }));
       head.append(s('path', { class: 'fm-bristle', d: 'M-22 48 l-8 -12 M-8 46 l-3 -14 M8 46 l3 -14 M22 48 l8 -12' }));
-      svg.append(plume);
     } else {
       // little brow strokes so the mini mark still reads as a face
       head.append(s('path', { class: 'fm-mini-brow', d: `M${-E - R * 1.15} ${-R * 1.25} Q${-E} ${-R * 1.75} ${-E + R * 1.1} ${-R * 1.15}` }));
@@ -909,13 +942,13 @@ const Bird = (() => {
     head.append(e1.g, e2.g);
     svg.append(head);
 
-    const minX = Math.min(leftX - frW, big ? -310 : 1e9) - 6;
-    const maxX = Math.max(rightX + uthW, big ? 310 : -1e9) + 6;
-    const minY = big ? -140 : -R * 1.9;
-    const maxY = big ? 462 : base + fs * 0.26;
+    const minX = Math.min(leftX - frW, big ? -310 : face ? -180 : 1e9) - 6;
+    const maxX = Math.max(rightX + uthW, big ? 310 : face ? 180 : -1e9) + 6;
+    const minY = big ? -132 : face ? -70 : -R * 1.9;
+    const maxY = big ? 462 : face ? 100 : base + fs * 0.26;
     svg.setAttribute('viewBox', `${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`);
 
-    if (big) heads.add({ svg, head });
+    if (face) heads.add({ svg, head });
     svg.addEventListener('click', () => startle(svg));
     // wake up: eyes open with a slow blink, once.
     setTimeout(() => { setLid(e1, lidAmt()); setLid(e2, lidAmt()); }, big ? 650 : 250);
@@ -1100,7 +1133,7 @@ const Store = (() => {
       { id: n1, x: 80, y: 80, w: 300, h: null, color: 'straw', z: 3, created: t, updated: t,
         html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.frogmouth</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
-          '<li>Type <code>```</code> then space for a code block</li><li>Drag the top edge of a note to move it</li></ul>' +
+          '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
       { id: n2, x: 420, y: 80, w: 340, h: null, color: 'night', z: 2, created: t, updated: t,
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
@@ -2600,6 +2633,7 @@ const Editor = (() => {
       const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
       if (!files.length) return;
       e.preventDefault(); e.stopPropagation();
+      body.contentEditable = 'true';
       body.focus();
       const pos = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
       if (pos && body.contains(pos.startContainer)) { const s = getSelection(); s.removeAllRanges(); s.addRange(pos); }
@@ -2672,7 +2706,7 @@ const Editor = (() => {
 
   /* create the body element for a note */
   function mount(note, onCommit) {
-    const body = h('div', { class: 'note-body', contenteditable: 'true', spellcheck: 'false', 'data-gramm': 'false' });
+    const body = h('div', { class: 'note-body', contenteditable: 'false', spellcheck: 'false', 'data-gramm': 'false' });
     body.append(sanitize(note.html));
     hydrate(body);
     attach(body, { note, onCommit });
@@ -2758,36 +2792,57 @@ const Board = (() => {
       h('div', { class: 'note-swatches' }, COLORS.map((c, i) => h('button', { class: 'sw paper-' + c, title: `${c} (${i + 1})`, 'data-color': c, tabindex: '-1' }))),
       h('button', { class: 'note-x', title: 'Delete note (Del)', html: icon('x'), tabindex: '-1' }));
     const foot = h('div', { class: 'note-foot' });
-    const rs = h('div', { class: 'note-resize', title: 'Drag to resize. Double-click to fit content.' });
-    const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, rs);
+    const edges = ['e', 's', 'se'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d, title: d === 's' ? 'Drag to resize. Double-click for auto height.' : 'Drag to resize' }));
+    const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, ...edges);
     place(n, el);
     els.set(n.id, el);
 
+    /* View mode: a click selects, a drag moves the note from anywhere on it.
+       Edit mode (double-click, Enter): the body is editable and only the
+       top edge or an Alt-drag moves it. */
     el.addEventListener('pointerdown', (e) => {
       select(n.id);
       bringFront(n);
-      if (e.altKey && e.button === 0 && !e.target.closest('figure.pic')) { e.preventDefault(); drag(e, n, el); }
+      if (e.button !== 0) return;
+      const t = e.target;
+      const rz = t.closest('.rz');
+      if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, n, el, rz.dataset.rz); return; }
+      if (t.closest('figure.pic, .note-grip button, .backlinks')) return;
+      const editing = el.classList.contains('editing');
+      if (t.closest('.note-grip') || e.altKey || !editing) {
+        if (!editing) {
+          e.preventDefault(); // no caret, no text selection while moving
+          const a = document.activeElement;
+          if (a && a !== document.body && a.closest && !el.contains(a) && a.closest('.plane')) a.blur();
+        }
+        drag(e, n, el);
+      }
+    });
+    // a drag must not also count as a click on a link or checkbox
+    el.addEventListener('click', (e) => { if (el._dragged) { el._dragged = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    el.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.rz-s, .rz-se')) { n.h = null; place(n, el); Editor.refit(el); Store.change('notes'); return; }
+      if (e.target.closest('figure.pic, .note-grip button, .rz') || el.classList.contains('editing')) return;
+      e.preventDefault();
+      editAt(n.id, e.clientX, e.clientY);
     });
     grip.addEventListener('pointerdown', (e) => {
       const sw = e.target.closest('.sw');
       if (sw) { e.preventDefault(); e.stopPropagation(); setColor(n, sw.dataset.color); return; }
-      if (e.target.closest('.note-x')) { e.preventDefault(); e.stopPropagation(); remove(n.id); return; }
-      if (e.button !== 0) return;
-      e.preventDefault();
-      drag(e, n, el);
+      if (e.target.closest('.note-x')) { e.preventDefault(); e.stopPropagation(); remove(n.id); }
     });
-    grip.addEventListener('dblclick', () => focusBody(n.id, true));
-    rs.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); resize(e, n, el); });
-    rs.addEventListener('dblclick', () => { n.h = null; place(n, el); Store.change('notes'); });
     body.addEventListener('focus', () => { el.classList.add('editing'); select(n.id); });
-    body.addEventListener('blur', () => {
+    // leave edit mode once focus has really gone elsewhere (not to a / menu or picker)
+    const settle = () => {
+      if (!el.isConnected || el.contains(document.activeElement)) return;
+      if (Popup.isOpen() || Modal.isOpen()) { setTimeout(settle, 250); return; }
       el.classList.remove('editing');
+      body.contentEditable = 'false';
       // a note left completely empty disappears quietly
-      setTimeout(() => {
-        if (!el.isConnected || el.contains(document.activeElement) || Popup.isOpen() || Modal.isOpen()) return;
-        if (!body.textContent.replace(/[\s\u200b]/g, '') && !body.querySelector('figure,a,span,hr,pre,li')) remove(n.id, true);
-      }, 120);
-    });
+      if (!body.textContent.replace(/[\s\u200b]/g, '') && !body.querySelector('figure,a,span,hr,pre,li')) remove(n.id, true);
+    };
+    body.addEventListener('blur', () => setTimeout(settle, 120));
+    body.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !Popup.isOpen()) setTimeout(settle, 0); });
     foot.addEventListener('click', (e) => { if (e.target.closest('.backlinks')) backlinksMenu(n, foot); });
     return el;
   }
@@ -2812,11 +2867,10 @@ const Board = (() => {
   function drag(e, n, el) {
     const sx = e.clientX, sy = e.clientY, ox = n.x, oy = n.y;
     let moved = false;
-    el.classList.add('dragging');
     const mv = (ev) => {
       const dx = (ev.clientX - sx) / view.z, dy = (ev.clientY - sy) / view.z;
-      if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
-      moved = true;
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+      if (!moved) { moved = true; el.classList.add('dragging'); }
       n.x = ox + dx; n.y = oy + dy;
       if (!ev.altKey) { n.x = Math.round(n.x / GRID) * GRID; n.y = Math.round(n.y / GRID) * GRID; }
       place(n, el);
@@ -2824,18 +2878,21 @@ const Board = (() => {
     const up = () => {
       el.classList.remove('dragging');
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
-      if (moved) Store.change('notes');
+      if (moved) { el._dragged = true; setTimeout(() => { el._dragged = false; }, 0); Store.change('notes'); }
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
-  function resize(e, n, el) {
+  /* dir: 'e' width, 's' height, 'se' both */
+  function resize(e, n, el, dir) {
     const sx = e.clientX, sy = e.clientY, ow = n.w, oh = el.offsetHeight;
+    el.classList.add('resizing');
     const mv = (ev) => {
-      n.w = clamp(Math.round((ow + (ev.clientX - sx) / view.z) / GRID) * GRID, 160, 2000);
-      n.h = clamp(Math.round((oh + (ev.clientY - sy) / view.z) / GRID) * GRID, 80, 3000);
+      if (dir !== 's') n.w = clamp(Math.round((ow + (ev.clientX - sx) / view.z) / GRID) * GRID, 160, 2000);
+      if (dir !== 'e') n.h = clamp(Math.round((oh + (ev.clientY - sy) / view.z) / GRID) * GRID, 80, 3000);
       place(n, el);
     };
     const up = () => {
+      el.classList.remove('resizing');
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
       Editor.refit(el);
       Store.change('notes');
@@ -2928,11 +2985,26 @@ const Board = (() => {
   function focusBody(id, end = true) {
     const el = els.get(id); if (!el) return;
     const body = el.querySelector('.note-body');
+    body.contentEditable = 'true';
+    el.classList.add('editing');
+    select(id);
     body.focus({ preventScroll: true });
     const r = document.createRange();
     const last = body.lastElementChild && body.lastElementChild.tagName === 'FIGURE' ? body : (body.lastElementChild || body);
     r.selectNodeContents(last); r.collapse(!end);
     const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  /* enter edit mode with the caret where the user double-clicked */
+  function editAt(id, x, y) {
+    const el = els.get(id); if (!el) return;
+    const body = el.querySelector('.note-body');
+    body.contentEditable = 'true';
+    el.classList.add('editing');
+    select(id);
+    body.focus({ preventScroll: true });
+    const r = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
+    if (r && body.contains(r.startContainer)) { const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    else focusBody(id);
   }
 
   function center(id, flash = true) {
@@ -4006,7 +4078,7 @@ const App = (() => {
   function shortcuts() {
     const rows = [
       ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}1–9`, 'Go to tab'], [`${ALT}[  ${ALT}]`, 'Previous / next tab'], [`${ALT}W`, 'Close tab'], [`${ALT}S`, 'Secrets'], [`${MOD}\\`, 'Toggle sidebar'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
-      ['Board', [['N  or double-click', 'New note'], ['Tab', 'Next note'], ['↵', 'Edit selected note'], ['Esc', 'Stop editing / deselect'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], [`${ALT}drag`, 'Move note from anywhere']]],
+      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
     ];
@@ -4060,7 +4132,7 @@ const App = (() => {
     secretsEl = h('div', { class: 'secrets', hidden: true });
     viewEmpty = h('div', { class: 'view-empty', hidden: true, html: `<p>No tab open.</p><p class="muted">Pick a board on the left or press <kbd>${MOD}K</kbd>.</p>` });
     statusEl = h('footer', { class: 'status' });
-    const brand = h('div', { class: 'brand', title: 'frogmouth' }, Bird.make('mini'));
+    const brand = h('div', { class: 'brand', title: 'frogmouth' }, Bird.make('face'));
     shell = h('div', { class: 'shell', hidden: true },
       h('header', { class: 'top' }, brand, tabsEl,
         h('button', { class: 'top-btn', title: 'New board', html: icon('plus'), onclick: newBoard }),

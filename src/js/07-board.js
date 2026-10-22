@@ -71,36 +71,57 @@ const Board = (() => {
       h('div', { class: 'note-swatches' }, COLORS.map((c, i) => h('button', { class: 'sw paper-' + c, title: `${c} (${i + 1})`, 'data-color': c, tabindex: '-1' }))),
       h('button', { class: 'note-x', title: 'Delete note (Del)', html: icon('x'), tabindex: '-1' }));
     const foot = h('div', { class: 'note-foot' });
-    const rs = h('div', { class: 'note-resize', title: 'Drag to resize. Double-click to fit content.' });
-    const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, rs);
+    const edges = ['e', 's', 'se'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d, title: d === 's' ? 'Drag to resize. Double-click for auto height.' : 'Drag to resize' }));
+    const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, ...edges);
     place(n, el);
     els.set(n.id, el);
 
+    /* View mode: a click selects, a drag moves the note from anywhere on it.
+       Edit mode (double-click, Enter): the body is editable and only the
+       top edge or an Alt-drag moves it. */
     el.addEventListener('pointerdown', (e) => {
       select(n.id);
       bringFront(n);
-      if (e.altKey && e.button === 0 && !e.target.closest('figure.pic')) { e.preventDefault(); drag(e, n, el); }
+      if (e.button !== 0) return;
+      const t = e.target;
+      const rz = t.closest('.rz');
+      if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, n, el, rz.dataset.rz); return; }
+      if (t.closest('figure.pic, .note-grip button, .backlinks')) return;
+      const editing = el.classList.contains('editing');
+      if (t.closest('.note-grip') || e.altKey || !editing) {
+        if (!editing) {
+          e.preventDefault(); // no caret, no text selection while moving
+          const a = document.activeElement;
+          if (a && a !== document.body && a.closest && !el.contains(a) && a.closest('.plane')) a.blur();
+        }
+        drag(e, n, el);
+      }
+    });
+    // a drag must not also count as a click on a link or checkbox
+    el.addEventListener('click', (e) => { if (el._dragged) { el._dragged = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    el.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.rz-s, .rz-se')) { n.h = null; place(n, el); Editor.refit(el); Store.change('notes'); return; }
+      if (e.target.closest('figure.pic, .note-grip button, .rz') || el.classList.contains('editing')) return;
+      e.preventDefault();
+      editAt(n.id, e.clientX, e.clientY);
     });
     grip.addEventListener('pointerdown', (e) => {
       const sw = e.target.closest('.sw');
       if (sw) { e.preventDefault(); e.stopPropagation(); setColor(n, sw.dataset.color); return; }
-      if (e.target.closest('.note-x')) { e.preventDefault(); e.stopPropagation(); remove(n.id); return; }
-      if (e.button !== 0) return;
-      e.preventDefault();
-      drag(e, n, el);
+      if (e.target.closest('.note-x')) { e.preventDefault(); e.stopPropagation(); remove(n.id); }
     });
-    grip.addEventListener('dblclick', () => focusBody(n.id, true));
-    rs.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); resize(e, n, el); });
-    rs.addEventListener('dblclick', () => { n.h = null; place(n, el); Store.change('notes'); });
     body.addEventListener('focus', () => { el.classList.add('editing'); select(n.id); });
-    body.addEventListener('blur', () => {
+    // leave edit mode once focus has really gone elsewhere (not to a / menu or picker)
+    const settle = () => {
+      if (!el.isConnected || el.contains(document.activeElement)) return;
+      if (Popup.isOpen() || Modal.isOpen()) { setTimeout(settle, 250); return; }
       el.classList.remove('editing');
+      body.contentEditable = 'false';
       // a note left completely empty disappears quietly
-      setTimeout(() => {
-        if (!el.isConnected || el.contains(document.activeElement) || Popup.isOpen() || Modal.isOpen()) return;
-        if (!body.textContent.replace(/[\s\u200b]/g, '') && !body.querySelector('figure,a,span,hr,pre,li')) remove(n.id, true);
-      }, 120);
-    });
+      if (!body.textContent.replace(/[\s\u200b]/g, '') && !body.querySelector('figure,a,span,hr,pre,li')) remove(n.id, true);
+    };
+    body.addEventListener('blur', () => setTimeout(settle, 120));
+    body.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !Popup.isOpen()) setTimeout(settle, 0); });
     foot.addEventListener('click', (e) => { if (e.target.closest('.backlinks')) backlinksMenu(n, foot); });
     return el;
   }
@@ -125,11 +146,10 @@ const Board = (() => {
   function drag(e, n, el) {
     const sx = e.clientX, sy = e.clientY, ox = n.x, oy = n.y;
     let moved = false;
-    el.classList.add('dragging');
     const mv = (ev) => {
       const dx = (ev.clientX - sx) / view.z, dy = (ev.clientY - sy) / view.z;
-      if (!moved && Math.abs(dx) + Math.abs(dy) < 2) return;
-      moved = true;
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+      if (!moved) { moved = true; el.classList.add('dragging'); }
       n.x = ox + dx; n.y = oy + dy;
       if (!ev.altKey) { n.x = Math.round(n.x / GRID) * GRID; n.y = Math.round(n.y / GRID) * GRID; }
       place(n, el);
@@ -137,18 +157,21 @@ const Board = (() => {
     const up = () => {
       el.classList.remove('dragging');
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
-      if (moved) Store.change('notes');
+      if (moved) { el._dragged = true; setTimeout(() => { el._dragged = false; }, 0); Store.change('notes'); }
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
-  function resize(e, n, el) {
+  /* dir: 'e' width, 's' height, 'se' both */
+  function resize(e, n, el, dir) {
     const sx = e.clientX, sy = e.clientY, ow = n.w, oh = el.offsetHeight;
+    el.classList.add('resizing');
     const mv = (ev) => {
-      n.w = clamp(Math.round((ow + (ev.clientX - sx) / view.z) / GRID) * GRID, 160, 2000);
-      n.h = clamp(Math.round((oh + (ev.clientY - sy) / view.z) / GRID) * GRID, 80, 3000);
+      if (dir !== 's') n.w = clamp(Math.round((ow + (ev.clientX - sx) / view.z) / GRID) * GRID, 160, 2000);
+      if (dir !== 'e') n.h = clamp(Math.round((oh + (ev.clientY - sy) / view.z) / GRID) * GRID, 80, 3000);
       place(n, el);
     };
     const up = () => {
+      el.classList.remove('resizing');
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
       Editor.refit(el);
       Store.change('notes');
@@ -241,11 +264,26 @@ const Board = (() => {
   function focusBody(id, end = true) {
     const el = els.get(id); if (!el) return;
     const body = el.querySelector('.note-body');
+    body.contentEditable = 'true';
+    el.classList.add('editing');
+    select(id);
     body.focus({ preventScroll: true });
     const r = document.createRange();
     const last = body.lastElementChild && body.lastElementChild.tagName === 'FIGURE' ? body : (body.lastElementChild || body);
     r.selectNodeContents(last); r.collapse(!end);
     const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  /* enter edit mode with the caret where the user double-clicked */
+  function editAt(id, x, y) {
+    const el = els.get(id); if (!el) return;
+    const body = el.querySelector('.note-body');
+    body.contentEditable = 'true';
+    el.classList.add('editing');
+    select(id);
+    body.focus({ preventScroll: true });
+    const r = document.caretRangeFromPoint ? document.caretRangeFromPoint(x, y) : null;
+    if (r && body.contains(r.startContainer)) { const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    else focusBody(id);
   }
 
   function center(id, flash = true) {

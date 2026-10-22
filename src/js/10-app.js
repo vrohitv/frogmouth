@@ -433,7 +433,7 @@ const App = (() => {
   function shortcuts() {
     const rows = [
       ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}1–9`, 'Go to tab'], [`${ALT}[  ${ALT}]`, 'Previous / next tab'], [`${ALT}W`, 'Close tab'], [`${ALT}S`, 'Secrets'], [`${MOD}\\`, 'Toggle sidebar'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
-      ['Board', [['N  or double-click', 'New note'], ['Tab', 'Next note'], ['↵', 'Edit selected note'], ['Esc', 'Stop editing / deselect'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], [`${ALT}drag`, 'Move note from anywhere']]],
+      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
     ];
@@ -487,7 +487,7 @@ const App = (() => {
     secretsEl = h('div', { class: 'secrets', hidden: true });
     viewEmpty = h('div', { class: 'view-empty', hidden: true, html: `<p>No tab open.</p><p class="muted">Pick a board on the left or press <kbd>${MOD}K</kbd>.</p>` });
     statusEl = h('footer', { class: 'status' });
-    const brand = h('div', { class: 'brand', title: 'frogmouth' }, Bird.make('mini'));
+    const brand = h('div', { class: 'brand', title: 'frogmouth' }, Bird.make('face'));
     shell = h('div', { class: 'shell', hidden: true },
       h('header', { class: 'top' }, brand, tabsEl,
         h('button', { class: 'top-btn', title: 'New board', html: icon('plus'), onclick: newBoard }),

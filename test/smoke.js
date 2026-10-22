@@ -6,7 +6,7 @@
   if (!mode) return;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
-  const results = [];
+  const results = (window.__smoke = []);
   const ok = (name, cond, info = '') => results.push({ name, pass: !!cond, info: cond ? '' : String(info) });
   const keydown = (el, key, o = {}) => {
     const ev = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o });
@@ -82,6 +82,33 @@
     ok('code block highlighted on load', !!$('.note pre.code .t-k'));
     ok('mention label refreshed', $$('.note a.mention').some((a) => a.textContent === '@Today'));
     ok('inferred titles', [...Store.S.notes.values()].every(({ note }) => note.title || Editor.derive(note.html).title));
+
+    // view mode vs edit mode, resizing from edges
+    const first = $('.note');
+    ok('notes start in view mode', !first.querySelector('.note-body').isContentEditable);
+    const ptr = (type, target, x, y) => target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true }));
+    const w0 = first.offsetWidth, h0 = first.offsetHeight;
+    const se = first.querySelector('.rz-se').getBoundingClientRect();
+    ptr('pointerdown', first.querySelector('.rz-se'), se.left + 5, se.top + 5);
+    ptr('pointermove', window, se.left + 85, se.top + 65);
+    ptr('pointerup', window, se.left + 85, se.top + 65);
+    ok('corner resizes both ways', first.offsetWidth > w0 + 60 && first.offsetHeight > h0 + 40, `${w0}x${h0} -> ${first.offsetWidth}x${first.offsetHeight}`);
+    const w1 = first.offsetWidth, h1 = first.offsetHeight;
+    const edge = first.querySelector('.rz-e').getBoundingClientRect();
+    ptr('pointerdown', first.querySelector('.rz-e'), edge.left + 3, edge.top + 20);
+    ptr('pointermove', window, edge.left - 37, edge.top + 60);
+    ptr('pointerup', window, edge.left - 37, edge.top + 60);
+    ok('right edge resizes width only', first.offsetWidth < w1 - 24 && first.offsetHeight === h1, `${w1}x${h1} -> ${first.offsetWidth}x${first.offsetHeight}`);
+    const t0 = first.style.transform, br = first.querySelector('.note-body').getBoundingClientRect();
+    ptr('pointerdown', first.querySelector('.note-body p'), br.left + 40, br.top + 30);
+    ptr('pointermove', window, br.left + 140, br.top + 90);
+    ptr('pointerup', window, br.left + 140, br.top + 90);
+    ok('drag from body moves note, no editing', first.style.transform !== t0 && !first.classList.contains('editing'), t0 + ' -> ' + first.style.transform);
+    first.querySelector('.note-body').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, clientX: br.left + 140, clientY: br.top + 90 }));
+    ok('double-click enters edit mode', first.classList.contains('editing') && first.querySelector('.note-body').isContentEditable);
+    keydown(first.querySelector('.note-body'), 'Escape');
+    await wait(450);
+    ok('escape leaves edit mode', !first.classList.contains('editing') && !first.querySelector('.note-body').isContentEditable);
 
     // new note + typing + markdown shortcuts
     const n = Board.addNote({ x: 900, y: 100 }, false);

@@ -30,7 +30,7 @@ const Store = (() => {
       { id: n1, x: 80, y: 80, w: 300, h: null, color: 'straw', z: 3, created: t, updated: t,
         html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.frogmouth</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
-          '<li>Type <code>```</code> then space for a code block</li><li>Drag the top edge of a note to move it</li></ul>' +
+          '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
       { id: n2, x: 420, y: 80, w: 340, h: null, color: 'night', z: 2, created: t, updated: t,
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
