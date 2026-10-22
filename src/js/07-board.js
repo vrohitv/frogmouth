@@ -86,7 +86,7 @@ const Board = (() => {
       const t = e.target;
       const rz = t.closest('.rz');
       if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, n, el, rz.dataset.rz); return; }
-      if (t.closest('figure.pic, .note-grip button, .backlinks')) return;
+      if (t.closest('figure.pic, .note-grip button, .note-foot button, .tag-input')) return;
       const editing = el.classList.contains('editing');
       if (t.closest('.note-grip') || e.altKey || !editing) {
         if (!editing) {
@@ -122,7 +122,11 @@ const Board = (() => {
     };
     body.addEventListener('blur', () => setTimeout(settle, 120));
     body.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !Popup.isOpen()) setTimeout(settle, 0); });
-    foot.addEventListener('click', (e) => { if (e.target.closest('.backlinks')) backlinksMenu(n, foot); });
+    foot.addEventListener('click', (e) => {
+      if (e.target.closest('.backlinks')) backlinksMenu(n, foot);
+      else if (e.target.closest('.nf-add')) tagNote(n);
+      else if (e.target.closest('.chip')) bus.emit('filter-notes', e.target.closest('.chip').dataset.tag);
+    });
     return el;
   }
 
@@ -313,6 +317,7 @@ const Board = (() => {
       return false;
     }
     if (k === 'Enter') { focusBody(n.id); return true; }
+    if (k === 't' || k === 'T') { tagNote(n); return true; }
     if (k === 'Escape') { select(null); return true; }
     if (k === 'Delete' || k === 'Backspace') { remove(n.id); return true; }
     if (/^[1-6]$/.test(k) && !modKey(e)) { setColor(n, COLORS[+k - 1]); return true; }
@@ -416,29 +421,44 @@ const Board = (() => {
     Store.change('notes');
   }
 
-  /* ── backlinks ── */
+  /* ── note foot: tags and backlinks ── */
+  let backMap = new Map();
+  function renderFoot(n, el = els.get(n.id)) {
+    if (!el) return;
+    const foot = el.querySelector('.note-foot');
+    if (foot.querySelector('.tag-input')) return; // being edited
+    const back = backMap.get(n.id) || [];
+    const sig = (n.tags || []).join('\u0001') + '|' + back.length;
+    if (foot.dataset.sig === sig) return;
+    foot.dataset.sig = sig;
+    foot.innerHTML =
+      `<div class="nf-tags">${(n.tags || []).map((t) => Tags.chip(t)).join('')}<button class="nf-add" tabindex="-1" title="Edit tags (T)">${n.tags && n.tags.length ? icon('edit') : '+ tag'}</button></div>` +
+      (back.length ? `<button class="backlinks" tabindex="-1">← ${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here</button>` : '');
+  }
   const refreshFeet = debounce(() => {
     if (!board) return;
-    const back = new Map();
-    for (const [id, { note }] of Store.S.notes) {
-      const re = /data-note="([^"]+)"/g; let m;
-      const seen = new Set();
-      while ((m = re.exec(note.html))) if (!seen.has(m[1])) { seen.add(m[1]); (back.get(m[1]) || back.set(m[1], []).get(m[1])).push(id); }
-    }
-    for (const [id, el] of els) {
-      const list = back.get(id) || [];
-      const foot = el.querySelector('.note-foot');
-      const txt = list.length ? `${list.length} ${list.length === 1 ? 'note links' : 'notes link'} here` : '';
-      if (foot.dataset.txt !== txt) { foot.dataset.txt = txt; foot.innerHTML = txt ? `<button class="backlinks" tabindex="-1">${esc(txt)}</button>` : ''; }
-      foot._back = list;
-    }
-  }, 200);
+    backMap = Store.backlinks();
+    for (const n of board.notes) renderFoot(n);
+  }, 150);
+
+  function tagNote(n) {
+    const el = els.get(n.id); if (!el) return;
+    const foot = el.querySelector('.note-foot');
+    select(n.id);
+    foot.classList.add('editing-tags');
+    editTags(foot, n.tags || [], (tags) => {
+      foot.classList.remove('editing-tags');
+      foot.dataset.sig = '';
+      if (tags && tags.join(' ') !== (n.tags || []).join(' ')) { n.tags = tags; n.updated = now(); Store.change('note'); }
+      renderFoot(n);
+    });
+  }
 
   function backlinksMenu(n, foot) {
     const r = foot.getBoundingClientRect();
     Popup.open({
       x: r.left, y: r.bottom, title: 'Linked from',
-      items: (foot._back || []).map((id) => { const ref = Store.noteRef(id); return ref && { id, label: ref.note.title || 'Untitled', hint: ref.board.name, icon: 'note' }; }).filter(Boolean),
+      items: (backMap.get(n.id) || []).map((id) => { const ref = Store.noteRef(id); return ref && { id, label: ref.note.title || 'Untitled', hint: ref.board.name, icon: 'note' }; }).filter(Boolean),
       onPick: (it) => bus.emit('goto-note', it.id),
     });
   }
@@ -470,6 +490,7 @@ const Board = (() => {
   return {
     init, mount, unmount, addNote, remove, arrange, fit, center, key, select, focusBody,
     zoom: () => view.z, zoomAt, current: () => board, selected: () => sel, COLORS,
+    tagNote: (id) => { const r = Store.noteRef(id); if (r) tagNote(r.note); },
     refreshChips: () => { for (const el of els.values()) Editor.refreshChips(el.querySelector('.note-body')); },
   };
 })();

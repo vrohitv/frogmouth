@@ -17,7 +17,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 ## What it does
 
 **Boards of sticky notes**
-- The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, encryption and shortcuts), a notes/secrets switch, the board pills, search, and the sync icon.
+- The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, encryption and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
 - Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board. `⌥1`–`⌥9` and `⌘K` then `#` work too.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
@@ -33,6 +33,17 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Code blocks are syntax-highlighted as you type: JS/TS, Python, Go, Rust, C-family, shell, SQL, JSON, YAML, CSS, HTML, Ruby, PHP and diff. They auto-indent, take `Tab`, and have their own undo. The language label is a menu.
 - Images: paste, drop or `/image`. Pasted images are saved into `assets/` in the vault. **Each image zooms (wheel) and pans (drag) inside its own frame**, separate from the board. Double-click an image to fit it, and drag its bottom edge to change its height.
 - Dropping any other file copies it into `files/` and tags it in the note.
+
+**Tags on notes**
+- Notes take the same tags as secrets: plain (`api`) and key:value (`env:prod`).
+- On the board they show at the foot of each note. Add them with **+ tag** or `T` on a selected note; names autocomplete from every tag in the vault.
+- Click a tag on a note to see every note with that tag.
+
+**All notes page** (the middle icon, `⌥L`)
+- Every note on every board in one sortable table: title and preview, board, tags, links, last updated. Click a column header to sort; click again to reverse.
+- Filter with text, board names and tags, e.g. `deploy env:prod -draft`, or click a tag chip.
+- `→ 2` / `← 1` show the notes a note links to and the notes linking to it; click for the list.
+- Click a row (or `↵`) to jump to the note on its board, or click the board name to open the board.
 
 **Secrets**
 - Key/value pairs with plain tags (`aws`) and key:value tags (`env:prod`). Every tag is listed as a chip under the filter; click one to filter by it.
@@ -70,7 +81,7 @@ Press `?` in the app for the full list.
 | `⌘K` / `⌘P` | Search |
 | `⌘⇧P` | Commands |
 | `⌘S` | Save now |
-| `⌥S` | Switch notes / secrets |
+| `⌥B` `⌥L` `⌥S` | Board, all notes, secrets |
 | `⌥1`–`⌥9`, `⌥[` `⌥]` | Switch boards |
 | `⌘Z` | Undo a delete |
 
@@ -83,6 +94,7 @@ Press `?` in the app for the full list.
 | arrows | Nudge |
 | `1`–`6` | Colour |
 | `⌘D` | Duplicate |
+| `T` | Tag the note |
 | `Del` | Delete |
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
 
@@ -145,7 +157,8 @@ src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus and modals
 src/js/06-editor.js   note editor: / menu, @ tags, markdown shortcuts, code blocks, images
 src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange
-src/js/08-secrets.js  secrets list, tags, .env import/export
+src/js/08-secrets.js  secrets list, .env import/export
+src/js/08b-notes.js   all-notes page: sort, filter, tags, links
 src/js/09-palette.js  search and commands
 src/js/10-app.js      shell: welcome, floating controls, board menu, sync icon, keyboard
 test/smoke.js         smoke tests (UI typing, sanitizer, crypto, real file writes via OPFS)

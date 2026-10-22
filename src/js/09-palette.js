@@ -12,7 +12,8 @@ const Palette = (() => {
       idxBoards.push({ type: 'board', id: b.id, title: b.name, t: b.name.toLowerCase(), sub: `${b.notes.length} ${b.notes.length === 1 ? 'note' : 'notes'}` });
       for (const n of b.notes) {
         const title = n.title || 'Untitled';
-        idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: (n.text || '').toLowerCase(), raw: n.text || '', sub: b.name, upd: n.updated || 0 });
+        const tg = (n.tags || []).join(' ');
+        idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${b.name}  ${tg}` : b.name, upd: n.updated || 0 });
       }
     }
     for (const x of Store.S.data.secrets) {

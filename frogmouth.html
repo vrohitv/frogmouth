@@ -455,8 +455,6 @@ figure.pic:hover .pic-ui, figure.pic.zoomed .pic-ui { opacity: 1; }
 figure.pic:hover .pic-grip::after { opacity: 1; }
 figure.pic.missing::after { content: attr(title); position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; padding: 8px; text-align: center; opacity: .7; }
 
-.note-foot { flex: none; min-height: 6px; padding: 0 10px; }
-.note-foot:empty { min-height: 6px; }
 .backlinks { border: 0; background: none; color: var(--ink); opacity: .55; font-size: 11px; padding: 0 0 6px 4px; cursor: pointer; }
 .backlinks:hover { opacity: 1; text-decoration: underline; }
 /* resize from the right edge, bottom edge or corner; the hit areas reach past the paper */
@@ -542,7 +540,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
 
 /* ── secrets ── */
-.secrets { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto auto 1fr; background: var(--bg); padding-top: 60px; }
+.page { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto auto 1fr; background: var(--bg); padding-top: 60px; }
 .s-tagrow { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; max-width: 1040px; margin: -4px auto 10px; padding: 0 16px; }
 .s-tagrow:empty { display: none; }
 .s-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; }
@@ -550,7 +548,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .s-search .ic { position: absolute; left: 10px; }
 .s-search .field { padding-left: 32px; height: 34px; font-family: var(--mono); font-size: 12.5px; }
 .s-count { font-size: 12px; min-width: 70px; text-align: right; }
-.s-bar, .s-head, .srow, .s-empty { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
+.s-bar, .s-head, .srow, .n-head, .nrow, .s-empty { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
 .s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 64px; gap: 14px; align-items: center; padding: 0 16px; }
 .s-head { height: 26px; color: var(--faint); font-size: 11.5px; border-bottom: 1px solid var(--line); }
 .s-list { overflow-y: auto; outline: none; padding-bottom: 40px; }
@@ -598,6 +596,47 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .tag-sugg:not(:empty)::before { content: "Used before:"; color: var(--faint); font-size: 11.5px; margin-right: 2px; line-height: 20px; }
 .d-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; align-items: center; }
 
+/* ── all notes page ── */
+.n-head, .nrow { display: grid; grid-template-columns: minmax(220px, 2.2fr) minmax(110px, .9fr) minmax(130px, 1.2fr) 74px 82px; gap: 14px; align-items: center; padding: 0 16px; }
+.n-head { height: 28px; border-bottom: 1px solid var(--line); }
+.n-head button { border: 0; background: none; padding: 0; font: inherit; font-size: 11.5px; color: var(--faint); cursor: pointer; text-align: left; display: flex; gap: 4px; }
+.n-head button:hover, .n-head button.on { color: var(--text); }
+.n-head button i { font-style: normal; color: var(--iris); }
+.nrow { min-height: 48px; padding-top: 6px; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); cursor: pointer; }
+.nrow:hover { background: color-mix(in srgb, var(--panel) 60%, transparent); }
+.nrow.on { background: var(--panel); }
+.s-list:focus .nrow.on { box-shadow: inset 2px 0 0 var(--iris); }
+.n-title { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.n-title > div { min-width: 0; display: grid; }
+.n-title b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.n-title span { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.n-dot { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 3px; background: var(--paper); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.n-board { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; justify-self: start; border: 0; background: none; padding: 3px 6px; margin-left: -6px; border-radius: 5px; color: var(--muted); font: inherit; cursor: pointer; }
+.n-board span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.n-board .ic { width: 13px; height: 13px; flex: none; }
+.n-board:hover { color: var(--iris); background: var(--panel-2); }
+.n-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.n-links { display: flex; gap: 4px; }
+.n-links button { border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 4px; padding: 0 6px; font: 11.5px/18px var(--mono); cursor: pointer; }
+.n-links button:hover { color: var(--text); border-color: var(--iris); }
+.n-upd { color: var(--faint); font-size: 11.5px; text-align: right; white-space: nowrap; }
+
+/* tags on notes (board foot and list) */
+.nf-add { border: 0; background: none; color: inherit; opacity: .5; font: 11px/18px var(--mono); padding: 0 4px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
+.nf-add .ic { width: 11px; height: 11px; }
+.nf-add:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.note-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0 10px 6px 12px; min-height: 8px; }
+.nf-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; }
+.nf-tags:not(:has(.chip)) .nf-add { opacity: 0; }
+.note:hover .nf-tags .nf-add, .note.sel .nf-tags .nf-add { opacity: .5; }
+.note .chip { border-color: var(--rule); color: var(--ink); font-size: 10.5px; line-height: 16px; }
+.note .chip.kv b { background: var(--rule); color: var(--ink); opacity: .8; }
+.note .chip.kv span { color: var(--ink); }
+.note .backlinks { padding: 0; margin-left: auto; }
+.tag-input { font: 11.5px/22px var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--iris); border-radius: 4px; padding: 0 6px; outline: none; width: 100%; min-width: 140px; }
+.note .tag-input { background: color-mix(in srgb, var(--paper) 70%, #fff); color: var(--ink); }
+.pop .chip { pointer-events: none; }
+
 /* ── small screens ── */
 @media (max-width: 760px) {
   .hud { top: 8px; left: 8px; right: 8px; }
@@ -606,6 +645,9 @@ mark { background: none; color: var(--iris); font-weight: 700; }
   .bp-name { max-width: 10ch; }
   .hud-logo { display: none; }
   .s-head { display: none; }
+  .n-head { display: none; }
+  .nrow { grid-template-columns: 1fr auto; grid-template-areas: "t u" "b l" "g g"; row-gap: 4px; }
+  .n-title { grid-area: t; } .n-upd { grid-area: u; } .n-board { grid-area: b; } .n-links { grid-area: l; } .n-tags { grid-area: g; }
   .srow { grid-template-columns: 1fr auto; grid-template-areas: "k a" "v v" "t t"; row-gap: 4px; }
   .s-key { grid-area: k; } .s-val { grid-area: v; } .s-tags { grid-area: t; } .s-act { grid-area: a; }
   .s-drawer { top: 56px; right: 8px; left: 8px; width: auto; }
@@ -820,12 +862,52 @@ const ICONS = {
   dice: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><circle cx="5.5" cy="5.5" r=".8"/><circle cx="10.5" cy="10.5" r=".8"/><circle cx="8" cy="8" r=".8"/>',
   down: '<path d="M4 6l4 4 4-4"/>',
   tick: '<path d="M3.5 8.5l3 3 6-7"/>',
+  list: '<path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.5" cy="4" r=".6"/><circle cx="2.5" cy="8" r=".6"/><circle cx="2.5" cy="12" r=".6"/>',
   fileok: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M5.5 9.8l1.8 1.8 3.4-3.8"/>',
   filedot: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><circle cx="8" cy="10" r="1.7"/>',
   filebad: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M8 7v3M8 12.3v.2"/>',
   filenone: '<path d="M3.5 1.5h6l3 3v10h-9z" stroke-dasharray="2.2 1.6"/><path d="M1.5 1.5l13 13"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+
+/* ── tags (shared by notes and secrets) ───────────────────────────
+   A tag is plain (`api`) or key:value (`env:prod`). Filters are
+   space-separated tokens: `api env:prod -draft`. */
+const Tags = {
+  parse(t) { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; },
+  split(s) { return [...new Set(String(s || '').split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean))]; },
+  chip(t, on) {
+    const { k, v } = Tags.parse(t);
+    return `<button class="chip${v != null ? ' kv' : ''}${on ? ' on' : ''}" data-tag="${esc(t)}" tabindex="-1">${v != null ? `<b>${esc(k)}</b><span>${esc(v)}</span>` : esc(k)}</button>`;
+  },
+  tokens(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); },
+  /* every token must hit (or, with a leading -, miss): a k:v token matches a
+     k:v tag by key and value prefix; a plain token matches a tag key or value
+     prefix, or appears anywhere in one of the lowercase `texts` */
+  match(tags, toks, texts = []) {
+    for (const t of toks) {
+      let neg = false, q = t;
+      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
+      let hit;
+      const ci = q.indexOf(':');
+      if (ci > 0) {
+        const k = q.slice(0, ci), v = q.slice(ci + 1);
+        hit = tags.some((tg) => { const p = Tags.parse(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
+      } else {
+        hit = texts.some((x) => x.includes(q)) ||
+          tags.some((tg) => { const p = Tags.parse(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
+      }
+      if (hit === neg) return false;
+    }
+    return true;
+  },
+  toggle(q, tag) {
+    const toks = String(q || '').split(/\s+/).filter(Boolean);
+    const i = toks.findIndex((t) => t.toLowerCase() === tag.toLowerCase());
+    if (i >= 0) toks.splice(i, 1); else toks.push(tag);
+    return toks.join(' ') + (toks.length ? ' ' : '');
+  },
+};
 
 /* ── 01-bird.js ── */
 /* ── the frogmouth (the bird) ────────────────────────────────────────────────
@@ -1168,7 +1250,7 @@ const Store = (() => {
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
-      { id: n2, x: 440, y: 80, w: 380, h: null, color: 'night', z: 2, created: t, updated: t,
+      { id: n2, x: 440, y: 80, w: 380, h: null, color: 'night', z: 2, created: t, updated: t, tags: ['snippet', 'lang:js'],
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
           'async function retry(fn, tries = 5) {\n  for (let i = 0; i < tries; i++) {\n    try { return await fn(); }\n    catch (err) {\n      // 100ms, 200ms, 400ms ...\n      await sleep(100 * 2 ** i);\n    }\n  }\n  throw new Error("gave up");\n}') +
           '</code></pre><p>Used by <a class="mention" data-note="' + n3 + '" contenteditable="false">@Today</a></p>' },
@@ -1197,6 +1279,7 @@ const Store = (() => {
         n.color = n.color || 'straw';
         n.z = +n.z || 1;
         n.html = typeof n.html === 'string' ? n.html : '';
+        n.tags = Array.isArray(n.tags) ? [...new Set(n.tags.map(String).filter(Boolean))] : [];
         if (typeof n.title !== 'string' || typeof n.text !== 'string') Object.assign(n, Editor.derive(n.html));
       }
     }
@@ -1489,11 +1572,30 @@ const Store = (() => {
   const board = (id) => S.data && S.data.boards.find((b) => b.id === id);
   const noteRef = (id) => S.notes.get(id);
   const secret = (id) => S.data && S.data.secrets.find((x) => x.id === id);
+  /* every tag in use, on notes and secrets, sorted */
+  function allTags() {
+    const set = new Set();
+    if (S.data) {
+      for (const { note } of S.notes.values()) for (const t of note.tags || []) set.add(t);
+      for (const x of S.data.secrets) for (const t of x.tags) set.add(t);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }
+  /* note id -> ids of notes whose text links to it */
+  function backlinks() {
+    const back = new Map();
+    for (const [id, { note }] of S.notes) {
+      const re = /data-note="([^"]+)"/g; let m; const seen = new Set();
+      while ((m = re.exec(note.html))) if (!seen.has(m[1])) { seen.add(m[1]); (back.get(m[1]) || back.set(m[1], []).get(m[1])).push(id); }
+    }
+    return back;
+  }
+  const linksOut = (note) => { const out = new Set(); const re = /data-note="([^"]+)"/g; let m; while ((m = re.exec(note.html))) if (S.notes.has(m[1])) out.add(m[1]); return [...out]; };
 
   return {
     S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, unlock, openMemory, setData, close,
     serialize, save, saveNow, change, checkDisk, reloadFrom, keepMine, setPassphrase, recents, forgetRecent,
-    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus,
+    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut,
   };
 })();
 
@@ -1828,6 +1930,49 @@ const Modal = (() => {
 
   return { open, confirm, prompt, isOpen: () => stack.length > 0 };
 })();
+
+/* ── inline tag editor with completion from every tag in the vault ── */
+function editTags(host, tags, onDone) {
+  const inp = h('input', { class: 'tag-input', value: tags.length ? tags.join(' ') + ' ' : '', placeholder: 'api env:prod …', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Tags, space separated' });
+  host.replaceChildren(inp);
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    Popup.close();
+    onDone(save ? Tags.split(inp.value) : null);
+  };
+  const lastTok = () => inp.value.slice(inp.value.lastIndexOf(' ') + 1);
+  const suggest = () => {
+    const tok = lastTok().toLowerCase();
+    if (!tok) { Popup.close(); return; }
+    const have = new Set(Tags.split(inp.value.slice(0, inp.value.length - tok.length)));
+    const items = Store.allTags().filter((t) => t.toLowerCase().startsWith(tok) && t.toLowerCase() !== tok && !have.has(t)).slice(0, 12)
+      .map((t) => ({ label: t, labelHtml: Tags.chip(t), tag: t }));
+    if (!items.length) { Popup.close(); return; }
+    if (Popup.isOpen()) { Popup.update(items); return; }
+    const r = inp.getBoundingClientRect();
+    Popup.open({
+      x: r.left, y: r.bottom + 2, items,
+      onPick: (it) => {
+        inp.value = inp.value.slice(0, inp.value.length - lastTok().length) + it.tag + ' ';
+        inp.focus();
+      },
+    });
+  };
+  inp.addEventListener('input', suggest);
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (Popup.isOpen() && ['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) && Popup.key(e)) { e.preventDefault(); return; }
+    if (Popup.isOpen() && e.key === 'Enter' && lastTok()) { if (Popup.key(e)) { e.preventDefault(); return; } }
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (Popup.isOpen()) Popup.close(); else finish(false); }
+  });
+  inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp) finish(true); }, 120));
+  return inp;
+}
 
 /* ── 06-editor.js ── */
 /* ── note editor: contenteditable with / commands, @ tags, code, images ─
@@ -2840,7 +2985,7 @@ const Board = (() => {
       const t = e.target;
       const rz = t.closest('.rz');
       if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, n, el, rz.dataset.rz); return; }
-      if (t.closest('figure.pic, .note-grip button, .backlinks')) return;
+      if (t.closest('figure.pic, .note-grip button, .note-foot button, .tag-input')) return;
       const editing = el.classList.contains('editing');
       if (t.closest('.note-grip') || e.altKey || !editing) {
         if (!editing) {
@@ -2876,7 +3021,11 @@ const Board = (() => {
     };
     body.addEventListener('blur', () => setTimeout(settle, 120));
     body.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !Popup.isOpen()) setTimeout(settle, 0); });
-    foot.addEventListener('click', (e) => { if (e.target.closest('.backlinks')) backlinksMenu(n, foot); });
+    foot.addEventListener('click', (e) => {
+      if (e.target.closest('.backlinks')) backlinksMenu(n, foot);
+      else if (e.target.closest('.nf-add')) tagNote(n);
+      else if (e.target.closest('.chip')) bus.emit('filter-notes', e.target.closest('.chip').dataset.tag);
+    });
     return el;
   }
 
@@ -3067,6 +3216,7 @@ const Board = (() => {
       return false;
     }
     if (k === 'Enter') { focusBody(n.id); return true; }
+    if (k === 't' || k === 'T') { tagNote(n); return true; }
     if (k === 'Escape') { select(null); return true; }
     if (k === 'Delete' || k === 'Backspace') { remove(n.id); return true; }
     if (/^[1-6]$/.test(k) && !modKey(e)) { setColor(n, COLORS[+k - 1]); return true; }
@@ -3170,29 +3320,44 @@ const Board = (() => {
     Store.change('notes');
   }
 
-  /* ── backlinks ── */
+  /* ── note foot: tags and backlinks ── */
+  let backMap = new Map();
+  function renderFoot(n, el = els.get(n.id)) {
+    if (!el) return;
+    const foot = el.querySelector('.note-foot');
+    if (foot.querySelector('.tag-input')) return; // being edited
+    const back = backMap.get(n.id) || [];
+    const sig = (n.tags || []).join('\u0001') + '|' + back.length;
+    if (foot.dataset.sig === sig) return;
+    foot.dataset.sig = sig;
+    foot.innerHTML =
+      `<div class="nf-tags">${(n.tags || []).map((t) => Tags.chip(t)).join('')}<button class="nf-add" tabindex="-1" title="Edit tags (T)">${n.tags && n.tags.length ? icon('edit') : '+ tag'}</button></div>` +
+      (back.length ? `<button class="backlinks" tabindex="-1">← ${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here</button>` : '');
+  }
   const refreshFeet = debounce(() => {
     if (!board) return;
-    const back = new Map();
-    for (const [id, { note }] of Store.S.notes) {
-      const re = /data-note="([^"]+)"/g; let m;
-      const seen = new Set();
-      while ((m = re.exec(note.html))) if (!seen.has(m[1])) { seen.add(m[1]); (back.get(m[1]) || back.set(m[1], []).get(m[1])).push(id); }
-    }
-    for (const [id, el] of els) {
-      const list = back.get(id) || [];
-      const foot = el.querySelector('.note-foot');
-      const txt = list.length ? `${list.length} ${list.length === 1 ? 'note links' : 'notes link'} here` : '';
-      if (foot.dataset.txt !== txt) { foot.dataset.txt = txt; foot.innerHTML = txt ? `<button class="backlinks" tabindex="-1">${esc(txt)}</button>` : ''; }
-      foot._back = list;
-    }
-  }, 200);
+    backMap = Store.backlinks();
+    for (const n of board.notes) renderFoot(n);
+  }, 150);
+
+  function tagNote(n) {
+    const el = els.get(n.id); if (!el) return;
+    const foot = el.querySelector('.note-foot');
+    select(n.id);
+    foot.classList.add('editing-tags');
+    editTags(foot, n.tags || [], (tags) => {
+      foot.classList.remove('editing-tags');
+      foot.dataset.sig = '';
+      if (tags && tags.join(' ') !== (n.tags || []).join(' ')) { n.tags = tags; n.updated = now(); Store.change('note'); }
+      renderFoot(n);
+    });
+  }
 
   function backlinksMenu(n, foot) {
     const r = foot.getBoundingClientRect();
     Popup.open({
       x: r.left, y: r.bottom, title: 'Linked from',
-      items: (foot._back || []).map((id) => { const ref = Store.noteRef(id); return ref && { id, label: ref.note.title || 'Untitled', hint: ref.board.name, icon: 'note' }; }).filter(Boolean),
+      items: (backMap.get(n.id) || []).map((id) => { const ref = Store.noteRef(id); return ref && { id, label: ref.note.title || 'Untitled', hint: ref.board.name, icon: 'note' }; }).filter(Boolean),
       onPick: (it) => bus.emit('goto-note', it.id),
     });
   }
@@ -3224,6 +3389,7 @@ const Board = (() => {
   return {
     init, mount, unmount, addNote, remove, arrange, fit, center, key, select, focusBody,
     zoom: () => view.z, zoomAt, current: () => board, selected: () => sel, COLORS,
+    tagNote: (id) => { const r = Store.noteRef(id); if (r) tagNote(r.note); },
     refreshChips: () => { for (const el of els.values()) Editor.refreshChips(el.querySelector('.note-body')); },
   };
 })();
@@ -3236,12 +3402,7 @@ const Secrets = (() => {
   const revealed = new Set();
   const MASK = '••••••••••••';
 
-  const parseTag = (t) => { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; };
-  const chip = (t, on) => {
-    const { k, v } = parseTag(t);
-    return `<button class="chip${v != null ? ' kv' : ''}${on ? ' on' : ''}" data-tag="${esc(t)}" tabindex="-1">${v != null ? `<b>${esc(k)}</b><span>${esc(v)}</span>` : esc(k)}</button>`;
-  };
-  const tagsOf = (s) => s.split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
+  const parseTag = Tags.parse, chip = Tags.chip, tagsOf = Tags.split;
 
   function init(el) {
     root = el;
@@ -3286,30 +3447,8 @@ const Secrets = (() => {
   }
 
   /* ── filtering ── */
-  function matches(x, toks) {
-    for (const t of toks) {
-      let neg = false, q = t;
-      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
-      let hit;
-      const ci = q.indexOf(':');
-      if (ci > 0) {
-        const k = q.slice(0, ci), v = q.slice(ci + 1);
-        hit = x.tags.some((tg) => { const p = parseTag(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
-      } else {
-        hit = x.key.toLowerCase().includes(q) || x.desc.toLowerCase().includes(q) ||
-          x.tags.some((tg) => { const p = parseTag(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
-      }
-      if (hit === neg) return false;
-    }
-    return true;
-  }
-  function toggleFilter(tag) {
-    const toks = filterInp.value.split(/\s+/).filter(Boolean);
-    const i = toks.findIndex((t) => t.toLowerCase() === tag.toLowerCase());
-    if (i >= 0) toks.splice(i, 1); else toks.push(tag);
-    filterInp.value = toks.join(' ') + (toks.length ? ' ' : '');
-    cur = 0; render();
-  }
+  const matches = (x, toks) => Tags.match(x.tags, toks, [x.key.toLowerCase(), x.desc.toLowerCase()]);
+  function toggleFilter(tag) { filterInp.value = Tags.toggle(filterInp.value, tag); cur = 0; render(); }
   function setFilter(q) { filterInp.value = q; cur = 0; render(); }
 
   /* ── rendering ── */
@@ -3544,6 +3683,152 @@ const Secrets = (() => {
   return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
 })();
 
+/* ── 08b-notes.js ── */
+/* ── notes page: every note on every board, sortable, filterable, linked ─ */
+const NotesList = (() => {
+  let root, list, head, filterInp, countEl, tagsRow;
+  let rows = [], cur = 0, back = new Map();
+  let sort = ls.get('notes-sort', { by: 'updated', dir: -1 });
+  const COLS = [['title', 'Title'], ['board', 'Board'], ['tags', 'Tags'], ['links', 'Links'], ['updated', 'Updated']];
+
+  function init(el) {
+    root = el;
+    filterInp = h('input', { class: 'field s-filter', placeholder: 'Filter by title, text, board or tag, e.g. deploy env:prod -draft', spellcheck: 'false', autocomplete: 'off' });
+    countEl = h('span', { class: 's-count muted' });
+    tagsRow = h('div', { class: 's-tagrow' });
+    head = h('div', { class: 'n-head' });
+    list = h('div', { class: 's-list', role: 'listbox', tabindex: '0', 'aria-label': 'All notes' });
+    root.append(
+      h('div', { class: 's-bar' }, h('div', { class: 's-search', html: icon('search') }, filterInp), countEl),
+      tagsRow, head, list);
+
+    filterInp.addEventListener('input', () => { cur = 0; render(); });
+    filterInp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (rows[cur]) open(rows[cur]); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (filterInp.value) setFilter(''); else list.focus(); }
+    });
+    tagsRow.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) setFilter(Tags.toggle(filterInp.value, c.dataset.tag)); });
+    head.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-sort]'); if (!b) return;
+      const by = b.dataset.sort;
+      sort = sort.by === by ? { by, dir: -sort.dir } : { by, dir: by === 'updated' || by === 'links' ? -1 : 1 };
+      ls.set('notes-sort', sort);
+      render();
+    });
+    list.addEventListener('click', (e) => {
+      const row = e.target.closest('.nrow'); if (!row) return;
+      const r = rows.find((x) => x.note.id === row.dataset.id); if (!r) return;
+      cur = rows.indexOf(r);
+      const a = e.target.closest('[data-a]');
+      const chip = e.target.closest('.chip');
+      if (chip) setFilter(Tags.toggle(filterInp.value, chip.dataset.tag));
+      else if (a && a.dataset.a === 'board') App.openTab('b:' + r.board.id);
+      else if (a && a.dataset.a === 'tag') tag(r);
+      else if (a && (a.dataset.a === 'out' || a.dataset.a === 'in')) linksMenu(r, a.dataset.a, a);
+      else if (e.target.closest('.n-tags')) mark();
+      else open(r);
+    });
+  }
+
+  /* ── data ── */
+  const snippet = (note) => (note.text || '').split('\n').slice(1).join(' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+  const SORTS = {
+    title: (a, b) => (a.note.title || '').localeCompare(b.note.title || '', undefined, { sensitivity: 'base' }),
+    board: (a, b) => a.board.name.localeCompare(b.board.name) || SORTS.title(a, b),
+    tags: (a, b) => (a.note.tags || []).join(' ').localeCompare((b.note.tags || []).join(' ')) || SORTS.title(a, b),
+    links: (a, b) => a.links - b.links || SORTS.title(a, b),
+    updated: (a, b) => (a.note.updated || 0) - (b.note.updated || 0),
+  };
+
+  function render() {
+    if (!root || !Store.S.data) return;
+    back = Store.backlinks();
+    const toks = Tags.tokens(filterInp.value);
+    const active = new Set(toks);
+    const all = [...Store.S.notes.values()].map(({ note, board }) => {
+      const out = Store.linksOut(note), inn = back.get(note.id) || [];
+      return { note, board, out, inn, links: out.length + inn.length };
+    });
+    rows = all.filter(({ note, board }) => Tags.match(note.tags || [], toks, [(note.title || '').toLowerCase(), (note.text || '').toLowerCase(), board.name.toLowerCase()]));
+    rows.sort((a, b) => sort.dir * SORTS[sort.by](a, b));
+    cur = clamp(cur, 0, Math.max(0, rows.length - 1));
+
+    const freq = new Map();
+    for (const { note } of all) for (const t of note.tags || []) freq.set(t, (freq.get(t) || 0) + 1);
+    tagsRow.innerHTML = [...freq.keys()].sort().map((t) => Tags.chip(t, active.has(t.toLowerCase()))).join('');
+    countEl.textContent = toks.length ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'note' : 'notes'}`;
+    head.innerHTML = COLS.map(([id, label]) =>
+      `<button data-sort="${id}" class="${sort.by === id ? 'on' : ''}" aria-sort="${sort.by === id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}">${label}${sort.by === id ? `<i>${sort.dir > 0 ? '↑' : '↓'}</i>` : ''}</button>`).join('');
+
+    if (!all.length) { list.innerHTML = `<div class="s-empty"><p>No notes yet.</p><p class="muted">Open a board and double-click anywhere, or press <kbd>N</kbd> there.</p></div>`; return; }
+    if (!rows.length) { list.innerHTML = `<div class="s-empty"><p>Nothing matches “${esc(filterInp.value.trim())}”.</p><p class="muted">Press <kbd>Esc</kbd> to clear the filter.</p></div>`; return; }
+    list.innerHTML = rows.map((r, i) => {
+      const n = r.note;
+      return `<div class="nrow${i === cur ? ' on' : ''}" data-id="${esc(n.id)}" role="option">` +
+        `<div class="n-title"><i class="n-dot paper-${esc(n.color)}"></i><div><b>${esc(n.title || 'Untitled')}</b><span>${esc(snippet(n))}</span></div></div>` +
+        `<button class="n-board" data-a="board" tabindex="-1" title="Open the board">${icon('board')}<span>${esc(r.board.name)}</span></button>` +
+        `<div class="n-tags">${(n.tags || []).map((t) => Tags.chip(t, active.has(t.toLowerCase()))).join('')}<button class="nf-add" data-a="tag" tabindex="-1" title="Edit tags (T)">${n.tags && n.tags.length ? icon('edit') : '+ tag'}</button></div>` +
+        `<div class="n-links">${r.out.length ? `<button data-a="out" tabindex="-1" title="Notes this one links to">→ ${r.out.length}</button>` : ''}${r.inn.length ? `<button data-a="in" tabindex="-1" title="Notes linking here">← ${r.inn.length}</button>` : ''}</div>` +
+        `<div class="n-upd" title="${esc(new Date(n.updated || n.created || 0).toLocaleString())}">${esc(relTime(n.updated || n.created))}</div></div>`;
+    }).join('');
+    scrollCur();
+  }
+
+  function mark() {
+    $$('.nrow.on', list).forEach((r) => r.classList.remove('on'));
+    const r = rows[cur]; if (!r) return;
+    const el = list.querySelector(`.nrow[data-id="${CSS.escape(r.note.id)}"]`);
+    if (el) el.classList.add('on');
+    scrollCur();
+  }
+  function scrollCur() { const el = list.querySelector('.nrow.on'); if (el) el.scrollIntoView({ block: 'nearest' }); }
+  function move(d) { if (!rows.length) return; cur = clamp(cur + d, 0, rows.length - 1); mark(); }
+  function setFilter(q) { filterInp.value = q; cur = 0; render(); }
+
+  /* ── actions ── */
+  function open(r) { App.gotoNote(r.note.id); }
+  function tag(r) {
+    const el = list.querySelector(`.nrow[data-id="${CSS.escape(r.note.id)}"] .n-tags`);
+    if (!el) return;
+    editTags(el, r.note.tags || [], (tags) => {
+      if (tags && tags.join(' ') !== (r.note.tags || []).join(' ')) { r.note.tags = tags; r.note.updated = now(); Store.change('note'); }
+      render();
+      list.focus({ preventScroll: true });
+    });
+  }
+  function linksMenu(r, dir, anchor) {
+    const ids = dir === 'out' ? r.out : r.inn;
+    const rect = anchor.getBoundingClientRect();
+    Popup.open({
+      x: rect.left, y: rect.bottom + 2, title: dir === 'out' ? 'Links to' : 'Linked from',
+      items: ids.map((id) => { const ref = Store.noteRef(id); return ref && { id, label: ref.note.title || 'Untitled', hint: ref.board.name, icon: 'note' }; }).filter(Boolean),
+      onPick: (it) => App.gotoNote(it.id),
+    });
+  }
+
+  /* ── keyboard (page focused, not typing) ── */
+  function key(e) {
+    const k = e.key, r = rows[cur];
+    if (k === 'j' || k === 'ArrowDown') { move(1); return true; }
+    if (k === 'k' || k === 'ArrowUp') { move(-1); return true; }
+    if (k === 'g') { cur = 0; mark(); return true; }
+    if (k === 'G') { cur = rows.length - 1; mark(); return true; }
+    if (k === '/') { filterInp.focus(); filterInp.select(); return true; }
+    if (k === 'Escape' && filterInp.value) { setFilter(''); return true; }
+    if (k === 's') { const i = COLS.findIndex(([id]) => id === sort.by); sort = { by: COLS[(i + 1) % COLS.length][0], dir: sort.dir }; ls.set('notes-sort', sort); render(); return true; }
+    if (k === 'S') { sort = { by: sort.by, dir: -sort.dir }; ls.set('notes-sort', sort); render(); return true; }
+    if (!r) return false;
+    if (k === 'Enter' || k === 'o') { open(r); return true; }
+    if (k === 't') { tag(r); return true; }
+    if (k === 'b') { App.openTab('b:' + r.board.id); return true; }
+    return false;
+  }
+
+  return { init, render, key, setFilter, focus: () => list && list.focus({ preventScroll: true }) };
+})();
+
 /* ── 09-palette.js ── */
 /* ── palette: search everything, run commands ─────────────────────
    plain  notes, boards, secrets (names and tags, never values)
@@ -3559,7 +3844,8 @@ const Palette = (() => {
       idxBoards.push({ type: 'board', id: b.id, title: b.name, t: b.name.toLowerCase(), sub: `${b.notes.length} ${b.notes.length === 1 ? 'note' : 'notes'}` });
       for (const n of b.notes) {
         const title = n.title || 'Untitled';
-        idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: (n.text || '').toLowerCase(), raw: n.text || '', sub: b.name, upd: n.updated || 0 });
+        const tg = (n.tags || []).join(' ');
+        idxNotes.push({ type: 'note', id: n.id, title, t: title.toLowerCase(), body: ((n.text || '') + (tg ? '\n' + tg : '')).toLowerCase(), raw: (n.text || '') + (tg ? '\n' + tg : ''), sub: tg ? `${b.name}  ${tg}` : b.name, upd: n.updated || 0 });
       }
     }
     for (const x of Store.S.data.secrets) {
@@ -3684,7 +3970,7 @@ const Palette = (() => {
 /* ── 10-app.js ── */
 /* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
 const App = (() => {
-  let shell, welcome, boardVp, secretsEl, menuBtn, switchEl, boardsEl, syncEl;
+  let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
   let lastActivity = now();
 
@@ -3812,7 +4098,7 @@ const App = (() => {
     shell.hidden = false;
     const ui = Store.S.data.ui;
     if (!Store.board(ui.board)) ui.board = ui.active && ui.active.startsWith('b:') && Store.board(ui.active.slice(2)) ? ui.active.slice(2) : Store.S.data.boards[0].id;
-    if (ui.active !== 'secrets') ui.active = 'b:' + ui.board;
+    if (ui.active !== 'secrets' && ui.active !== 'notes') ui.active = 'b:' + ui.board;
     delete ui.tabs; delete ui.sidebar; // from the old tabbed layout
     activate(ui.active, false);
     Bird.blink(true);
@@ -3821,23 +4107,29 @@ const App = (() => {
   /* one view at a time: a board ('b:<id>') or 'secrets' */
   function activate(t, persist = true) {
     const ui = Store.S.data.ui;
-    if (t !== 'secrets') {
+    if (t !== 'secrets' && t !== 'notes') {
       const b = Store.board(t.slice(2));
       if (!b) return;
       ui.board = b.id;
     }
     ui.active = t;
     Popup.close();
-    boardVp.hidden = t === 'secrets';
+    boardVp.hidden = t === 'secrets' || t === 'notes';
     secretsEl.hidden = t !== 'secrets';
+    notesEl.hidden = t !== 'notes';
     if (t === 'secrets') { Board.unmount(); Secrets.render(); Secrets.focus(); }
+    else if (t === 'notes') { Board.unmount(); NotesList.render(); NotesList.focus(); }
     else Board.mount(Store.board(ui.board));
     renderChrome();
     if (persist) Store.change('ui');
   }
   const openTab = activate;
   const isSecrets = () => Store.S.data.ui.active === 'secrets';
-  function toggleView() { activate(isSecrets() ? 'b:' + Store.S.data.ui.board : 'secrets'); }
+  const isBoardView = () => Store.S.data.ui.active.startsWith('b:');
+  const viewOf = () => (isBoardView() ? 'board' : Store.S.data.ui.active);
+  /* the switcher's three pages; ⌥B ⌥L ⌥S, pressing a page's key again returns to the board */
+  function showView(v) { activate(v === 'board' || viewOf() === v ? 'b:' + Store.S.data.ui.board : v); }
+  const toggleView = () => showView('secrets');
   function cycleBoard(d) {
     const bs = Store.S.data.boards;
     const i = bs.findIndex((b) => b.id === Store.S.data.ui.board);
@@ -3847,7 +4139,7 @@ const App = (() => {
   /* ── floating chrome ── */
   function renderChrome() {
     if (!Store.S.data) return;
-    for (const btn of switchEl.children) btn.classList.toggle('on', (btn.dataset.view === 'secrets') === isSecrets());
+    for (const btn of switchEl.children) btn.classList.toggle('on', btn.dataset.view === viewOf());
     renderBoards();
     renderSync();
   }
@@ -3857,7 +4149,7 @@ const App = (() => {
     const d = Store.S.data;
     const many = d.boards.length > 1;
     boardsEl.replaceChildren(...d.boards.map((b, i) => {
-      const on = !isSecrets() && d.ui.board === b.id;
+      const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
         title: `${b.name}${i < 9 ? `  (${ALT}${i + 1})` : ''}. Double-click to rename, drag to reorder.` },
         h('span', { class: 'bp-name', text: b.name }),
@@ -3929,7 +4221,7 @@ const App = (() => {
     syncEl.title = tip + (Store.S.crypt ? ' Encrypted.' : '');
     syncEl.setAttribute('aria-label', syncEl.title);
     const act = Store.S.data && Store.S.data.ui.active;
-    document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? (isSecrets() ? 'Secrets' : (Store.board(Store.S.data.ui.board) || {}).name) + ' — ' : '') + 'frogmouth';
+    document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? (isSecrets() ? 'Secrets' : act === 'notes' ? 'Notes' : (Store.board(Store.S.data.ui.board) || {}).name) + ' — ' : '') + 'frogmouth';
   }
   function onSyncClick() {
     const st = Store.S.status;
@@ -3991,7 +4283,7 @@ const App = (() => {
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
     for (const n of b.notes) Store.S.notes.delete(n.id);
-    if (d.ui.board === id) activate(isSecrets() ? 'secrets' : 'b:' + d.boards[Math.min(i, d.boards.length - 1)].id);
+    if (d.ui.board === id) activate(isBoardView() ? 'b:' + d.boards[Math.min(i, d.boards.length - 1)].id : d.ui.active);
     if (d.ui.board === id) d.ui.board = d.boards[0].id;
     Store.change('boards');
     renderChrome();
@@ -4080,7 +4372,10 @@ const App = (() => {
       { title: 'Arrange notes', when: isBoard, run: () => Board.arrange() },
       { title: 'Fit all notes on screen', key: '⇧1', when: isBoard, run: () => Board.fit() },
       { title: 'Reset zoom to 100%', key: '0', when: isBoard, run: () => Board.zoomAt(1) },
-      { title: 'Switch notes / secrets', key: ALT + 'S', run: toggleView },
+      { title: 'Open the board', key: ALT + 'B', run: () => showView('board') },
+      { title: 'List all notes', key: ALT + 'L', run: () => showView('notes') },
+      { title: 'Open secrets', key: ALT + 'S', run: () => showView('secrets') },
+      { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
       { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
       { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
@@ -4101,9 +4396,10 @@ const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}S`, 'Switch notes / secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
-      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
+      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
+      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
+      ['All notes', [['j k  ↑↓', 'Move'], ['↵', 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s  ⇧S', 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
     ];
     Modal.open({
@@ -4131,7 +4427,9 @@ const App = (() => {
     if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = Store.S.data.boards[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
     if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleBoard(-1); return; }
     if (e.altKey && !mod && e.code === 'BracketRight') { e.preventDefault(); cycleBoard(1); return; }
-    if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); toggleView(); return; }
+    if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); showView('secrets'); return; }
+    if (e.altKey && !mod && e.code === 'KeyL') { e.preventDefault(); showView('notes'); return; }
+    if (e.altKey && !mod && e.code === 'KeyB') { e.preventDefault(); showView('board'); return; }
     if (isTypingTarget(e.target)) return;
     if (mod && lower === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if (k === '?') { e.preventDefault(); shortcuts(); return; }
@@ -4139,7 +4437,7 @@ const App = (() => {
     if (e.target.closest && e.target.closest('.hud')) return;
     if (e.altKey && !e.shiftKey) return;
     const act = Store.S.data.ui.active;
-    const handled = act === 'secrets' ? Secrets.key(e) : Board.key(e);
+    const handled = act === 'secrets' ? Secrets.key(e) : act === 'notes' ? NotesList.key(e) : Board.key(e);
     if (handled) e.preventDefault();
   }
 
@@ -4148,13 +4446,15 @@ const App = (() => {
     const app = $('#app');
     welcome = h('div', { class: 'welcome' });
     boardVp = h('div', { class: 'board-vp', hidden: true });
-    secretsEl = h('div', { class: 'secrets', hidden: true });
+    secretsEl = h('div', { class: 'secrets page', hidden: true });
+    notesEl = h('div', { class: 'notes-page page', hidden: true });
     menuBtn = h('button', { class: 'hud-menu', title: 'Theme, encryption, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
     boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
     boardsEl.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { boardsEl.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
-      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Notes (${ALT}S)`, 'aria-label': 'Notes', html: icon('board'), onclick: () => { if (isSecrets()) toggleView(); } }),
-      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (!isSecrets()) toggleView(); } }));
+      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
+      h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${ALT}L)`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),
+      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (viewOf() !== 'secrets') showView('secrets'); } }));
     syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
@@ -4166,18 +4466,21 @@ const App = (() => {
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill' }, syncEl)));
-    shell = h('div', { class: 'shell', hidden: true }, boardVp, secretsEl, hud);
+    shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
     Board.init(boardVp);
     Secrets.init(secretsEl);
+    NotesList.init(notesEl);
     addEventListener('keydown', onKey);
     bus.on('status', renderSync);
     bus.on('change', (what) => {
       if (what === 'secrets') Board.refreshChips();
       if (what === 'boards') renderChrome();
+      if (Store.S.data.ui.active === 'notes' && (what === 'boards' || what === 'notes')) NotesList.render();
       renderSync();
     });
     bus.on('goto-note', gotoNote);
+    bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
     addEventListener('beforeunload', (e) => {
       if (!Store.S.data || !Store.S.dirty) return;
       if (Store.S.vault.kind !== 'memory') Store.saveNow.flush();

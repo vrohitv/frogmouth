@@ -40,6 +40,20 @@
       await type('co');
     }
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
+    if (mode === 'shot-notes' || mode === 'shot-tags') {
+      const infra = { id: uid(), name: 'Infra', created: now(), notes: [] };
+      Store.S.data.boards.push(infra); Store.index();
+      const notes = [...Store.S.notes.values()].map((r) => r.note);
+      notes.find((n) => n.title === 'Today').tags = ['todo', 'env:dev'];
+      notes.find((n) => n.title === 'Welcome to frogmouth').tags = ['docs'];
+      App.openTab('b:' + infra.id);
+      const a = Board.addNote({ x: 80, y: 80 }, false, '<p>Rotate DB credentials</p><p>Quarterly. Uses <span class="sref" contenteditable="false" data-secret="' + Store.S.data.secrets[2].id + '">DATABASE_URL</span>, see <a class="mention" contenteditable="false" data-note="' + notes[1].id + '">@Retry</a></p>');
+      a.tags = ['runbook', 'env:prod', 'db']; a.updated = now() - 3600e3 * 5;
+      const b = Board.addNote({ x: 460, y: 80 }, false, '<p>Incident 2026-10-02</p><p>API gateway timeouts after deploy. Root cause: pool size.</p>', { color: 'rose' });
+      b.tags = ['incident', 'env:prod']; b.updated = now() - 86400e3 * 3;
+      Store.change('notes');
+      App.openTab(mode === 'shot-notes' ? 'notes' : 'b:' + infra.id);
+    }
     if (mode === 'shot-boards') {
       for (const name of ['Infra', 'Reading list', 'Sprint 42']) Store.S.data.boards.push({ id: uid(), name, created: now(), notes: [] });
       Store.change('boards');
@@ -247,6 +261,47 @@
     ok('x deletes an empty board', !Store.board(infra.id) && $$('.board-pill').length === nBoards);
     keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
     ok('undo restores the board', !!Store.board(infra.id));
+    App.openTab('secrets');
+
+    // note tags (same system as secrets) and the all-notes page
+    App.openTab('b:' + Store.S.data.boards[0].id);
+    await wait(250);
+    const retryRef = [...Store.S.notes.values()].find(({ note }) => note.title === 'Retry with backoff');
+    ok('starter note carries tags', retryRef && retryRef.note.tags.includes('lang:js'));
+    ok('note foot shows tag chips', $$(`.note[data-id="${retryRef.note.id}"] .note-foot .chip`).length === 2);
+    Board.select(retryRef.note.id);
+    keydown(document.body, 't');
+    const ti = $(`.note[data-id="${retryRef.note.id}"] .tag-input`);
+    ok('t opens the tag editor', !!ti);
+    if (ti) {
+      ti.value += 'env:pr';
+      ti.dispatchEvent(new Event('input'));
+      ok('tag editor suggests existing tags', Popup.isOpen() && $$('.pop .pop-item').some((x) => x.textContent.includes('prod')));
+      keydown(ti, 'Enter');
+      ok('completion inserts the tag', ti.value.endsWith('env:prod '), ti.value);
+      ti.value += 'retry';
+      keydown(ti, 'Enter');
+    }
+    ok('tags saved on the note', ['snippet', 'lang:js', 'env:prod', 'retry'].every((t) => retryRef.note.tags.includes(t)), JSON.stringify(retryRef.note.tags));
+    $('.hud-switch [data-view="notes"]').click();
+    await wait(30);
+    ok('notes page lists every note', $$('.nrow').length === Store.S.notes.size, $$('.nrow').length + ' vs ' + Store.S.notes.size);
+    NotesList.setFilter('env:prod');
+    ok('notes page filters by kv tag', $$('.nrow').length === 1 && $('.nrow .n-title b').textContent === 'Retry with backoff');
+    NotesList.setFilter('-lang:js');
+    ok('negated tag filter', !$$('.nrow .n-title b').some((b) => b.textContent === 'Retry with backoff'));
+    NotesList.setFilter('');
+    $('.n-head [data-sort="title"]').click();
+    const titles = $$('.nrow .n-title b').map((b) => b.textContent);
+    ok('sort by title', titles.join() === [...titles].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })).join(), titles.join());
+    $('.n-head [data-sort="title"]').click();
+    ok('sort flips', $$('.nrow .n-title b')[0].textContent === titles[titles.length - 1]);
+    const welcomeRow = $$('.nrow').find((r) => r.querySelector('.n-title b').textContent === 'Welcome to frogmouth');
+    ok('backlink count shown', welcomeRow && /← [1-9]/.test(welcomeRow.querySelector('.n-links').textContent));
+    welcomeRow.querySelector('.n-title').click();
+    await wait(50);
+    ok('clicking a row opens the note on its board', Store.S.data.ui.active.startsWith('b:') && Board.selected() === welcomeRow.dataset.id);
+    ok('palette finds notes by tag', Palette.search('retry').some((x) => x.title === 'Retry with backoff' && x.type === 'note'));
     App.openTab('secrets');
 
     // serialization round trip

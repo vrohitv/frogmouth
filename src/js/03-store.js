@@ -32,7 +32,7 @@ const Store = (() => {
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
-      { id: n2, x: 440, y: 80, w: 380, h: null, color: 'night', z: 2, created: t, updated: t,
+      { id: n2, x: 440, y: 80, w: 380, h: null, color: 'night', z: 2, created: t, updated: t, tags: ['snippet', 'lang:js'],
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
           'async function retry(fn, tries = 5) {\n  for (let i = 0; i < tries; i++) {\n    try { return await fn(); }\n    catch (err) {\n      // 100ms, 200ms, 400ms ...\n      await sleep(100 * 2 ** i);\n    }\n  }\n  throw new Error("gave up");\n}') +
           '</code></pre><p>Used by <a class="mention" data-note="' + n3 + '" contenteditable="false">@Today</a></p>' },
@@ -61,6 +61,7 @@ const Store = (() => {
         n.color = n.color || 'straw';
         n.z = +n.z || 1;
         n.html = typeof n.html === 'string' ? n.html : '';
+        n.tags = Array.isArray(n.tags) ? [...new Set(n.tags.map(String).filter(Boolean))] : [];
         if (typeof n.title !== 'string' || typeof n.text !== 'string') Object.assign(n, Editor.derive(n.html));
       }
     }
@@ -353,10 +354,29 @@ const Store = (() => {
   const board = (id) => S.data && S.data.boards.find((b) => b.id === id);
   const noteRef = (id) => S.notes.get(id);
   const secret = (id) => S.data && S.data.secrets.find((x) => x.id === id);
+  /* every tag in use, on notes and secrets, sorted */
+  function allTags() {
+    const set = new Set();
+    if (S.data) {
+      for (const { note } of S.notes.values()) for (const t of note.tags || []) set.add(t);
+      for (const x of S.data.secrets) for (const t of x.tags) set.add(t);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }
+  /* note id -> ids of notes whose text links to it */
+  function backlinks() {
+    const back = new Map();
+    for (const [id, { note }] of S.notes) {
+      const re = /data-note="([^"]+)"/g; let m; const seen = new Set();
+      while ((m = re.exec(note.html))) if (!seen.has(m[1])) { seen.add(m[1]); (back.get(m[1]) || back.set(m[1], []).get(m[1])).push(id); }
+    }
+    return back;
+  }
+  const linksOut = (note) => { const out = new Set(); const re = /data-note="([^"]+)"/g; let m; while ((m = re.exec(note.html))) if (S.notes.has(m[1])) out.add(m[1]); return [...out]; };
 
   return {
     S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, unlock, openMemory, setData, close,
     serialize, save, saveNow, change, checkDisk, reloadFrom, keepMine, setPassphrase, recents, forgetRecent,
-    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus,
+    saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut,
   };
 })();

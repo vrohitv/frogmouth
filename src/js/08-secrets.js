@@ -5,12 +5,7 @@ const Secrets = (() => {
   const revealed = new Set();
   const MASK = '••••••••••••';
 
-  const parseTag = (t) => { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; };
-  const chip = (t, on) => {
-    const { k, v } = parseTag(t);
-    return `<button class="chip${v != null ? ' kv' : ''}${on ? ' on' : ''}" data-tag="${esc(t)}" tabindex="-1">${v != null ? `<b>${esc(k)}</b><span>${esc(v)}</span>` : esc(k)}</button>`;
-  };
-  const tagsOf = (s) => s.split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
+  const parseTag = Tags.parse, chip = Tags.chip, tagsOf = Tags.split;
 
   function init(el) {
     root = el;
@@ -55,30 +50,8 @@ const Secrets = (() => {
   }
 
   /* ── filtering ── */
-  function matches(x, toks) {
-    for (const t of toks) {
-      let neg = false, q = t;
-      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
-      let hit;
-      const ci = q.indexOf(':');
-      if (ci > 0) {
-        const k = q.slice(0, ci), v = q.slice(ci + 1);
-        hit = x.tags.some((tg) => { const p = parseTag(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
-      } else {
-        hit = x.key.toLowerCase().includes(q) || x.desc.toLowerCase().includes(q) ||
-          x.tags.some((tg) => { const p = parseTag(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
-      }
-      if (hit === neg) return false;
-    }
-    return true;
-  }
-  function toggleFilter(tag) {
-    const toks = filterInp.value.split(/\s+/).filter(Boolean);
-    const i = toks.findIndex((t) => t.toLowerCase() === tag.toLowerCase());
-    if (i >= 0) toks.splice(i, 1); else toks.push(tag);
-    filterInp.value = toks.join(' ') + (toks.length ? ' ' : '');
-    cur = 0; render();
-  }
+  const matches = (x, toks) => Tags.match(x.tags, toks, [x.key.toLowerCase(), x.desc.toLowerCase()]);
+  function toggleFilter(tag) { filterInp.value = Tags.toggle(filterInp.value, tag); cur = 0; render(); }
   function setFilter(q) { filterInp.value = q; cur = 0; render(); }
 
   /* ── rendering ── */

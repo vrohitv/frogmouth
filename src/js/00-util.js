@@ -195,9 +195,49 @@ const ICONS = {
   dice: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><circle cx="5.5" cy="5.5" r=".8"/><circle cx="10.5" cy="10.5" r=".8"/><circle cx="8" cy="8" r=".8"/>',
   down: '<path d="M4 6l4 4 4-4"/>',
   tick: '<path d="M3.5 8.5l3 3 6-7"/>',
+  list: '<path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.5" cy="4" r=".6"/><circle cx="2.5" cy="8" r=".6"/><circle cx="2.5" cy="12" r=".6"/>',
   fileok: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M5.5 9.8l1.8 1.8 3.4-3.8"/>',
   filedot: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><circle cx="8" cy="10" r="1.7"/>',
   filebad: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M8 7v3M8 12.3v.2"/>',
   filenone: '<path d="M3.5 1.5h6l3 3v10h-9z" stroke-dasharray="2.2 1.6"/><path d="M1.5 1.5l13 13"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+
+/* ── tags (shared by notes and secrets) ───────────────────────────
+   A tag is plain (`api`) or key:value (`env:prod`). Filters are
+   space-separated tokens: `api env:prod -draft`. */
+const Tags = {
+  parse(t) { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; },
+  split(s) { return [...new Set(String(s || '').split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean))]; },
+  chip(t, on) {
+    const { k, v } = Tags.parse(t);
+    return `<button class="chip${v != null ? ' kv' : ''}${on ? ' on' : ''}" data-tag="${esc(t)}" tabindex="-1">${v != null ? `<b>${esc(k)}</b><span>${esc(v)}</span>` : esc(k)}</button>`;
+  },
+  tokens(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); },
+  /* every token must hit (or, with a leading -, miss): a k:v token matches a
+     k:v tag by key and value prefix; a plain token matches a tag key or value
+     prefix, or appears anywhere in one of the lowercase `texts` */
+  match(tags, toks, texts = []) {
+    for (const t of toks) {
+      let neg = false, q = t;
+      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
+      let hit;
+      const ci = q.indexOf(':');
+      if (ci > 0) {
+        const k = q.slice(0, ci), v = q.slice(ci + 1);
+        hit = tags.some((tg) => { const p = Tags.parse(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
+      } else {
+        hit = texts.some((x) => x.includes(q)) ||
+          tags.some((tg) => { const p = Tags.parse(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
+      }
+      if (hit === neg) return false;
+    }
+    return true;
+  },
+  toggle(q, tag) {
+    const toks = String(q || '').split(/\s+/).filter(Boolean);
+    const i = toks.findIndex((t) => t.toLowerCase() === tag.toLowerCase());
+    if (i >= 0) toks.splice(i, 1); else toks.push(tag);
+    return toks.join(' ') + (toks.length ? ' ' : '');
+  },
+};

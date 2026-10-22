@@ -141,3 +141,46 @@ const Modal = (() => {
 
   return { open, confirm, prompt, isOpen: () => stack.length > 0 };
 })();
+
+/* ── inline tag editor with completion from every tag in the vault ── */
+function editTags(host, tags, onDone) {
+  const inp = h('input', { class: 'tag-input', value: tags.length ? tags.join(' ') + ' ' : '', placeholder: 'api env:prod …', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Tags, space separated' });
+  host.replaceChildren(inp);
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    Popup.close();
+    onDone(save ? Tags.split(inp.value) : null);
+  };
+  const lastTok = () => inp.value.slice(inp.value.lastIndexOf(' ') + 1);
+  const suggest = () => {
+    const tok = lastTok().toLowerCase();
+    if (!tok) { Popup.close(); return; }
+    const have = new Set(Tags.split(inp.value.slice(0, inp.value.length - tok.length)));
+    const items = Store.allTags().filter((t) => t.toLowerCase().startsWith(tok) && t.toLowerCase() !== tok && !have.has(t)).slice(0, 12)
+      .map((t) => ({ label: t, labelHtml: Tags.chip(t), tag: t }));
+    if (!items.length) { Popup.close(); return; }
+    if (Popup.isOpen()) { Popup.update(items); return; }
+    const r = inp.getBoundingClientRect();
+    Popup.open({
+      x: r.left, y: r.bottom + 2, items,
+      onPick: (it) => {
+        inp.value = inp.value.slice(0, inp.value.length - lastTok().length) + it.tag + ' ';
+        inp.focus();
+      },
+    });
+  };
+  inp.addEventListener('input', suggest);
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (Popup.isOpen() && ['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) && Popup.key(e)) { e.preventDefault(); return; }
+    if (Popup.isOpen() && e.key === 'Enter' && lastTok()) { if (Popup.key(e)) { e.preventDefault(); return; } }
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (Popup.isOpen()) Popup.close(); else finish(false); }
+  });
+  inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp) finish(true); }, 120));
+  return inp;
+}

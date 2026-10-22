@@ -1,6 +1,6 @@
 /* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
 const App = (() => {
-  let shell, welcome, boardVp, secretsEl, menuBtn, switchEl, boardsEl, syncEl;
+  let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
   let lastActivity = now();
 
@@ -128,7 +128,7 @@ const App = (() => {
     shell.hidden = false;
     const ui = Store.S.data.ui;
     if (!Store.board(ui.board)) ui.board = ui.active && ui.active.startsWith('b:') && Store.board(ui.active.slice(2)) ? ui.active.slice(2) : Store.S.data.boards[0].id;
-    if (ui.active !== 'secrets') ui.active = 'b:' + ui.board;
+    if (ui.active !== 'secrets' && ui.active !== 'notes') ui.active = 'b:' + ui.board;
     delete ui.tabs; delete ui.sidebar; // from the old tabbed layout
     activate(ui.active, false);
     Bird.blink(true);
@@ -137,23 +137,29 @@ const App = (() => {
   /* one view at a time: a board ('b:<id>') or 'secrets' */
   function activate(t, persist = true) {
     const ui = Store.S.data.ui;
-    if (t !== 'secrets') {
+    if (t !== 'secrets' && t !== 'notes') {
       const b = Store.board(t.slice(2));
       if (!b) return;
       ui.board = b.id;
     }
     ui.active = t;
     Popup.close();
-    boardVp.hidden = t === 'secrets';
+    boardVp.hidden = t === 'secrets' || t === 'notes';
     secretsEl.hidden = t !== 'secrets';
+    notesEl.hidden = t !== 'notes';
     if (t === 'secrets') { Board.unmount(); Secrets.render(); Secrets.focus(); }
+    else if (t === 'notes') { Board.unmount(); NotesList.render(); NotesList.focus(); }
     else Board.mount(Store.board(ui.board));
     renderChrome();
     if (persist) Store.change('ui');
   }
   const openTab = activate;
   const isSecrets = () => Store.S.data.ui.active === 'secrets';
-  function toggleView() { activate(isSecrets() ? 'b:' + Store.S.data.ui.board : 'secrets'); }
+  const isBoardView = () => Store.S.data.ui.active.startsWith('b:');
+  const viewOf = () => (isBoardView() ? 'board' : Store.S.data.ui.active);
+  /* the switcher's three pages; ⌥B ⌥L ⌥S, pressing a page's key again returns to the board */
+  function showView(v) { activate(v === 'board' || viewOf() === v ? 'b:' + Store.S.data.ui.board : v); }
+  const toggleView = () => showView('secrets');
   function cycleBoard(d) {
     const bs = Store.S.data.boards;
     const i = bs.findIndex((b) => b.id === Store.S.data.ui.board);
@@ -163,7 +169,7 @@ const App = (() => {
   /* ── floating chrome ── */
   function renderChrome() {
     if (!Store.S.data) return;
-    for (const btn of switchEl.children) btn.classList.toggle('on', (btn.dataset.view === 'secrets') === isSecrets());
+    for (const btn of switchEl.children) btn.classList.toggle('on', btn.dataset.view === viewOf());
     renderBoards();
     renderSync();
   }
@@ -173,7 +179,7 @@ const App = (() => {
     const d = Store.S.data;
     const many = d.boards.length > 1;
     boardsEl.replaceChildren(...d.boards.map((b, i) => {
-      const on = !isSecrets() && d.ui.board === b.id;
+      const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
         title: `${b.name}${i < 9 ? `  (${ALT}${i + 1})` : ''}. Double-click to rename, drag to reorder.` },
         h('span', { class: 'bp-name', text: b.name }),
@@ -245,7 +251,7 @@ const App = (() => {
     syncEl.title = tip + (Store.S.crypt ? ' Encrypted.' : '');
     syncEl.setAttribute('aria-label', syncEl.title);
     const act = Store.S.data && Store.S.data.ui.active;
-    document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? (isSecrets() ? 'Secrets' : (Store.board(Store.S.data.ui.board) || {}).name) + ' — ' : '') + 'frogmouth';
+    document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? (isSecrets() ? 'Secrets' : act === 'notes' ? 'Notes' : (Store.board(Store.S.data.ui.board) || {}).name) + ' — ' : '') + 'frogmouth';
   }
   function onSyncClick() {
     const st = Store.S.status;
@@ -307,7 +313,7 @@ const App = (() => {
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
     for (const n of b.notes) Store.S.notes.delete(n.id);
-    if (d.ui.board === id) activate(isSecrets() ? 'secrets' : 'b:' + d.boards[Math.min(i, d.boards.length - 1)].id);
+    if (d.ui.board === id) activate(isBoardView() ? 'b:' + d.boards[Math.min(i, d.boards.length - 1)].id : d.ui.active);
     if (d.ui.board === id) d.ui.board = d.boards[0].id;
     Store.change('boards');
     renderChrome();
@@ -396,7 +402,10 @@ const App = (() => {
       { title: 'Arrange notes', when: isBoard, run: () => Board.arrange() },
       { title: 'Fit all notes on screen', key: '⇧1', when: isBoard, run: () => Board.fit() },
       { title: 'Reset zoom to 100%', key: '0', when: isBoard, run: () => Board.zoomAt(1) },
-      { title: 'Switch notes / secrets', key: ALT + 'S', run: toggleView },
+      { title: 'Open the board', key: ALT + 'B', run: () => showView('board') },
+      { title: 'List all notes', key: ALT + 'L', run: () => showView('notes') },
+      { title: 'Open secrets', key: ALT + 'S', run: () => showView('secrets') },
+      { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
       { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
       { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
@@ -417,9 +426,10 @@ const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}S`, 'Switch notes / secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
-      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
+      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
+      ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
+      ['All notes', [['j k  ↑↓', 'Move'], ['↵', 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s  ⇧S', 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
     ];
     Modal.open({
@@ -447,7 +457,9 @@ const App = (() => {
     if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = Store.S.data.boards[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
     if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleBoard(-1); return; }
     if (e.altKey && !mod && e.code === 'BracketRight') { e.preventDefault(); cycleBoard(1); return; }
-    if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); toggleView(); return; }
+    if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); showView('secrets'); return; }
+    if (e.altKey && !mod && e.code === 'KeyL') { e.preventDefault(); showView('notes'); return; }
+    if (e.altKey && !mod && e.code === 'KeyB') { e.preventDefault(); showView('board'); return; }
     if (isTypingTarget(e.target)) return;
     if (mod && lower === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if (k === '?') { e.preventDefault(); shortcuts(); return; }
@@ -455,7 +467,7 @@ const App = (() => {
     if (e.target.closest && e.target.closest('.hud')) return;
     if (e.altKey && !e.shiftKey) return;
     const act = Store.S.data.ui.active;
-    const handled = act === 'secrets' ? Secrets.key(e) : Board.key(e);
+    const handled = act === 'secrets' ? Secrets.key(e) : act === 'notes' ? NotesList.key(e) : Board.key(e);
     if (handled) e.preventDefault();
   }
 
@@ -464,13 +476,15 @@ const App = (() => {
     const app = $('#app');
     welcome = h('div', { class: 'welcome' });
     boardVp = h('div', { class: 'board-vp', hidden: true });
-    secretsEl = h('div', { class: 'secrets', hidden: true });
+    secretsEl = h('div', { class: 'secrets page', hidden: true });
+    notesEl = h('div', { class: 'notes-page page', hidden: true });
     menuBtn = h('button', { class: 'hud-menu', title: 'Theme, encryption, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
     boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
     boardsEl.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { boardsEl.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
-      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Notes (${ALT}S)`, 'aria-label': 'Notes', html: icon('board'), onclick: () => { if (isSecrets()) toggleView(); } }),
-      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (!isSecrets()) toggleView(); } }));
+      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
+      h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${ALT}L)`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),
+      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (viewOf() !== 'secrets') showView('secrets'); } }));
     syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
@@ -482,18 +496,21 @@ const App = (() => {
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill' }, syncEl)));
-    shell = h('div', { class: 'shell', hidden: true }, boardVp, secretsEl, hud);
+    shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
     Board.init(boardVp);
     Secrets.init(secretsEl);
+    NotesList.init(notesEl);
     addEventListener('keydown', onKey);
     bus.on('status', renderSync);
     bus.on('change', (what) => {
       if (what === 'secrets') Board.refreshChips();
       if (what === 'boards') renderChrome();
+      if (Store.S.data.ui.active === 'notes' && (what === 'boards' || what === 'notes')) NotesList.render();
       renderSync();
     });
     bus.on('goto-note', gotoNote);
+    bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
     addEventListener('beforeunload', (e) => {
       if (!Store.S.data || !Store.S.dirty) return;
       if (Store.S.vault.kind !== 'memory') Store.saveNow.flush();
