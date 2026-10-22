@@ -828,16 +828,33 @@ export const Editor = (() => {
     else toast('Open a vault folder to attach files', { kind: 'warn' });
   }
 
-  /* The type a tagged file opens with in a new tab. Vault files are the user's own,
-     so they open as themselves (HTML renders, SVG and images show, PDFs open);
-     the page's no-network policy carries over to them. Files with no known type
-     but readable text open as text; anything else the browser downloads. */
+  /* The type a tagged file opens with in a new tab: as itself (HTML renders, SVG and
+     images show, PDFs open). Files with no known type but readable text open as text;
+     anything else the browser downloads. A file in the vault is not always the user's
+     own work (a downloaded report, a synced folder), so anything that can run script
+     (HTML, SVG, XML) opens in a sandbox: see viewer(). */
   const EXT_TYPES = { html: 'text/html', htm: 'text/html', svg: 'image/svg+xml', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', wav: 'audio/wav' };
   function openAs(type, path) {
     const ext = (path.split('.').pop() || '').toLowerCase();
     if (EXT_TYPES[ext]) return EXT_TYPES[ext];
     if (/\.(excalidraw|json|md|txt|log|csv|ya?ml|toml|ini|env|js|mjs|ts|tsx|jsx|py|go|rs|rb|java|c|h|cpp|sh|sql|css|xml)$/i.test(path)) return 'text/plain;charset=utf-8';
     return type || 'application/octet-stream';
+  }
+
+  const scripted = (type) => /html|xml|svg/i.test(type);
+  /* A page that shows a scripted file in a sandboxed frame. The frame gets a unique
+     origin, so its scripts can never read this app's storage or the vault (opened
+     directly, a blob would share the app's origin), and without allow-top-navigation
+     or allow-popups it cannot leave its frame. The viewer's own policy forbids every
+     load and navigation, and the frame inherits it, so nothing can reach the network. */
+  function viewer(text, name, type) {
+    const body = /svg/i.test(type) && !/html/i.test(type)
+      ? `<!doctype html><meta charset="utf-8"><body style="margin:0;min-height:100vh;display:grid;place-items:center">${text}`
+      : text;
+    return '<!doctype html><meta charset="utf-8">' +
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; frame-src 'none'; form-action 'none'; base-uri 'none'">` +
+      `<title>${esc(name)}</title><style>html,body,iframe{margin:0;width:100%;height:100%;border:0;display:block;background:#fff}</style>` +
+      `<iframe sandbox="allow-scripts" title="${esc(name)}" srcdoc="${esc(body)}"></iframe>`;
   }
 
   /* file tag actions */
@@ -857,7 +874,10 @@ export const Editor = (() => {
       ],
       onPick: async (it) => {
         if (it.id === 'copy') { await copyText(path); toast('Copied ' + path); return; }
-        const url = URL.createObjectURL(new Blob([f], { type: it.id === 'open' ? openAs(f.type, path) : 'application/octet-stream' }));
+        const type = it.id === 'open' ? openAs(f.type, path) : 'application/octet-stream';
+        const url = URL.createObjectURL(it.id === 'open' && scripted(type)
+          ? new Blob([viewer(await f.text(), f.name, type)], { type: 'text/html;charset=utf-8' })
+          : new Blob([f], { type }));
         if (it.id === 'open') window.open(url, '_blank', 'noopener');
         else { const a = h('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove(); }
         setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -1141,5 +1161,5 @@ export const Editor = (() => {
     if (c) c.flush();
   }
 
-  return { refit, mount, sanitize, derive, refreshChips, openAs, flush };
+  return { refit, mount, sanitize, derive, refreshChips, openAs, viewer, flush };
 })();

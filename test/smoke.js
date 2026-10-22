@@ -175,6 +175,15 @@ import { App } from '../src/js/10-app.js';
 
 
     ok('tagged files open as themselves', Editor.openAs('', 'files/x.html') === 'text/html' && Editor.openAs('', 'a.svg') === 'image/svg+xml' && Editor.openAs('', 'files/a.excalidraw').startsWith('text/plain') && Editor.openAs('image/png', 'a.png') === 'image/png' && Editor.openAs('', 'r.pdf') === 'application/pdf' && Editor.openAs('application/zip', 'a.zip') === 'application/zip');
+    {
+      // HTML, SVG and XML from the vault open in a sandboxed frame with a unique origin, never as this app
+      const src = '<p>report</p><script>parent.x = 1</script>';
+      const v = new DOMParser().parseFromString(Editor.viewer(src, 'a"<b>.html', 'text/html'), 'text/html');
+      const fr = v.querySelector('iframe'), csp = (v.querySelector('meta[http-equiv="Content-Security-Policy"]') || {}).content || '';
+      ok('scripted vault files open sandboxed, cut off from the app and the network',
+        fr && fr.getAttribute('sandbox') === 'allow-scripts' && fr.getAttribute('srcdoc') === src && /default-src 'none'/.test(csp) && /frame-src 'none'/.test(csp) && v.title === 'a"<b>.html',
+        v.documentElement.outerHTML.slice(0, 300));
+    }
     ok('shortcut labels in Mac style', kbFor(true, 'mod+shift+p') === '⌘⇧P' && kbFor(true, 'mod+enter') === '⌘↵' && kbFor(true, 'alt+j') === '⌥J' && kbFor(true, 'mod+shift+backspace') === '⌘⇧⌫' && kbFor(true, 'shift+click') === '⇧ click' && kbFor(true, 'mod+b / mod+i') === '⌘B / ⌘I', [kbFor(true, 'mod+shift+p'), kbFor(true, 'shift+click')].join(' '));
     ok('shortcut labels in Windows/Linux style', kbFor(false, 'mod+shift+p') === 'Ctrl+Shift+P' && kbFor(false, 'mod+enter') === 'Ctrl+Enter' && kbFor(false, 'alt+j') === 'Alt+J' && kbFor(false, 'mod+shift+backspace') === 'Ctrl+Shift+Backspace' && kbFor(false, 'mod+wheel') === 'Ctrl+wheel' && kbFor(false, 'shift+del') === 'Shift+Del', [kbFor(false, 'mod+shift+p'), kbFor(false, 'mod+wheel')].join(' '));
     ok('this machine gets its own style', kb('mod+k') === (isMac ? '⌘K' : 'Ctrl+K'));
