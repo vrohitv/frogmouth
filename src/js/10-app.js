@@ -25,7 +25,7 @@ export const App = (() => {
     shell.hidden = true;
     welcome.hidden = false;
     welcome.replaceChildren();
-    const bird = h('div', { class: 'w-bird' }, Bird.make('big'));
+    const bird = h('div', { class: 'w-bird' }, h('div', { class: 'w-mark' }, Bird.make('mark')), h('div', { class: 'w-word' }, Bird.make('word')));
     const card = h('div', { class: 'w-card' });
     welcome.append(h('div', { class: 'w-inner' }, bird, card));
 
@@ -533,8 +533,8 @@ export const App = (() => {
     const hud = h('div', { class: 'hud' },
       h('div', { class: 'hud-group hud-left' },
         h('div', { class: 'hud-pill hud-brand' },
-          h('span', { class: 'hud-bird', title: 'frogmouth' }, Bird.make('icon')),
-          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('mini')), menuBtn),
+          h('span', { class: 'hud-bird', title: 'frogmouth' }, Bird.make('mark')),
+          h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('word')), menuBtn),
         switchEl, boardsEl),
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),

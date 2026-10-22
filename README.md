@@ -1,10 +1,13 @@
 <h1 align="center">
-  <img src="docs/frogmouth.svg" width="320" alt="frogmouth: a tawny frogmouth perched on a branch. The two o's in its name are its amber eyes.">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/frogmouth-stacked-on-dark.svg">
+    <img src="docs/brand/frogmouth-stacked-on-light.svg" width="300" alt="frogmouth: a head-on tawny frogmouth above the wordmark, whose two o's are its amber eyes">
+  </picture>
 </h1>
 
 <p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
-The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch. Its two amber eyes are the two o's in the name, and they follow your cursor.
+The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, and looks thoroughly unimpressed while doing it. In the app its amber eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
 
 ## Use it
 
@@ -177,6 +180,8 @@ src/js/10-app.js      shell: welcome, floating controls, board pills, sync icon,
 test/smoke.js         smoke tests (UI typing, sanitizer, crypto, real file writes via OPFS)
 test/run.py           drives headless Chrome over the DevTools pipe
 vite.config.js        single-file build, test mode, dev-only CSP relaxation
+src/brand/mark.json   the frogmouth symbol (shared by the app and tools/brand.py)
+tools/brand.py        regenerates docs/brand/*.svg and the favicon (pip install fonttools brotli)
 ```
 
 ## License

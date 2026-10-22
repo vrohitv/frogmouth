@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
-import { renameSync, rmSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
@@ -24,6 +24,15 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       viteSingleFile({ removeViteModuleLoader: true }),
+      {
+        // the favicon is the brand symbol (tools/brand.py); inline it so the page stays one file
+        name: 'frogmouth-favicon',
+        transformIndexHtml: {
+          order: 'pre',
+          handler: (html) => html.replace('href="./brand/favicon.svg"', () =>
+            `href="data:image/svg+xml,${encodeURIComponent(readFileSync(here('./src/brand/favicon.svg'), 'utf8').trim())}"`),
+        },
+      },
       {
         // the page forbids all network access; the dev server needs its own client and websocket
         name: 'frogmouth-dev-csp',

@@ -21,15 +21,6 @@
   --grid: rgba(220, 230, 227, .07);
   --scrim: rgba(6, 11, 13, .62);
   --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 12px 32px -10px rgba(0, 0, 0, .7);
-  /* the bird */
-  --plume: #687170;
-  --plume-2: #59615f;
-  --plume-streak: #3b4241;
-  --plume-light: #a9b2ae;
-  --horn: #a19c87;
-  --branch: #33403f;
-  --lid: #737c7a;
-  --word-stroke: #121a1d;
   color-scheme: dark;
 }
 [data-theme="day"] {
@@ -48,14 +39,6 @@
   --grid: rgba(23, 35, 42, .1);
   --scrim: rgba(30, 45, 50, .3);
   --shadow: 0 1px 0 rgba(20, 40, 45, .1), 0 12px 28px -12px rgba(20, 40, 45, .3);
-  --plume: #7d8684;
-  --plume-2: #6d7674;
-  --plume-streak: #4c5452;
-  --plume-light: #b6bebb;
-  --horn: #aca68f;
-  --branch: #6a7774;
-  --lid: #858e8c;
-  --word-stroke: #edf2f0;
   color-scheme: light;
 }
 :root {
@@ -137,33 +120,22 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .stack { display: grid; gap: 10px; }
 
 /* ── the bird ── */
+/* brand colours are fixed (src/brand/mark.json); only the wordmark letters follow the theme */
 .fm { display: block; overflow: visible; cursor: pointer; }
-.fm text { font-weight: 800; fill: var(--text); letter-spacing: -.01em; user-select: none; }
-.fm-big text, .fm-face text { stroke: var(--word-stroke); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
-.fm-iris { fill: #e19a26; }
-.fm-iris-in { fill: #f5c55a; opacity: .75; }
-.fm-ring { fill: none; stroke: #2e2105; stroke-width: 2.5; }
-.fm-pup { fill: #0b0d0c; }
-.fm-glint { fill: #fff6df; }
+.fm text { font-weight: 800; fill: var(--text); letter-spacing: -.02em; user-select: none; }
+.fm-iris { fill: #f2b33d; }
+.fm-iris-in { fill: #f7c860; opacity: .7; }
+.fm-ring { fill: none; stroke: #1e1606; stroke-width: 2; }
+.fm-pup { fill: #0f1211; }
+.fm-glint { fill: #fff7e2; }
 .fm-pupil { transition: transform .14s ease-out; }
-.fm-lid { fill: var(--lid); }
-.fm-lid-edge { stroke: #2a302f; stroke-width: 2.5; stroke-linecap: round; }
+.fm-lid { fill: #454d4b; }
+.fm-lid-edge { stroke: #2b3231; stroke-width: 1.6; stroke-linecap: round; }
+.fm-word .fm-lid-edge, .fm-word ~ .fm-eye .fm-lid-edge { stroke-width: 3; }
+.fm-word ~ .fm-eye .fm-ring { stroke-width: 3.5; }
 .fm-lidg { transition: transform .26s cubic-bezier(.3, .7, .3, 1); }
 .fm-lidg.fast { transition-duration: .08s; }
-.fm-head { transform-box: view-box; transform-origin: 0 40px; transition: transform .5s cubic-bezier(.2, .8, .3, 1); }
-.fm-skull { fill: var(--plume); }
-.fm-body { fill: var(--plume-2); }
-.fm-wing { fill: var(--plume); opacity: .55; }
-.fm-beak-top { fill: var(--plume-light); opacity: .45; }
-.fm-streak { fill: none; stroke: var(--plume-streak); stroke-width: 3.5; stroke-linecap: round; }
-.fm-brow path { fill: none; stroke: var(--plume-light); stroke-width: 3.5; stroke-linecap: round; }
-.fm-mini-brow { fill: none; stroke: var(--muted); stroke-width: 7; stroke-linecap: round; }
-.fm-beak { fill: var(--horn); }
-.fm-gape { fill: none; stroke: var(--plume-streak); stroke-width: 3; stroke-linecap: round; }
-.fm-bristle { fill: none; stroke: var(--plume-light); stroke-width: 2.5; stroke-linecap: round; }
-.fm-branch { fill: none; stroke: var(--branch); stroke-width: 18; stroke-linecap: round; }
-.fm-twig { fill: none; stroke: var(--branch); stroke-width: 7; stroke-linecap: round; }
-.fm-feet { fill: none; stroke: var(--horn); stroke-width: 4; stroke-linecap: round; }
+.fm-head { transform-box: view-box; transform-origin: 0 0; transition: transform .5s cubic-bezier(.2, .8, .3, 1); }
 .fm.ruffle .fm-head { animation: ruffle .5s cubic-bezier(.3, .6, .4, 1); }
 @keyframes ruffle {
   0% { transform: scale(1); }
@@ -178,8 +150,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
   display: grid; place-items: center; padding: 24px 16px;
 }
 .w-inner { width: min(560px, 100%); display: grid; justify-items: center; gap: 18px; }
-.w-bird { width: min(480px, 92vw); }
-.w-bird .fm { width: 100%; height: auto; }
+.w-bird { display: grid; justify-items: center; gap: 18px; }
+.w-mark .fm { width: min(200px, 46vw); height: auto; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .35)); }
+.w-word .fm { height: min(54px, 11vw); width: auto; }
 .w-card { width: 100%; display: grid; gap: 14px; justify-items: center; text-align: center; }
 .w-lead { font-size: 16px; margin: 0; max-width: 40ch; color: var(--text); }
 .w-actions { display: grid; gap: 14px; justify-items: center; width: 100%; }
@@ -215,10 +188,10 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .hud-brand { padding: 0 4px 0 8px; gap: 6px; min-width: 0; overflow: visible; }
 .hud { top: 22px; }
 /* the bird perches on the logo pill, its head above the edge, its belly tucked behind it */
-.hud-bird { position: relative; width: 44px; height: 38px; margin-left: -4px; overflow: hidden; border-radius: 0 0 0 9px; margin-top: -22px; height: 60px; align-self: flex-end; }
-.hud-bird .fm { position: absolute; left: -2px; bottom: -14px; width: 48px; height: auto; }
+.hud-bird { display: flex; margin-left: -2px; }
+.hud-bird .fm { height: 34px; width: auto; }
 .hud-logo { display: flex; }
-.hud-logo .fm { height: 22px; width: auto; }
+.hud-logo .fm { height: 19px; width: auto; }
 .hud-left { flex: 1; min-width: 0; }
 .hud-menu {
   display: grid; place-items: center; width: 22px; height: 30px; padding: 0; margin-left: -2px;
