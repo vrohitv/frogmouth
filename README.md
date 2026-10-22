@@ -125,7 +125,7 @@ Unencrypted, `vault.frogmouth` is pretty-printed JSON, so it diffs well in git:
 
 ## Development
 
-No dependencies: plain JavaScript and CSS, inlined into one file by a stdlib Python script.
+No dependencies: plain JavaScript and CSS, inlined into one file (fonts included, as base64) by a stdlib Python script.
 
 ```sh
 python3 build.py          # -> frogmouth.html
@@ -134,7 +134,9 @@ python3 test/run.py       # builds test/frogmouth.test.html and runs the smoke s
 
 ```
 src/index.html        page shell + CSP
+src/css/00-fonts.css  embedded JetBrains Mono (@font-face)
 src/css/app.css       all styles (night and day themes)
+src/fonts/            JetBrains Mono woff2 files + OFL license, inlined by build.py
 src/js/00-util.js     helpers, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
 src/js/02-crypto.js   optional AES-GCM vault encryption
@@ -153,4 +155,6 @@ The JS files are concatenated in name order into one scope, so later files can u
 
 ## License
 
-MIT
+MIT for frogmouth itself.
+
+The page embeds [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), licensed under the SIL Open Font License 1.1 (`src/fonts/OFL.txt`).

@@ -4,7 +4,7 @@
     python3 build.py           -> frogmouth.html
     python3 build.py --test    -> test/frogmouth.test.html (with test/*.js, see test/run.sh)
 """
-import pathlib, re, sys
+import base64, pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).parent
 TEST = "--test" in sys.argv
@@ -12,6 +12,9 @@ SRC = ROOT / "src"
 
 def main() -> int:
     css = "\n".join(p.read_text() for p in sorted((SRC / "css").glob("*.css")))
+    # url("@font:name.woff2") -> embedded data: URI (fonts live in src/fonts)
+    css = re.sub(r'url\("@font:([^"]+)"\)', lambda m: 'url("data:font/woff2;base64,'
+                 + base64.b64encode((SRC / "fonts" / m.group(1)).read_bytes()).decode() + '")', css)
     parts = []
     files = sorted((SRC / "js").glob("*.js"))
     if TEST:

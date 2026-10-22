@@ -1,62 +1,66 @@
 /* ── tokens ──────────────────────────────────────────────────────
    Night is the default: frogmouths are nocturnal. The only accent is
    the amber of the bird's iris. Everything else is bark and lichen. */
+/* ── tokens ──────────────────────────────────────────────────────
+   "Eucalyptus at night": tawny frogmouths roost in eucalyptus forest,
+   so the base is a deep blue-green slate with leaf-grey text. The one
+   accent is the amber of the bird's iris. The bird is its true silver-grey. */
 :root, [data-theme="night"] {
-  --bg: #2a2521;
-  --panel: #312b26;
-  --panel-2: #3b342e;
-  --line: #4a423b;
-  --text: #e8e0d2;
-  --muted: #a89e90;
-  --faint: #7d7469;
-  --iris: #f0b43c;
-  --iris-ink: #2b1d04;
-  --iris-soft: rgba(240, 180, 60, .16);
-  --moss: #a9b896;
-  --danger: #e2675a;
-  --grid: rgba(232, 224, 210, .085);
-  --scrim: rgba(22, 18, 15, .6);
-  --shadow: 0 1px 0 rgba(0, 0, 0, .25), 0 12px 32px -10px rgba(0, 0, 0, .6);
+  --bg: #121a1d;
+  --panel: #18232a;
+  --panel-2: #20303a;
+  --line: #2b3d46;
+  --text: #dce6e3;
+  --muted: #8ea29d;
+  --faint: #5f7470;
+  --iris: #f2b33d;
+  --iris-ink: #241801;
+  --iris-soft: rgba(242, 179, 61, .16);
+  --moss: #7fcf9a;
+  --danger: #f07163;
+  --grid: rgba(220, 230, 227, .07);
+  --scrim: rgba(6, 11, 13, .62);
+  --shadow: 0 1px 0 rgba(0, 0, 0, .3), 0 12px 32px -10px rgba(0, 0, 0, .7);
   /* the bird */
-  --plume: #5e534a;
-  --plume-2: #51473f;
-  --plume-streak: #3d352f;
-  --plume-light: #9a8b79;
-  --horn: #a59578;
-  --branch: #3f352d;
-  --lid: #6b5e52;
-  --word-stroke: #2a2521;
+  --plume: #687170;
+  --plume-2: #59615f;
+  --plume-streak: #3b4241;
+  --plume-light: #a9b2ae;
+  --horn: #a19c87;
+  --branch: #33403f;
+  --lid: #737c7a;
+  --word-stroke: #121a1d;
   color-scheme: dark;
 }
 [data-theme="day"] {
-  --bg: #e9e5de;
-  --panel: #dfdad2;
-  --panel-2: #d3cdc3;
-  --line: #c2b9ab;
-  --text: #2b2520;
-  --muted: #6b6257;
-  --faint: #978d80;
-  --iris: #b8770e;
+  --bg: #edf2f0;
+  --panel: #e2e9e6;
+  --panel-2: #d4dfdb;
+  --line: #bfcdc8;
+  --text: #17232a;
+  --muted: #4f625d;
+  --faint: #839692;
+  --iris: #b06f00;
   --iris-ink: #fffaf0;
-  --iris-soft: rgba(184, 119, 14, .14);
-  --moss: #5f7350;
-  --danger: #b9402f;
-  --grid: rgba(43, 37, 32, .11);
-  --scrim: rgba(60, 52, 44, .35);
-  --shadow: 0 1px 0 rgba(60, 50, 40, .12), 0 12px 28px -12px rgba(60, 50, 40, .35);
-  --plume: #8c7d6e;
-  --plume-2: #7d6f61;
-  --plume-streak: #5f5347;
-  --plume-light: #b9aa96;
-  --horn: #b8a888;
-  --branch: #6a5a4b;
-  --lid: #8c7d6e;
-  --word-stroke: #e9e5de;
+  --iris-soft: rgba(176, 111, 0, .13);
+  --moss: #2f8a52;
+  --danger: #c2412f;
+  --grid: rgba(23, 35, 42, .1);
+  --scrim: rgba(30, 45, 50, .3);
+  --shadow: 0 1px 0 rgba(20, 40, 45, .1), 0 12px 28px -12px rgba(20, 40, 45, .3);
+  --plume: #7d8684;
+  --plume-2: #6d7674;
+  --plume-streak: #4c5452;
+  --plume-light: #b6bebb;
+  --horn: #aca68f;
+  --branch: #6a7774;
+  --lid: #858e8c;
+  --word-stroke: #edf2f0;
   color-scheme: light;
 }
 :root {
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --side-w: 232px;
 }
 
@@ -65,7 +69,8 @@ html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.45 var(--sans);
+  font: 12.5px/1.5 var(--sans);
+  font-variant-ligatures: none;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -130,12 +135,12 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .fm-big text, .fm-face text { stroke: var(--word-stroke); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke; }
 .fm-iris { fill: #e19a26; }
 .fm-iris-in { fill: #f5c55a; opacity: .75; }
-.fm-ring { fill: none; stroke: #3a2810; stroke-width: 2.5; }
-.fm-pup { fill: #15100a; }
+.fm-ring { fill: none; stroke: #2e2105; stroke-width: 2.5; }
+.fm-pup { fill: #0b0d0c; }
 .fm-glint { fill: #fff6df; }
 .fm-pupil { transition: transform .14s ease-out; }
 .fm-lid { fill: var(--lid); }
-.fm-lid-edge { stroke: #2d241d; stroke-width: 2.5; stroke-linecap: round; }
+.fm-lid-edge { stroke: #2a302f; stroke-width: 2.5; stroke-linecap: round; }
 .fm-lidg { transition: transform .26s cubic-bezier(.3, .7, .3, 1); }
 .fm-lidg.fast { transition-duration: .08s; }
 .fm-head { transform-box: view-box; transform-origin: 0 40px; transition: transform .5s cubic-bezier(.2, .8, .3, 1); }
@@ -248,12 +253,12 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .plane.arranging .note { transition: transform .4s cubic-bezier(.2, .8, .3, 1); }
 
 /* paper colours */
-.paper-straw { --paper: #ead598; --ink: #2d2416; --rule: rgba(45, 36, 22, .12); }
-.paper-lichen { --paper: #bfcca8; --ink: #222a1b; --rule: rgba(34, 42, 27, .12); }
-.paper-dusk { --paper: #b4c4d5; --ink: #1c2633; --rule: rgba(28, 38, 51, .12); }
-.paper-moth { --paper: #ddd5c8; --ink: #2b2620; --rule: rgba(43, 38, 32, .12); }
-.paper-rose { --paper: #e7bcae; --ink: #34201b; --rule: rgba(52, 32, 27, .12); }
-.paper-night { --paper: #463e37; --ink: #ece4d6; --rule: rgba(236, 228, 214, .14); }
+.paper-straw { --paper: #eed98f; --ink: #2a2412; --rule: rgba(42, 36, 18, .13); }
+.paper-lichen { --paper: #b9d4b1; --ink: #17271a; --rule: rgba(23, 39, 26, .13); }
+.paper-dusk { --paper: #aecae0; --ink: #132433; --rule: rgba(19, 36, 51, .13); }
+.paper-moth { --paper: #d9e0df; --ink: #1c2629; --rule: rgba(28, 38, 41, .13); }
+.paper-rose { --paper: #edbdb3; --ink: #351c18; --rule: rgba(53, 28, 24, .13); }
+.paper-night { --paper: #26343c; --ink: #e1ebe8; --rule: rgba(225, 235, 232, .14); }
 
 .note {
   position: absolute; left: 0; top: 0;
@@ -282,12 +287,12 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note-x:hover { opacity: 1 !important; background: var(--rule); }
 .note-body {
   flex: 1; min-height: 0; overflow: auto; padding: 0 14px 10px; outline: none;
-  font: 13.5px/1.5 var(--sans); cursor: text; overflow-wrap: anywhere;
+  font: 13px/1.55 var(--sans); cursor: text; overflow-wrap: anywhere;
   scrollbar-width: thin;
 }
 .note-body.drop { box-shadow: inset 0 0 0 2px var(--iris); }
 .note-body > :first-child { margin-top: 2px; }
-.note-body > p:first-child { font-weight: 700; font-size: 15px; line-height: 1.35; margin-bottom: 6px; }
+.note-body > p:first-child { font-weight: 700; font-size: 14px; line-height: 1.35; margin-bottom: 6px; }
 .note-body p { margin: 0 0 4px; }
 .note-body h1 { font-size: 19px; line-height: 1.25; margin: 8px 0 6px; }
 .note-body h2 { font-size: 16px; line-height: 1.3; margin: 8px 0 4px; }
@@ -338,28 +343,28 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 /* code blocks: always dark, like a terminal pinned to the note */
 .note-body pre.code {
   position: relative; margin: 6px -4px 8px; padding: 22px 12px 10px;
-  background: #221e1a; color: #e6ddcf; border-radius: 4px;
-  font: 12px/1.55 var(--mono); white-space: pre; overflow-x: auto; tab-size: 2;
+  background: #0e1518; color: #d9e4e1; border-radius: 4px;
+  font: 12px/1.6 var(--mono); white-space: pre; overflow-x: auto; tab-size: 2;
   scrollbar-width: thin;
 }
 .note-body pre.code code { font: inherit; background: none; padding: 0; display: block; min-width: max-content; outline: none; }
 .note-body pre.code::after {
-  position: absolute; top: 3px; right: 6px; font: 10.5px/16px var(--sans); color: #8e8478;
+  position: absolute; top: 3px; right: 6px; font: 10.5px/16px var(--sans); color: #6d817c;
   padding: 0 6px; border-radius: 3px; cursor: pointer; user-select: none;
 }
 .note-body pre.code[data-auto]::after { content: attr(data-auto); }
-.note-body pre.code[data-lang]::after { content: attr(data-lang); color: #c9bda9; }
-.note-body pre.code:hover::after { background: #3a332c; color: #f0e6d6; }
+.note-body pre.code[data-lang]::after { content: attr(data-lang); color: #b7c7c2; }
+.note-body pre.code:hover::after { background: #22313a; color: #eef5f3; }
 .t-k { color: #f0b43c; }
-.t-s, .t-r { color: #b7cb8f; }
-.t-c { color: #8a8073; font-style: italic; }
-.t-n, .t-l { color: #ea9f7d; }
-.t-f { color: #a9c8e8; }
-.t-t { color: #e3c891; }
-.t-p { color: #d7bb8c; }
-.t-v { color: #a9c8e8; }
-.t-b { color: #d6a8c9; }
-.t-add { color: #b7cb8f; }
+.t-s, .t-r { color: #9fd49f; }
+.t-c { color: #6c807b; font-style: italic; }
+.t-n, .t-l { color: #f2a17e; }
+.t-f { color: #86c1f0; }
+.t-t { color: #e7cb7c; }
+.t-p { color: #c4b0ef; }
+.t-v { color: #86c1f0; }
+.t-b { color: #e49ac8; }
+.t-add { color: #9fd49f; }
 .t-del { color: #e2675a; }
 
 /* images: zoom and pan inside their own frame */
@@ -372,7 +377,7 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note-body figure.pic.zoomed img { image-rendering: -webkit-optimize-contrast; }
 .pic-ui {
   position: absolute; right: 6px; top: 6px; display: flex; border-radius: 4px; overflow: hidden;
-  background: rgba(34, 30, 26, .82); opacity: 0; transition: opacity .12s;
+  background: rgba(14, 21, 24, .85); opacity: 0; transition: opacity .12s;
 }
 figure.pic:hover .pic-ui, figure.pic.zoomed .pic-ui { opacity: 1; }
 .pic-ui button { border: 0; background: none; color: #efe6d8; height: 22px; min-width: 24px; padding: 0 6px; cursor: pointer; font: 12px var(--sans); }
@@ -466,7 +471,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
 .toast-warn { background: var(--danger); color: #fff; }
 .toast.out { opacity: 0; transform: translateY(4px); transition: .16s; }
 .toast-act { border: 0; background: none; color: #f0b43c; font-weight: 700; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
-[data-theme="night"] .toast-act { color: #8a5a06; }
+[data-theme="night"] .toast-act { color: #8a5400; }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
 
 /* ── secrets ── */

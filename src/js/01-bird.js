@@ -5,7 +5,7 @@
    shut tight while a secret or passphrase is being typed. */
 const Bird = (() => {
   const NS = 'http://www.w3.org/2000/svg';
-  const FONT = 'ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif';
+  const FONT = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
   const eyes = new Set();
   const heads = new Set();
   const LID = { wide: 0.0, rest: 0.2, squint: 0.6, sleepy: 0.84, closed: 1.06 };

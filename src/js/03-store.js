@@ -27,16 +27,16 @@ const Store = (() => {
     const n1 = uid(), n2 = uid(), n3 = uid();
     const t = now();
     b.notes.push(
-      { id: n1, x: 80, y: 80, w: 300, h: null, color: 'straw', z: 3, created: t, updated: t,
+      { id: n1, x: 80, y: 80, w: 320, h: null, color: 'straw', z: 3, created: t, updated: t,
         html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.frogmouth</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
           `<p>Press <code>${MOD}K</code> to search everything.</p>` },
-      { id: n2, x: 420, y: 80, w: 340, h: null, color: 'night', z: 2, created: t, updated: t,
+      { id: n2, x: 440, y: 80, w: 380, h: null, color: 'night', z: 2, created: t, updated: t,
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
           'async function retry(fn, tries = 5) {\n  for (let i = 0; i < tries; i++) {\n    try { return await fn(); }\n    catch (err) {\n      // 100ms, 200ms, 400ms ...\n      await sleep(100 * 2 ** i);\n    }\n  }\n  throw new Error("gave up");\n}') +
           '</code></pre><p>Used by <a class="mention" data-note="' + n3 + '" contenteditable="false">@Today</a></p>' },
-      { id: n3, x: 80, y: 360, w: 260, h: null, color: 'lichen', z: 1, created: t, updated: t,
+      { id: n3, x: 80, y: 440, w: 280, h: null, color: 'lichen', z: 1, created: t, updated: t,
         html: '<p>Today</p><ul data-type="todo"><li data-checked="true">Open a vault folder</li><li data-checked="false">Add a secret with tags like <code>env:prod</code></li><li data-checked="false">Read <a class="mention" data-note="' + n1 + '" contenteditable="false">@Welcome to frogmouth</a></li></ul>' },
     );
     return {
