@@ -1,9 +1,13 @@
+import { MOD, clamp, now, h, uid, debounce, esc, bus, toast, download, idb } from './00-util.js';
+import { Vcrypt } from './02-crypto.js';
+import { Editor } from './06-editor.js';
+
 /* ── store: state, the .frogmouth file, sync, images ───────────────
    A vault is a folder. Inside it lives one `*.frogmouth` file (JSON,
    optionally encrypted) plus any images, which notes reference by path
    relative to the folder. Writes are debounced and atomic
    (createWritable swaps the file on close). */
-const Store = (() => {
+export const Store = (() => {
   const FILE = 'vault.frogmouth';
   const IMG_RE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i;
   const S = {

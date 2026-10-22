@@ -1,5 +1,5 @@
 /* ── optional vault encryption (AES-256-GCM, PBKDF2-SHA256) ───── */
-const Vcrypt = (() => {
+export const Vcrypt = (() => {
   const ITER = 600000;
   const te = new TextEncoder(), td = new TextDecoder();
   const b64 = (buf) => {

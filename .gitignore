@@ -1,3 +1,6 @@
+node_modules/
+.build/
+.build-test/
 test/frogmouth.test.html
 *.frogmouth
 .frogmouth-backups/

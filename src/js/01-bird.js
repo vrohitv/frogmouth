@@ -1,9 +1,11 @@
+import { clamp, now, icon } from './00-util.js';
+
 /* ── the frogmouth (the bird) ────────────────────────────────────────────────
    The wordmark "frogmouth" where both o's are the bird's amber eyes.
    Eyes follow the pointer (or the text caret while typing), blink,
    squint when idle (frogmouths camouflage by narrowing their eyes) and
    shut tight while a secret or passphrase is being typed. */
-const Bird = (() => {
+export const Bird = (() => {
   const NS = 'http://www.w3.org/2000/svg';
   const FONT = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
   const eyes = new Set();

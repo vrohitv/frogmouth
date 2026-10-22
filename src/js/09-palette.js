@@ -1,7 +1,13 @@
+import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon } from './00-util.js';
+import { Bird } from './01-bird.js';
+import { Store } from './03-store.js';
+import { Secrets } from './08-secrets.js';
+import { App } from './10-app.js';
+
 /* ── palette: search everything, run commands ─────────────────────
    plain  notes, boards, secrets (names and tags, never values)
    >      commands      @  notes only      $  secrets only      #  boards only */
-const Palette = (() => {
+export const Palette = (() => {
   let el, inp, list, foot, items = [], idx = 0, built = -1, idxNotes = [], idxBoards = [], idxSecrets = [];
 
   function build() {

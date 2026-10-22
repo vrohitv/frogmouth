@@ -1,15 +1,14 @@
-'use strict';
 /* ── tiny helpers ─────────────────────────────────────────────── */
-const $ = (s, r = document) => r.querySelector(s);
-const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-const MOD = isMac ? '⌘' : 'Ctrl+';
-const ALT = isMac ? '⌥' : 'Alt+';
-const modKey = (e) => (isMac ? e.metaKey : e.ctrlKey);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const now = () => Date.now();
+export const $ = (s, r = document) => r.querySelector(s);
+export const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+export const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+export const MOD = isMac ? '⌘' : 'Ctrl+';
+export const ALT = isMac ? '⌥' : 'Alt+';
+export const modKey = (e) => (isMac ? e.metaKey : e.ctrlKey);
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const now = () => Date.now();
 
-function h(tag, attrs, ...kids) {
+export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   if (attrs) {
     for (const k in attrs) {
@@ -28,13 +27,13 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
-function uid() {
+export function uid() {
   const a = new Uint8Array(6);
   crypto.getRandomValues(a);
   return now().toString(36) + Array.from(a, (b) => (b % 36).toString(36)).join('');
 }
 
-function debounce(fn, ms) {
+export function debounce(fn, ms) {
   let t = 0;
   const d = (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
   d.flush = (...a) => { clearTimeout(t); fn(...a); };
@@ -43,9 +42,9 @@ function debounce(fn, ms) {
 }
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
+export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
 
-function relTime(ts) {
+export function relTime(ts) {
   if (!ts) return '';
   const s = (now() - ts) / 1000;
   if (s < 45) return 'just now';
@@ -55,13 +54,13 @@ function relTime(ts) {
   return new Date(ts).toLocaleDateString();
 }
 
-function isTypingTarget(t) {
+export function isTypingTarget(t) {
   if (!t || t.nodeType !== 1) return false;
   return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
 }
 
 /* ── event bus ────────────────────────────────────────────────── */
-const bus = (() => {
+export const bus = (() => {
   const m = new Map();
   return {
     on(n, f) { (m.get(n) || m.set(n, []).get(n)).push(f); },
@@ -72,7 +71,7 @@ const bus = (() => {
 /* ── fuzzy matching ───────────────────────────────────────────────
    Returns {s: score, p: [positions]} or null. q and t are lowercase. */
 const WORD_EDGE = /[\s_\-./:@$#()[\]]/;
-function fuzzy(q, t) {
+export function fuzzy(q, t) {
   if (!q) return { s: 0, p: [] };
   const i = t.indexOf(q);
   if (i >= 0) {
@@ -97,7 +96,7 @@ function fuzzy(q, t) {
   return { s: s - t.length * 0.02, p };
 }
 
-function markPositions(text, positions) {
+export function markPositions(text, positions) {
   if (!positions || !positions.length) return esc(text);
   const set = new Set(positions);
   let out = '', open = false;
@@ -111,7 +110,7 @@ function markPositions(text, positions) {
 }
 
 /* ── toasts ───────────────────────────────────────────────────── */
-function toast(msg, opts = {}) {
+export function toast(msg, opts = {}) {
   const host = $('#toasts');
   if (!host) return;
   const el = h('div', { class: 'toast' + (opts.kind ? ' toast-' + opts.kind : ''), role: 'status' }, h('span', { text: msg }));
@@ -127,7 +126,7 @@ function toast(msg, opts = {}) {
 }
 
 /* ── clipboard ────────────────────────────────────────────────── */
-async function copyText(text) {
+export async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; }
   catch {
     const ta = h('textarea', { style: { position: 'fixed', opacity: '0' } });
@@ -136,7 +135,7 @@ async function copyText(text) {
   }
 }
 
-function download(name, text, type = 'application/json') {
+export function download(name, text, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = h('a', { href: url, download: name });
   document.body.append(a); a.click(); a.remove();
@@ -144,7 +143,7 @@ function download(name, text, type = 'application/json') {
 }
 
 /* ── minimal IndexedDB key/value (for remembering folder handles) ─ */
-const idb = (() => {
+export const idb = (() => {
   let p;
   const db = () => p || (p = new Promise((res, rej) => {
     const r = indexedDB.open('frogmouth', 1);
@@ -164,7 +163,7 @@ const idb = (() => {
   };
 })();
 
-const ls = {
+export const ls = {
   get(k, d) { try { const v = localStorage.getItem('fm:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('fm:' + k, JSON.stringify(v)); } catch {} },
 };
@@ -201,12 +200,12 @@ const ICONS = {
   filebad: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M8 7v3M8 12.3v.2"/>',
   filenone: '<path d="M3.5 1.5h6l3 3v10h-9z" stroke-dasharray="2.2 1.6"/><path d="M1.5 1.5l13 13"/>',
 };
-const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+export const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
 /* ── tags (shared by notes and secrets) ───────────────────────────
    A tag is plain (`api`) or key:value (`env:prod`). Filters are
    space-separated tokens: `api env:prod -draft`. */
-const Tags = {
+export const Tags = {
   parse(t) { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; },
   split(s) { return [...new Set(String(s || '').split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean))]; },
   chip(t, on) {

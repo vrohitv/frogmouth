@@ -1,5 +1,14 @@
+import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon } from './00-util.js';
+import { Bird } from './01-bird.js';
+import { Store } from './03-store.js';
+import { Popup, Modal } from './05-ui.js';
+import { Board } from './07-board.js';
+import { Secrets } from './08-secrets.js';
+import { NotesList } from './08b-notes.js';
+import { Palette } from './09-palette.js';
+
 /* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
-const App = (() => {
+export const App = (() => {
   let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
   let lastActivity = now();
@@ -526,5 +535,3 @@ const App = (() => {
   return { boot, openTab, gotoNote, pushUndo, commands, enter, showWelcome, openVault };
 })();
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', App.boot);
-else App.boot();

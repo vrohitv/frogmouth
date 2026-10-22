@@ -1,5 +1,10 @@
+import { $$, MOD, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags } from './00-util.js';
+import { Store } from './03-store.js';
+import { Modal } from './05-ui.js';
+import { App } from './10-app.js';
+
 /* ── secrets: key/value pairs with plain and key:value tags ────────── */
-const Secrets = (() => {
+export const Secrets = (() => {
   let root, list, filterInp, countEl, drawer, tagsRow;
   let rows = [], cur = 0, editingId = null;
   const revealed = new Set();

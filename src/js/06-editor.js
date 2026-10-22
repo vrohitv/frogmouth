@@ -1,3 +1,10 @@
+import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText } from './00-util.js';
+import { Bird } from './01-bird.js';
+import { Store } from './03-store.js';
+import { HL } from './04-highlight.js';
+import { Popup, Modal } from './05-ui.js';
+import { Board } from './07-board.js';
+
 /* ── note editor: contenteditable with / commands, @ tags, code, images ─
    Stored HTML is a small, sanitized subset:
    p h1 h2 h3 ul ol li blockquote pre.code hr b i u s code a br
@@ -5,7 +12,7 @@
    span.fref[data-path]    – tag of a file in the vault folder
    span.sref[data-secret]  – reference to a secret (click copies)
    figure.pic[data-src]    – image, zoom/pan inside its own frame      */
-const Editor = (() => {
+export const Editor = (() => {
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch {}
   const exec = (c, v = null) => document.execCommand(c, false, v);
   const BLOCK = /^(P|LI|H1|H2|H3|BLOCKQUOTE|PRE|DIV|FIGURE)$/;

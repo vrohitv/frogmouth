@@ -1,3 +1,15 @@
+import { $, $$, isMac, now, uid, esc, fuzzy } from '../src/js/00-util.js';
+import { Vcrypt } from '../src/js/02-crypto.js';
+import { Store } from '../src/js/03-store.js';
+import { HL } from '../src/js/04-highlight.js';
+import { Popup } from '../src/js/05-ui.js';
+import { Editor } from '../src/js/06-editor.js';
+import { Board } from '../src/js/07-board.js';
+import { Secrets } from '../src/js/08-secrets.js';
+import { NotesList } from '../src/js/08b-notes.js';
+import { Palette } from '../src/js/09-palette.js';
+import { App } from '../src/js/10-app.js';
+
 /* Smoke tests. Only included by `python3 build.py --test`.
    Open test/frogmouth.test.html#smoke (served over http for OPFS),
    or #shot-board / #shot-secrets / #shot-palette for screenshots. */

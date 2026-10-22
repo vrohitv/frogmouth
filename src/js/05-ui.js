@@ -1,5 +1,8 @@
+import { modKey, clamp, h, esc, icon, Tags } from './00-util.js';
+import { Store } from './03-store.js';
+
 /* ── Popup: one floating, keyboard-driven list used for /, @, pickers ─ */
-const Popup = (() => {
+export const Popup = (() => {
   let el = null, items = [], idx = 0, opts = null;
 
   function render() {
@@ -91,7 +94,7 @@ const Popup = (() => {
 })();
 
 /* ── Modal dialogs (never native alert/confirm/prompt) ─────────── */
-const Modal = (() => {
+export const Modal = (() => {
   let stack = [];
   function open({ title, body, actions = [], wide, onClose, cls }) {
     return new Promise((resolve) => {
@@ -143,7 +146,7 @@ const Modal = (() => {
 })();
 
 /* ── inline tag editor with completion from every tag in the vault ── */
-function editTags(host, tags, onDone) {
+export function editTags(host, tags, onDone) {
   const inp = h('input', { class: 'tag-input', value: tags.length ? tags.join(' ') + ' ' : '', placeholder: 'api env:prod …', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Tags, space separated' });
   host.replaceChildren(inp);
   inp.focus();

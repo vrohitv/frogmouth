@@ -138,34 +138,39 @@ Unencrypted, `vault.frogmouth` is pretty-printed JSON, so it diffs well in git:
 
 ## Development
 
-No dependencies: plain JavaScript and CSS, inlined into one file (fonts included, as base64) by a stdlib Python script.
+Plain JavaScript modules and CSS, no runtime dependencies. [Vite](https://vite.dev) with [vite-plugin-singlefile](https://github.com/richardtallent/vite-plugin-singlefile) inlines everything (code, styles, fonts as base64) into one HTML file.
 
 ```sh
-python3 build.py          # -> frogmouth.html
-python3 test/run.py       # builds test/frogmouth.test.html and runs the smoke suite in headless Chrome
+npm install
+npm run dev          # dev server with hot reload (the no-network policy is relaxed only here)
+npm run build        # -> frogmouth.html, the single file to ship
+npm test             # builds test/frogmouth.test.html and runs the smoke suite in headless Chrome
 ```
 
+`npm test` needs Python 3 and Chrome (set `CHROME=/path/to/chrome` if it is not in the usual place).
+
 ```
-src/index.html        page shell + CSP
-src/css/00-fonts.css  embedded JetBrains Mono (@font-face)
+src/index.html        page shell + Content-Security-Policy
+src/main.js           entry: imports the styles and boots the app
+src/css/00-fonts.css  JetBrains Mono @font-face (Vite inlines the woff2 files)
 src/css/app.css       all styles (night and day themes)
-src/fonts/            JetBrains Mono woff2 files + OFL license, inlined by build.py
-src/js/00-util.js     helpers, fuzzy matching, toasts, IndexedDB
+src/fonts/            JetBrains Mono woff2 files + OFL license
+src/js/00-util.js     helpers, tags, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
 src/js/02-crypto.js   optional AES-GCM vault encryption
 src/js/03-store.js    state, the .frogmouth file, autosave, disk watching, images, files
 src/js/04-highlight.js  syntax highlighter
-src/js/05-ui.js       popup menus and modals
-src/js/06-editor.js   note editor: / menu, @ tags, markdown shortcuts, code blocks, images
-src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange
-src/js/08-secrets.js  secrets list, .env import/export
+src/js/05-ui.js       popup menus, modals, the tag editor
+src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images
+src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange, note tags
+src/js/08-secrets.js  secrets list, .env import/export, JSON export
 src/js/08b-notes.js   all-notes page: sort, filter, tags, links
 src/js/09-palette.js  search and commands
-src/js/10-app.js      shell: welcome, floating controls, board menu, sync icon, keyboard
+src/js/10-app.js      shell: welcome, floating controls, board pills, sync icon, keyboard
 test/smoke.js         smoke tests (UI typing, sanitizer, crypto, real file writes via OPFS)
+test/run.py           drives headless Chrome over the DevTools pipe
+vite.config.js        single-file build, test mode, dev-only CSP relaxation
 ```
-
-The JS files are concatenated in name order into one scope, so later files can use earlier ones.
 
 ## License
 

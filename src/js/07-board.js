@@ -1,5 +1,11 @@
+import { modKey, clamp, now, h, uid, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags } from './00-util.js';
+import { Store } from './03-store.js';
+import { Popup, Modal, editTags } from './05-ui.js';
+import { Editor } from './06-editor.js';
+import { App } from './10-app.js';
+
 /* ── board: an infinite canvas of draggable sticky notes ──────────── */
-const Board = (() => {
+export const Board = (() => {
   const COLORS = ['straw', 'lichen', 'dusk', 'moth', 'rose', 'night'];
   const GRID = 8;
   let vp, plane, empty, board = null, view = { x: 0, y: 0, z: 1 }, sel = null, maxZ = 1;

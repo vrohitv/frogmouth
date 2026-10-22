@@ -1,5 +1,10 @@
+import { $$, clamp, now, h, esc, relTime, ls, icon, Tags } from './00-util.js';
+import { Store } from './03-store.js';
+import { Popup, editTags } from './05-ui.js';
+import { App } from './10-app.js';
+
 /* ── notes page: every note on every board, sortable, filterable, linked ─ */
-const NotesList = (() => {
+export const NotesList = (() => {
   let root, list, head, filterInp, countEl, tagsRow;
   let rows = [], cur = 0, back = new Map();
   let sort = ls.get('notes-sort', { by: 'updated', dir: -1 });

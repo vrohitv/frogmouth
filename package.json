@@ -1,0 +1,19 @@
+{
+  "name": "frogmouth",
+  "version": "0.1.0",
+  "description": "Sticky notes and secrets in one local file. One HTML page, no server, no network.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": "github:vrohitv/frogmouth",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:test": "vite build --mode test",
+    "test": "python3 test/run.py"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5",
+    "vite-plugin-singlefile": "^2.3.4"
+  }
+}

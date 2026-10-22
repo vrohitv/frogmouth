@@ -1,5 +1,7 @@
+import { esc } from './00-util.js';
+
 /* ── syntax highlighting: one small tokenizer, many languages ───── */
-const HL = (() => {
+export const HL = (() => {
   const W = (s) => new Set(s.split(' '));
   const C_LIKE = 'if else for while do switch case default break continue return goto try catch finally throw new delete typeof instanceof in of void';
   const L = {
