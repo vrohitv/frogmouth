@@ -42,8 +42,9 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - `/` opens the block menu: headings, lists, todos, code, quote, divider, image, file tag, note link, secret reference and date.
 - Markdown shortcuts: `# `, `## `, `- `, `1. `, `[] `, `> `, `---`, ```` ```lang ````, and `` `inline code` ``.
 - **Tables**: `/table` (or `/table 4x3` for 4 columns, 3 rows). `Tab` goes to the next cell and adds a row at the end, `↵` goes to the cell below, `⇧↵` breaks a line inside a cell and `⌘↵` leaves the table. Type `/` in a cell to add or delete rows and columns. Tables pasted from a spreadsheet or a web page come in as plain grids, and table text is searchable.
-- `@` links another note **or tags any file in the vault folder**, such as `diagram.excalidraw`. Clicking a note link jumps to that note. Clicking a file tag opens the file, saves a copy, or copies its path.
+- `@` links another note, **a board** (`@@` lists boards only) **or tags any file in the vault folder**, such as `diagram.excalidraw`. Clicking a note link jumps to that note. Clicking a file tag opens the file, saves a copy, or copies its path.
 - Notes that link to a note are listed at its foot ("2 notes link here").
+- **Board links** make a note a map of your boards: a "Projects" note with `@@Q3 Launch`, `@@Infra` and so on. Clicking one opens that board and shows a trail of where you came from (`‹ Projects › Q3 Launch`); click a step or press `⌥←` to go back to exactly the view you left. Links only point at boards, they never put anything on one.
 - Code blocks are syntax-highlighted as you type: JS/TS, Python, Go, Rust, C-family, shell, SQL, JSON, YAML, CSS, HTML, Ruby, PHP and diff. They auto-indent, take `Tab`, and have their own undo. The language label is a menu.
 - Images: paste, drop or `/image`. Pasted images are saved into `assets/` in the vault. **Each image zooms (wheel) and pans (drag) inside its own frame**, separate from the board. Double-click an image to fit it, and drag its bottom edge to change its height.
 - Dropping any other file copies it into `files/` and tags it in the note.
@@ -96,6 +97,7 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `⌥J` | Boards panel: find, open, create, pin, rename, delete |
 | `⌥1`–`⌥9`, `⌥[` `⌥]` | Board pills, previous / next board |
 | `⌘Z` | Undo a delete |
+| `⌥←` | Back along board links |
 
 | Board | |
 |---|---|

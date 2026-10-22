@@ -10,7 +10,7 @@ import { Palette } from './09-palette.js';
 
 /* ── app shell: welcome, floating controls, board pills, sync, keys, commands ── */
 export const App = (() => {
-  let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl;
+  let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl, trailEl;
   const undoStack = [];
 
   /* ── theme ── */
@@ -124,6 +124,7 @@ export const App = (() => {
     if (t !== 'secrets' && t !== 'notes') {
       const b = Store.board(t.slice(2));
       if (!b) return;
+      if (!following && b.id !== ui.board) trail = []; // opened some other way: the trail of board links ends
       ui.board = b.id;
       ui.recent = [b.id, ...(ui.recent || []).filter((id) => id !== b.id && Store.board(id))].slice(0, 40);
       b.opened = now();
@@ -140,6 +141,38 @@ export const App = (() => {
     if (persist) Store.change('ui');
   }
   const openTab = activate;
+
+  /* board links in notes: following one remembers where you came from, shown as a trail
+     (← Projects › Q3 Launch). Back (the arrow, a step, or Alt+Left) returns to that board,
+     at the view you left. Opening a board any other way clears the trail. Not saved. */
+  let trail = [], following = false;
+  function walk(id) { following = true; try { activate('b:' + id); } finally { following = false; } }
+  function followBoard(id) {
+    const ui = Store.S.data.ui;
+    if (!Store.board(id)) { toast('That board was deleted'); return; }
+    if (id === ui.board && isBoardView()) return;
+    const i = trail.indexOf(id);
+    // a link back to a board already on the trail goes back there instead of growing a loop
+    trail = i >= 0 ? trail.slice(0, i) : [...trail, ui.board];
+    walk(id);
+  }
+  function back(i = trail.length - 1) {
+    if (i < 0 || i >= trail.length) return;
+    const id = trail[i];
+    trail = trail.slice(0, i);
+    walk(id);
+  }
+  function renderTrail() {
+    trail = trail.filter((id) => Store.board(id));
+    const cur = Store.board(Store.S.data.ui.board);
+    trailEl.hidden = !trail.length || !isBoardView() || !cur;
+    if (trailEl.hidden) { trailEl.replaceChildren(); return; }
+    const step = (id, i) => h('button', { class: 'trail-step', text: Store.board(id).name, title: `Back to ${Store.board(id).name}`, onclick: () => back(i) });
+    trailEl.replaceChildren(
+      h('button', { class: 'trail-back', html: icon('down'), title: `Back to ${Store.board(trail[trail.length - 1]).name} (${kb('alt+←')})`, 'aria-label': 'Back', onclick: () => back() }),
+      ...trail.flatMap((id, i) => [step(id, i), h('span', { class: 'trail-sep', text: '›' })]),
+      h('span', { class: 'trail-here', text: cur.name }));
+  }
   const isSecrets = () => Store.S.data.ui.active === 'secrets';
   const isBoardView = () => Store.S.data.ui.active.startsWith('b:');
   const viewOf = () => (isBoardView() ? 'board' : Store.S.data.ui.active);
@@ -156,6 +189,7 @@ export const App = (() => {
     if (!Store.S.data) return;
     for (const btn of switchEl.children) btn.classList.toggle('on', btn.dataset.view === viewOf());
     renderBoards();
+    renderTrail();
     renderSync();
   }
 
@@ -522,9 +556,9 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('mod+z'), 'Undo a delete'], ['?', 'This list']]],
+      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('mod+z'), 'Undo a delete'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
       ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
-      ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
+      ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], [kb('enter'), 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s / ' + kb('shift+s'), 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], [kb('shift+c'), 'Copy key name'], ['Space', 'Reveal value'], [kb('enter') + '  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
     ];
@@ -567,6 +601,7 @@ export const App = (() => {
     if (e.altKey && !mod && e.code === 'KeyL') { e.preventDefault(); showView('notes'); return; }
     if (e.altKey && !mod && e.code === 'KeyB') { e.preventDefault(); showView('board'); return; }
     if (isTypingTarget(e.target)) return;
+    if (e.altKey && !mod && !e.shiftKey && k === 'ArrowLeft' && trail.length && isBoardView()) { e.preventDefault(); back(); return; }
     if (mod && lower === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if (k === '?') { e.preventDefault(); shortcuts(); return; }
     if (k === 'F2' && isBoard()) { e.preventDefault(); renameBoard(Store.S.data.ui.board); return; }
@@ -601,7 +636,8 @@ export const App = (() => {
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${kb('mod+k')}</kbd>`, onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill hud-sync-pill' }, syncEl)));
-    shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud);
+    trailEl = h('nav', { class: 'hud-trail', hidden: true, 'aria-label': 'Boards you came through' });
+    shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud, trailEl);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
     Board.init(boardVp);
     Secrets.init(secretsEl);
@@ -618,11 +654,13 @@ export const App = (() => {
     bus.on('status', renderSync);
     bus.on('change', (what) => {
       if (what === 'secrets') Board.refreshChips();
-      if (what === 'boards') renderChrome();
+      if (what === 'boards') { renderChrome(); Board.refreshChips(); }
       if (Store.S.data.ui.active === 'notes' && (what === 'boards' || what === 'notes')) NotesList.render();
       renderSync();
     });
     bus.on('goto-note', (id, boardId) => gotoNote(id, boardId));
+    bus.on('goto-board', followBoard);
+    bus.on('closed', () => { trail = []; });
     bus.on('reloaded', () => { if (Store.S.data && !shell.hidden) enter(); });
     bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
     addEventListener('beforeunload', (e) => {

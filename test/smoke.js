@@ -113,6 +113,16 @@ import { App } from '../src/js/10-app.js';
       }
     }
     if (mode === 'shot-recent') Palette.show('');
+    if (mode === 'shot-trail') {
+      const d = Store.S.data, q3 = { id: uid(), name: 'Q3 Launch', created: now(), items: [] }, infra = { id: uid(), name: 'Infra', created: now(), items: [] };
+      d.boards.push(q3, infra); Store.index(); Store.change('boards');
+      const hub = Board.addNote({ x: 760, y: 120 }, false, `<p>Projects</p><ul><li><a class="bref" contenteditable="false" data-board="${q3.id}">Q3 Launch</a> ship by Sept</li><li><a class="bref" contenteditable="false" data-board="${infra.id}">Infra</a> on-call, costs</li></ul>`, { color: 'dusk' });
+      await wait(60);
+      document.querySelector(`.note[data-id="${hub.id}"] a.bref`).click(); await wait(60);
+      const n2 = Board.addNote({ x: 120, y: 160 }, false, `<p>Launch plan</p><p>Infra prerequisites: <a class="bref" contenteditable="false" data-board="${infra.id}">Infra</a></p>`, { color: 'sea' });
+      await wait(60);
+      document.querySelector(`.note[data-id="${n2.id}"] a.bref`).click(); await wait(80);
+    }
     if (mode === 'shot-papers' || mode === 'shot-papers-day') {
       if (mode === 'shot-papers-day') document.documentElement.dataset.theme = 'day';
       Board.COLORS.forEach((c, i) => Board.addNote({ x: 80 + (i % 5) * 230, y: 520 + Math.floor(i / 5) * 150 }, false, `<p>${c[0].toUpperCase() + c.slice(1)}</p><p>Key ${i + 1}. Calm in both themes, with <code>code</code> and a #tag.</p>`, { color: c, w: 210 }));
@@ -373,6 +383,60 @@ import { App } from '../src/js/10-app.js';
       ok('the board is exactly as it was', onHere() === before);
       for (const id of [host.id, away.id, loose.id]) Board.removeEverywhere(id, true);
       d.boards.splice(d.boards.indexOf(other), 1); Store.index(); Store.change('boards');
+    }
+
+    // board links: @@ (or the @ menu) links a board; following links leaves a trail you can go back along
+    {
+      const mod = { metaKey: isMac, ctrlKey: !isMac }, d = Store.S.data, home = Board.current();
+      const proj = { id: uid(), name: 'Q3 Launch', created: now(), items: [] }, infra = { id: uid(), name: 'Infra', created: now(), items: [] };
+      d.boards.push(proj, infra); Store.index(); Store.change('boards');
+      const itemsBefore = home.items.length;
+      const hub = Board.addNote({ x: 40, y: 3600 }, false, '<p>Projects</p><p><br></p>');
+      await wait(40);
+      Board.focusBody(hub.id);
+      const hb = $(`.note[data-id="${hub.id}"] .note-body`);
+      await type('@@q3');
+      const list = $('.pop') ? $('.pop').textContent : '';
+      ok('@@ lists boards only', Popup.isOpen() && /Q3 Launch/.test(list) && !/Welcome to frogmouth/.test(list), list.slice(0, 120));
+      keydown(hb, 'Enter');
+      const chip = hb.querySelector('a.bref');
+      ok('picking one inserts a board link chip', !!chip && chip.dataset.board === proj.id && chip.textContent === 'Q3 Launch', hb.innerHTML);
+      await type(' and @infra');
+      const list2 = $('.pop') ? $('.pop').textContent : '';
+      ok('@ lists boards too, next to notes and files', /Infra/.test(list2) && /board/.test(list2), list2.slice(0, 120));
+      keydown(hb, 'Enter');
+      hb.blur(); await wait(400);
+      ok('board links are saved in the note', (hub.html.match(/class="bref"/g) || []).length === 2 && hub.html.includes(`data-board="${proj.id}"`));
+      ok('linking boards puts nothing on the board', home.items.length === itemsBefore + 1);
+      const clean = document.createElement('div'); clean.append(Editor.sanitize(`<a class="bref" data-board="${proj.id}" href="javascript:x" onclick="x()">Q3</a>`));
+      ok('board links survive sanitizing, and nothing else does', clean.innerHTML === `<a class="bref" contenteditable="false" data-board="${proj.id}">Q3</a>`, clean.innerHTML);
+      proj.name = 'Q3 Launch!'; Store.change('boards'); await wait(30);
+      ok('a board link shows the board\'s current name', $(`.note[data-id="${hub.id}"] a.bref[data-board="${proj.id}"]`).textContent === 'Q3 Launch!');
+      // follow: Home -> Q3 Launch, then from there to Infra
+      $(`.note[data-id="${hub.id}"] a.bref[data-board="${proj.id}"]`).click(); await wait(60);
+      ok('clicking a board link opens the board', Board.current() === proj);
+      ok('a trail shows where you came from', !$('.hud-trail').hidden && $('.hud-trail').textContent.includes(home.name) && /Q3 Launch!$/.test($('.hud-trail').textContent), $('.hud-trail').textContent);
+      const step2 = Board.addNote({ x: 0, y: 0 }, false, `<p>Next</p><p><a class="bref" contenteditable="false" data-board="${infra.id}">Infra</a> <a class="bref" contenteditable="false" data-board="${home.id}">home</a></p>`);
+      await wait(30);
+      $(`.note[data-id="${step2.id}"] a.bref[data-board="${infra.id}"]`).click(); await wait(60);
+      ok('the trail grows as you follow links', Board.current() === infra && $$('.trail-step').length === 2, $('.hud-trail').textContent);
+      keydown(document.body, 'ArrowLeft', { altKey: true });
+      await wait(60);
+      ok(`${kb('alt+←')} goes back one step`, Board.current() === proj && $$('.trail-step').length === 1);
+      $(`.note[data-id="${step2.id}"] a.bref[data-board="${home.id}"]`).click(); await wait(60);
+      ok('a link back to a board on the trail goes back there, no loop', Board.current() === home && $('.hud-trail').hidden);
+      $(`.note[data-id="${hub.id}"] a.bref[data-board="${proj.id}"]`).click(); await wait(60);
+      $$('.trail-step')[0].click(); await wait(60);
+      ok('clicking a step goes back to it', Board.current() === home && $('.hud-trail').hidden);
+      $(`.note[data-id="${hub.id}"] a.bref[data-board="${proj.id}"]`).click(); await wait(60);
+      App.openTab('b:' + infra.id); await wait(60);
+      ok('opening a board another way clears the trail', $('.hud-trail').hidden);
+      App.openTab('b:' + home.id); await wait(60);
+      d.boards.splice(d.boards.indexOf(infra), 1); Store.index(); Store.change('boards'); await wait(30);
+      ok('a link to a deleted board is struck through', $(`.note[data-id="${hub.id}"] a.bref[data-board="${infra.id}"]`).classList.contains('missing'));
+      Board.removeEverywhere(hub.id, true);
+      for (const n of [...proj.items]) Board.removeEverywhere(n.note, true);
+      d.boards.splice(d.boards.indexOf(proj), 1); Store.index(); Store.change('boards');
     }
 
     // zoom percent and minimap

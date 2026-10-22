@@ -10,6 +10,7 @@ import { Board } from './07-board.js';
    p h1 h2 h3 ul ol li blockquote pre.code hr b i u s code a br
    table thead tbody tr th td
    a.mention[data-note]   – link to another note
+   a.bref[data-board]      – link to a board (@@ or the @ menu)
    span.fref[data-path]    – tag of a file in the vault folder
    span.sref[data-secret]  – reference to a secret (click copies)
    figure.pic[data-src]    – image, zoom/pan inside its own frame      */
@@ -66,6 +67,10 @@ export const Editor = (() => {
       if (tag === 'A') {
         if (n.classList.contains('mention') && n.getAttribute('data-note')) {
           dst.append(h('a', { class: 'mention', contenteditable: 'false', 'data-note': n.getAttribute('data-note') }, n.textContent));
+          continue;
+        }
+        if (n.classList.contains('bref') && n.getAttribute('data-board')) {
+          dst.append(h('a', { class: 'bref', contenteditable: 'false', 'data-board': n.getAttribute('data-board') }, n.textContent));
           continue;
         }
         const href = n.getAttribute('href') || '';
@@ -400,6 +405,12 @@ export const Editor = (() => {
       a.classList.toggle('missing', !ref);
       a.title = ref ? `${ref.board ? ref.board.name : 'On no board'} — click to open` : 'Note was deleted';
     }
+    for (const a of body.querySelectorAll('a.bref')) {
+      const b = Store.board(a.dataset.board);
+      if (b && a.textContent !== b.name) a.textContent = b.name;
+      a.classList.toggle('missing', !b);
+      a.title = b ? `Board · ${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'} — click to open` : 'Board was deleted';
+    }
     for (const s of body.querySelectorAll('span.sref')) {
       const x = Store.secret(s.dataset.secret);
       if (x && s.textContent !== x.key) s.textContent = x.key;
@@ -430,6 +441,7 @@ export const Editor = (() => {
     { id: 'image', label: 'Image', hint: 'from vault or computer', icon: 'image', k: 'image picture png screenshot upload' },
     { id: 'file', label: 'File tag', hint: 'any file in the vault', icon: 'folder', k: 'file attach excalidraw pdf tag' },
     { id: 'mention', label: 'Link a note', hint: '@', icon: 'note', k: 'mention link note reference @' },
+    { id: 'board', label: 'Link a board', hint: '@@', icon: 'board', k: 'board link reference open @@' },
     { id: 'secret', label: 'Secret reference', hint: 'copies on click', icon: 'key', k: 'secret key env password token' },
     { id: 'link', label: 'Web link', hint: 'url', icon: 'link', k: 'link url href web' },
     { id: 'date', label: 'Today’s date', hint: '', icon: 'cmd', k: 'date today time now' },
@@ -467,9 +479,17 @@ export const Editor = (() => {
   }
   bus.on('loaded', () => { filesCache = { at: 0, list: [] }; });
 
+  /* @ links a note, a file or a board; @@ lists boards only */
   function mentionItems(q, selfId) {
     q = q.toLowerCase().trim();
+    const boardsOnly = q.startsWith('@');
+    if (boardsOnly) q = q.slice(1).trim();
     const out = [];
+    for (const b of Store.S.data.boards) {
+      const m = fuzzy(q, b.name.toLowerCase());
+      if (m) out.push({ kind: 'board', id: b.id, label: b.name, labelHtml: markPositions(b.name, m.p), hint: `board · ${b.items.length} ${b.items.length === 1 ? 'note' : 'notes'}`, icon: 'board', sc: m.s - (boardsOnly ? 0 : 3) + (b.opened || 0) / 1e13 });
+    }
+    if (boardsOnly) return out.sort((a, b) => b.sc - a.sc).slice(0, 40);
     for (const [id, { note, board }] of Store.S.notes) {
       if (id === selfId) continue;
       const t = note.title || 'Untitled';
@@ -559,6 +579,7 @@ export const Editor = (() => {
   }
   function insertRef(it) {
     if (it.kind === 'note') insertInline(h('a', { class: 'mention', contenteditable: 'false', 'data-note': it.id }, '@' + it.label));
+    else if (it.kind === 'board') insertInline(h('a', { class: 'bref', contenteditable: 'false', 'data-board': it.id }, it.label));
     else if (it.kind === 'file') {
       if (/\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i.test(it.path) && it.asImage) insertPic(it.path);
       else insertInline(h('span', { class: 'fref', contenteditable: 'false', 'data-path': it.path }, it.path.split('/').pop()));
@@ -654,6 +675,7 @@ export const Editor = (() => {
       case 'row-below': case 'row-above': case 'col-right': case 'col-left': case 'row-del': case 'col-del': case 'table-del': tableOp(id, body); break;
       case 'date': exec('insertText', new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })); break;
       case 'mention': exec('insertText', '@'); startTrigger('@', body, ctx); break;
+      case 'board': exec('insertText', '@'); startTrigger('@', body, ctx); exec('insertText', '@'); updateTrigger(); break;
       case 'link': linkCmd(); break;
       case 'image': pickImage(); break;
       case 'file': pickFile(); break;
@@ -1029,6 +1051,8 @@ export const Editor = (() => {
     body.addEventListener('click', (e) => {
       const m = e.target.closest('a.mention');
       if (m) { e.preventDefault(); if (Store.noteRef(m.dataset.note)) bus.emit('goto-note', m.dataset.note); else toast('That note was deleted'); return; }
+      const br = e.target.closest('a.bref');
+      if (br) { e.preventDefault(); if (Store.board(br.dataset.board)) bus.emit('goto-board', br.dataset.board); else toast('That board was deleted'); return; }
       const sr = e.target.closest('span.sref');
       if (sr) { e.preventDefault(); const x = Store.secret(sr.dataset.secret); if (x) copyText(x.value).then(() => toast(`Copied ${x.key}`)); return; }
       const fr = e.target.closest('span.fref');

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Board links**: `@@` (or the `@` menu, which now lists boards too) puts a link to a board in a note, so one note can be the map of all your boards. Following links shows a trail (`‹ Projects › Q3 Launch`); click a step or press `⌥←` to go back to the view you left. Links never place anything on a board, and a link to a deleted board is struck through.
+
 ## 1.1.0 (2026-10-22)
 
 - **Minimap and zoom control** at the bottom right of the board: the zoom percentage with `−` / `+` / Fit (click the percentage for 100%), and a minimap of every note in its colour with the visible area framed; click or drag in it to move. `M` toggles the minimap. The view is now always derived from the saved camera, so the same camera at the same window size gives bit-for-bit the same view.

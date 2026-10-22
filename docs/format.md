@@ -10,6 +10,7 @@ A frogmouth vault is a folder with one `vault.fm` file in it. The file is UTF-8 
 
 - **`frogmouth`** is the format version, an integer. This document describes **format 1**.
 - **Additions keep the version.** A release may add fields to any object, or new kinds of blocks to note HTML, without changing the number.
+- **Unknown markup in note HTML** (a kind of block or link a release does not know) shows as plain text in that release, and is dropped only if that release edits the note.
 - **Unknown fields are kept.** A release that reads a field it does not know leaves it as it is and writes it back unchanged. So a vault edited by a newer release and then by an older one loses nothing the older one did not touch.
 - **Only a breaking change raises the version**: removing or renaming a field, or changing what an existing field means. A release never opens a file whose `frogmouth` is higher than its own. It says so and does not touch the file, so it can never write over data it does not understand.
 - **Tools that write vaults** should do the same: keep unknown fields, and refuse a higher `frogmouth`.
@@ -51,6 +52,7 @@ Notes live once, in `notes`. Boards only place them, so the same note can be on 
 - Tables: `table` `thead` `tbody` `tr` `th` `td`. Every row has the same number of cells.
 - Inline: `b` `strong` `i` `em` `u` `s` `del` `code` `mark` `br`, and `a href` with `http:`, `https:` or `mailto:` only.
 - Note links: `a class="mention" data-note="<note id>"`.
+- Board links: `a class="bref" data-board="<board id>"` (since 1.2). A link only points at a board; it never places anything on one.
 - File tags: `span class="fref" data-path="<path in the vault folder>"`.
 - Secret references: `span class="sref" data-secret="<secret id>"`. The value is never copied into the note.
 - Images: `figure class="pic" data-src="<path in the vault folder>"`, optionally with `data-h` (height in pixels). The source may also be a base64 `data:image/…` URL.

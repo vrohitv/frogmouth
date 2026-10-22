@@ -372,18 +372,19 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 }
 .note-body ul[data-type="todo"] li[data-checked="true"] { text-decoration: line-through; text-decoration-color: var(--rule); opacity: .6; }
 
-/* chips: note links, file tags, secret refs */
-.note-body .mention, .note-body .fref, .note-body .sref {
+/* chips: note links, board links, file tags, secret refs */
+.note-body .mention, .note-body .bref, .note-body .fref, .note-body .sref {
   display: inline-flex; align-items: center; gap: 3px; vertical-align: baseline;
   padding: 0 5px; border-radius: 3px; background: var(--rule); color: inherit;
   font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; line-height: 1.45;
 }
-.note-body .mention:hover, .note-body .fref:hover, .note-body .sref:hover { box-shadow: inset 0 -2px 0 currentColor; }
-.note-body .fref::before, .note-body .sref::before {
+.note-body .mention:hover, .note-body .bref:hover, .note-body .fref:hover, .note-body .sref:hover { box-shadow: inset 0 -2px 0 currentColor; }
+.note-body .bref::before, .note-body .fref::before, .note-body .sref::before {
   content: ""; width: 11px; height: 11px; flex: none; background: currentColor; opacity: .7;
   -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat;
 }
+.note-body .bref::before { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Crect x='2.5' y='2.5' width='11' height='11' rx='1.5'/%3E%3Cpath d='M6 2.5v11M6 7h7.5'/%3E%3C/svg%3E"); }
 .note-body .fref { font-weight: 500; font-family: var(--mono); font-size: .88em; }
 .note-body .fref::before { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M3.5 1.5h6l3 3v10h-9z'/%3E%3Cpath d='M9.5 1.5v3h3'/%3E%3C/svg%3E"); }
 .note-body .sref { font-family: var(--mono); font-size: .88em; font-weight: 500; }
@@ -469,7 +470,7 @@ figure.pic.missing::after { content: attr(title); position: absolute; inset: 0; 
 
 /* view mode vs edit mode */
 .note:not(.editing) .note-body { cursor: default; user-select: none; -webkit-user-select: none; }
-.note:not(.editing) .note-body .mention, .note:not(.editing) .note-body .fref, .note:not(.editing) .note-body .sref, .note:not(.editing) .note-body a[href] { cursor: pointer; }
+.note:not(.editing) .note-body .mention, .note:not(.editing) .note-body .bref, .note:not(.editing) .note-body .fref, .note:not(.editing) .note-body .sref, .note:not(.editing) .note-body a[href] { cursor: pointer; }
 .note.dragging, .note.dragging * { cursor: grabbing !important; }
 .note.editing { outline: 2px solid var(--accent); outline-offset: 2px; }
 .note.sel:not(.editing) { outline: 2px dashed var(--accent); }
@@ -679,6 +680,21 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .note-body td p, .note-body th p { margin: 0; }
 
 /* ── selecting several notes ── */
+/* ── the trail of board links followed (← Projects › Q3 Launch) ── */
+.hud-trail {
+  position: absolute; z-index: 29; top: calc(var(--hud-bottom) + 10px); left: 12px; max-width: calc(100% - 24px);
+  display: flex; align-items: center; gap: 2px; height: 30px; padding: 0 8px 0 3px; overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; white-space: nowrap; animation: tin .12s ease-out;
+}
+.hud-trail[hidden] { display: none; }
+.trail-back { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
+.trail-back .ic { width: 13px; height: 13px; transform: rotate(90deg); }
+.trail-step { border: 0; background: none; color: var(--muted); font: inherit; padding: 2px 5px; border-radius: 5px; cursor: pointer; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+.trail-back:hover, .trail-step:hover { background: var(--panel-2); color: var(--text); }
+.trail-sep { color: var(--faint); }
+.trail-here { color: var(--text); font-weight: 600; padding: 0 4px; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+
 /* ── zoom control and minimap (bottom right of the board) ── */
 .board-nav { position: absolute; z-index: 6; right: 16px; bottom: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
 .board-nav > * { pointer-events: auto; }
