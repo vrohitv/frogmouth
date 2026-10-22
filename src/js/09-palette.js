@@ -121,7 +121,9 @@ export const Palette = (() => {
       foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>${kb('enter')}</kbd> open</span><span><kbd>&gt;</kbd> commands</span><span><kbd>@</kbd> notes</span><span><kbd>$</kbd> secrets</span><span><kbd>#</kbd> boards</span>` });
       el = h('div', { class: 'scrim pal-scrim' }, h('div', { class: 'pal', role: 'dialog', 'aria-label': 'Search' }, h('div', { class: 'pal-top', html: icon('search') }, inp), list, foot));
       el.addEventListener('mousedown', (e) => { if (e.target === el) hide(); });
-      list.addEventListener('mousedown', (e) => { const it = e.target.closest('.pal-item'); if (it) { e.preventDefault(); idx = +it.dataset.i; run(items[idx], e); } });
+      // the press keeps focus in the field; the item runs on the click, so sliding off it cancels
+      list.addEventListener('mousedown', (e) => e.preventDefault());
+      list.addEventListener('click', (e) => { const it = e.target.closest('.pal-item'); if (it) { idx = +it.dataset.i; run(items[idx], e); } });
       list.addEventListener('mousemove', (e) => { const it = e.target.closest('.pal-item'); if (it && +it.dataset.i !== idx) { idx = +it.dataset.i; render(); } });
       inp.addEventListener('input', update);
       inp.addEventListener('keydown', (e) => {
