@@ -216,7 +216,12 @@
     ok('negated filter', $$('.srow').length === 0);
     Secrets.setFilter('');
     ok('values masked', !$('.s-list').textContent.includes('s3cr3t'));
-    ok('sidebar shows tags', $$('.tag-k').length >= 3 && $$('.tag-v').length >= 3);
+    ok('tag row lists every tag', $$('.s-tagrow .chip').length === 7, $$('.s-tagrow .chip').length);
+    ok('switcher shows secrets active', $('.hud-switch [data-view="secrets"]').classList.contains('on'));
+    $('.hud-switch [data-view="board"]').click();
+    ok('switcher returns to the board', !$('.board-vp').hidden && $('.secrets').hidden);
+    ok('memory vault shows no-file sync icon', $('.hud-sync').classList.contains('sync-none'));
+    App.openTab('secrets');
 
     // serialization round trip
     const text = await Store.serialize();

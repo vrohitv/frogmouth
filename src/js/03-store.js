@@ -42,7 +42,7 @@ const Store = (() => {
     return {
       boards: [b],
       secrets: [{ id: uid(), key: 'EXAMPLE_API_TOKEN', value: 'replace-me-' + uid(), tags: ['env:dev', 'example'], desc: 'Safe to delete', created: t, updated: t }],
-      ui: { tabs: ['b:' + b.id, 'secrets'], active: 'b:' + b.id, sidebar: true },
+      ui: { board: b.id, active: 'b:' + b.id },
     };
   }
 
@@ -73,7 +73,7 @@ const Store = (() => {
       x.tags = Array.isArray(x.tags) ? x.tags.map(String).filter(Boolean) : [];
       x.desc = String(x.desc || '');
     }
-    d.ui = Object.assign({ tabs: [], active: null, sidebar: true }, d.ui || {});
+    d.ui = Object.assign({ board: null, active: null }, d.ui || {});
     return d;
   }
 

@@ -1,6 +1,6 @@
 /* ── secrets: key/value pairs with plain and key:value tags ────────── */
 const Secrets = (() => {
-  let root, list, filterInp, countEl, drawer;
+  let root, list, filterInp, countEl, drawer, tagsRow;
   let rows = [], cur = 0, editingId = null;
   const revealed = new Set();
   const MASK = '••••••••••••';
@@ -18,6 +18,8 @@ const Secrets = (() => {
     countEl = h('span', { class: 's-count muted' });
     list = h('div', { class: 's-list', role: 'listbox', tabindex: '0' });
     drawer = h('aside', { class: 's-drawer', hidden: true });
+    tagsRow = h('div', { class: 's-tagrow' });
+    tagsRow.addEventListener('click', (e) => { const c = e.target.closest('.chip'); if (c) toggleFilter(c.dataset.tag); });
     root.append(
       h('div', { class: 's-bar' },
         h('div', { class: 's-search', html: icon('search') }, filterInp),
@@ -25,6 +27,7 @@ const Secrets = (() => {
         h('button', { class: 'btn', html: `${icon('plus')}New secret <kbd>N</kbd>`, onclick: () => edit(null) }),
         h('button', { class: 'btn ghost', text: 'Import .env', onclick: importEnv }),
         h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv })),
+      tagsRow,
       h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
       list, drawer);
 
@@ -86,6 +89,9 @@ const Secrets = (() => {
     const all = Store.S.data.secrets;
     rows = all.filter((x) => matches(x, toks)).sort((a, b) => a.key.localeCompare(b.key) || (b.updated || 0) - (a.updated || 0));
     cur = clamp(cur, 0, Math.max(0, rows.length - 1));
+    const freq = new Map();
+    for (const x of all) for (const t of x.tags) freq.set(t, (freq.get(t) || 0) + 1);
+    tagsRow.innerHTML = [...freq.keys()].sort().map((t) => chip(t, active.has(t.toLowerCase()))).join('');
     countEl.textContent = toks.length ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'secret' : 'secrets'}`;
     if (!all.length) {
       list.innerHTML = `<div class="s-empty"><p>No secrets yet.</p><p class="muted">Press <kbd>N</kbd> to add one, or paste a <code>.env</code> file with Import .env. Tags like <code>env:prod</code> group them.</p></div>`;

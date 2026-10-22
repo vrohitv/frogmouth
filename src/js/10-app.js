@@ -1,6 +1,6 @@
 /* ── app shell: welcome, tabs, explorer, status bar, keys, commands ── */
 const App = (() => {
-  let shell, welcome, tabsEl, side, boardVp, secretsEl, viewEmpty, statusEl;
+  let shell, welcome, boardVp, secretsEl, boardBtn, switchEl, syncEl;
   const undoStack = [];
   let lastActivity = now();
 
@@ -127,154 +127,94 @@ const App = (() => {
     welcome.replaceChildren();
     shell.hidden = false;
     const ui = Store.S.data.ui;
-    ui.tabs = ui.tabs.filter((t) => t === 'secrets' || Store.board(t.slice(2)));
-    if (!ui.tabs.length) ui.tabs.push('b:' + Store.S.data.boards[0].id);
-    if (!ui.tabs.includes(ui.active)) ui.active = ui.tabs[0];
-    if (innerWidth < 760) ui.sidebar = false;
-    shell.classList.toggle('no-side', !ui.sidebar);
-    renderAll();
+    if (!Store.board(ui.board)) ui.board = ui.active && ui.active.startsWith('b:') && Store.board(ui.active.slice(2)) ? ui.active.slice(2) : Store.S.data.boards[0].id;
+    if (ui.active !== 'secrets') ui.active = 'b:' + ui.board;
+    delete ui.tabs; delete ui.sidebar; // from the old tabbed layout
     activate(ui.active, false);
     Bird.blink(true);
   }
 
-  function renderAll() { renderTabs(); renderSide(); renderStatus(); }
-
-  /* ── tabs ── */
-  const tabLabel = (t) => (t === 'secrets' ? 'Secrets' : (Store.board(t.slice(2)) || {}).name || '?');
-  function renderTabs() {
-    const ui = Store.S.data.ui;
-    tabsEl.replaceChildren(...ui.tabs.map((t, i) => {
-      const el = h('div', { class: 'tab' + (t === ui.active ? ' on' : ''), role: 'tab', 'aria-selected': String(t === ui.active), title: i < 9 ? `${ALT}${i + 1}` : '' },
-        h('span', { class: 'tab-ic', html: icon(t === 'secrets' ? 'key' : 'board') }),
-        h('span', { class: 'tab-name', text: tabLabel(t) }),
-        h('button', { class: 'tab-x', title: `Close (${ALT}W)`, html: icon('x'), tabindex: '-1' }));
-      el.addEventListener('mousedown', (e) => {
-        if (e.button === 1) { e.preventDefault(); closeTab(t); return; }
-        if (e.target.closest('.tab-x')) { e.preventDefault(); closeTab(t); return; }
-        activate(t);
-      });
-      el.addEventListener('dblclick', () => { if (t !== 'secrets') renameBoard(t.slice(2)); });
-      return el;
-    }));
-    const on = tabsEl.querySelector('.tab.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
-  function openTab(t) {
-    const ui = Store.S.data.ui;
-    if (!ui.tabs.includes(t)) {
-      const i = ui.tabs.indexOf(ui.active);
-      ui.tabs.splice(i + 1, 0, t);
-    }
-    activate(t);
-  }
+  /* one view at a time: a board ('b:<id>') or 'secrets' */
   function activate(t, persist = true) {
     const ui = Store.S.data.ui;
-    if (!ui.tabs.includes(t)) return;
-    ui.active = t;
-    renderTabs();
-    boardVp.hidden = true; secretsEl.hidden = true; viewEmpty.hidden = true;
-    Popup.close();
-    if (t === 'secrets') {
-      Board.unmount();
-      secretsEl.hidden = false;
-      Secrets.render();
-      Secrets.focus();
-    } else {
+    if (t !== 'secrets') {
       const b = Store.board(t.slice(2));
-      boardVp.hidden = false;
-      Board.mount(b);
+      if (!b) return;
+      ui.board = b.id;
     }
-    renderSide();
-    renderStatus();
+    ui.active = t;
+    Popup.close();
+    boardVp.hidden = t === 'secrets';
+    secretsEl.hidden = t !== 'secrets';
+    if (t === 'secrets') { Board.unmount(); Secrets.render(); Secrets.focus(); }
+    else Board.mount(Store.board(ui.board));
+    renderChrome();
     if (persist) Store.change('ui');
   }
-  function closeTab(t) {
-    const ui = Store.S.data.ui;
-    const i = ui.tabs.indexOf(t); if (i < 0) return;
-    ui.tabs.splice(i, 1);
-    if (ui.active === t) {
-      if (ui.tabs.length) activate(ui.tabs[Math.max(0, i - 1)]);
-      else { ui.active = null; Board.unmount(); boardVp.hidden = true; secretsEl.hidden = true; viewEmpty.hidden = false; renderTabs(); renderSide(); }
-    } else renderTabs();
-    Store.change('ui');
-  }
-  function cycleTab(d) {
-    const ui = Store.S.data.ui; if (!ui.tabs.length) return;
-    const i = ui.tabs.indexOf(ui.active);
-    activate(ui.tabs[(i + d + ui.tabs.length) % ui.tabs.length]);
+  const openTab = activate;
+  const isSecrets = () => Store.S.data.ui.active === 'secrets';
+  function toggleView() { activate(isSecrets() ? 'b:' + Store.S.data.ui.board : 'secrets'); }
+  function cycleBoard(d) {
+    const bs = Store.S.data.boards;
+    const i = bs.findIndex((b) => b.id === Store.S.data.ui.board);
+    activate('b:' + bs[(i + d + bs.length) % bs.length].id);
   }
 
-  /* ── explorer ── */
-  function renderSide() {
+  /* ── floating chrome ── */
+  function renderChrome() {
     if (!Store.S.data) return;
-    const d = Store.S.data, act = d.ui.active;
-    const boards = h('div', { class: 'side-list' }, d.boards.map((b) => {
-      const el = h('div', { class: 'side-item' + (act === 'b:' + b.id ? ' on' : ''), tabindex: '0' },
-        h('span', { html: icon('board') }), h('span', { class: 'si-name', text: b.name }), h('span', { class: 'si-n', text: b.notes.length || '' }),
-        h('button', { class: 'si-act', title: 'Rename (F2)', html: icon('edit'), tabindex: '-1', onclick: (e) => { e.stopPropagation(); renameBoard(b.id); } }),
-        h('button', { class: 'si-act', title: 'Delete board', html: icon('trash'), tabindex: '-1', onclick: (e) => { e.stopPropagation(); deleteBoard(b.id); } }));
-      el.addEventListener('click', () => openTab('b:' + b.id));
-      el.addEventListener('dblclick', () => renameBoard(b.id));
-      el.addEventListener('keydown', (e) => { if (e.key === 'Enter') openTab('b:' + b.id); if (e.key === 'F2') renameBoard(b.id); });
-      return el;
-    }));
-    const sec = h('div', { class: 'side-item' + (act === 'secrets' ? ' on' : ''), tabindex: '0' },
-      h('span', { html: icon('key') }), h('span', { class: 'si-name', text: 'All secrets' }), h('span', { class: 'si-n', text: d.secrets.length || '' }));
-    sec.addEventListener('click', () => { openTab('secrets'); Secrets.setFilter(''); });
-    sec.addEventListener('keydown', (e) => { if (e.key === 'Enter') sec.click(); });
-    const tags = h('div', { class: 'side-tags' });
-    for (const [k, info] of Secrets.tagStats()) {
-      const row = h('div', { class: 'tag-row' },
-        h('button', { class: 'tag-k', html: `${icon('tag')}<span>${esc(k)}</span><i>${info.n}</i>`, onclick: () => { openTab('secrets'); Secrets.setFilter(info.vals.size ? k + ': ' : k + ' '); } }));
-      if (info.vals.size) {
-        row.append(h('div', { class: 'tag-vals' }, [...info.vals].sort().map(([v, n]) =>
-          h('button', { class: 'tag-v', html: `<span>${esc(v)}</span><i>${n}</i>`, onclick: () => { openTab('secrets'); Secrets.setFilter(`${k}:${v} `); } }))));
-      }
-      tags.append(row);
-    }
-    side.replaceChildren(
-      h('div', { class: 'side-sec' },
-        h('div', { class: 'side-h' }, h('span', { text: 'Boards' }), h('button', { class: 'icon-btn', title: 'New board', html: icon('plus'), onclick: newBoard })),
-        boards),
-      h('div', { class: 'side-sec' }, h('div', { class: 'side-h' }, h('span', { text: 'Secrets' }), h('button', { class: 'icon-btn', title: 'New secret', html: icon('plus'), onclick: () => { openTab('secrets'); Secrets.edit(null); } })), sec, tags.children.length ? tags : null),
-      h('div', { class: 'side-foot' },
-        h('button', { class: 'btn ghost small', html: `${icon('search')} Search <kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
-        h('button', { class: 'btn ghost small', html: `<kbd>?</kbd> Keys`, onclick: shortcuts })));
+    const ui = Store.S.data.ui, b = Store.board(ui.board);
+    boardBtn.querySelector('span').textContent = isSecrets() ? 'Secrets' : b ? b.name : '';
+    for (const btn of switchEl.children) btn.classList.toggle('on', (btn.dataset.view === 'secrets') === isSecrets());
+    renderSync();
   }
 
-  /* ── status bar ── */
-  const SYNC = {
-    saved: ['ok', 'Saved to disk'], saving: ['busy', 'Saving…'], unsaved: ['pending', 'Unsaved changes'],
-    error: ['bad', 'Save failed'], conflict: ['bad', 'Changed on disk'], memory: ['mem', 'Not saved to disk'], idle: ['', ''],
-  };
-  function renderStatus() {
-    if (!Store.S.vault || !Store.S.data) return;
-    const v = Store.S.vault, st = Store.S.status;
-    const [cls] = SYNC[st] || SYNC.idle;
-    const text = Store.S.statusText || (SYNC[st] || SYNC.idle)[1];
-    const where = v.kind === 'dir' ? `${v.name}/${v.file}` : v.kind === 'opfs' ? 'Browser storage' : v.name;
-    const nNotes = Store.S.notes.size, nSec = Store.S.data.secrets.length;
-    const act = Store.S.data.ui.active;
-    statusEl.innerHTML =
-      `<span class="st-item st-vault" title="${esc(v.kind === 'dir' ? 'Folder vault' : v.kind === 'opfs' ? 'Stored in this browser' : 'In this tab only')}">${icon(v.kind === 'memory' ? 'note' : 'folder')}${esc(where)}</span>` +
-      `<button class="st-item st-sync st-${cls}" data-act="sync" title="${st === 'conflict' ? 'Resolve' : st === 'error' ? 'Retry' : st === 'memory' ? 'Download the vault' : 'Save now'}"><i class="dot"></i>${esc(text)}</button>` +
-      `<span class="grow"></span>` +
-      (act && act !== 'secrets' ? `<button class="st-item" data-act="zoom" title="Reset zoom (0)">${Math.round(Board.zoom() * 100)}%</button>` : '') +
-      `<span class="st-item muted">${nNotes} ${nNotes === 1 ? 'note' : 'notes'}, ${nSec} ${nSec === 1 ? 'secret' : 'secrets'}</span>` +
-      `<button class="st-item" data-act="lock" title="${Store.S.crypt ? 'Encrypted. Click to lock.' : 'Not encrypted. Click to set a passphrase.'}">${icon(Store.S.crypt ? 'lock' : 'unlock')}${Store.S.crypt ? 'Encrypted' : 'Plain'}</button>` +
-      `<button class="st-item" data-act="theme" title="Light or dark">${icon('sun')}</button>`;
-    document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? tabLabel(act) + ' — ' : '') + 'frogmouth';
+  function boardMenu() {
+    const d = Store.S.data, cur = d.ui.board, r = boardBtn.getBoundingClientRect();
+    const items = d.boards.map((b, i) => ({ id: 'board', board: b, label: b.name, icon: b.id === cur && !isSecrets() ? 'tick' : 'board', hint: (i < 9 ? `${ALT}${i + 1}  ` : '') + `${b.notes.length}` }));
+    items.push(
+      { id: 'new', label: 'New board…', icon: 'plus' },
+      { id: 'rename', label: 'Rename this board…', icon: 'edit', hint: 'F2' },
+      { id: 'delete', label: 'Delete this board…', icon: 'trash' },
+      { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
+      Store.S.crypt ? { id: 'lock', label: 'Lock vault', icon: 'lock', hint: `${MOD}⇧L` } : { id: 'encrypt', label: 'Encrypt with a passphrase…', icon: 'lock' },
+      { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
+      { id: 'close', label: 'Close vault', icon: 'x' });
+    Popup.open({
+      x: r.left, y: r.bottom + 4, title: 'Boards', items,
+      onPick: (it) => ({
+        board: () => activate('b:' + it.board.id), new: newBoard, rename: () => renameBoard(cur), delete: () => deleteBoard(cur),
+        theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), keys: shortcuts, close: closeVault,
+      })[it.id](),
+    });
   }
-  function onStatusClick(e) {
-    const b = e.target.closest('[data-act]'); if (!b) return;
-    const a = b.dataset.act;
-    if (a === 'sync') {
-      const st = Store.S.status;
-      if (st === 'conflict') resolveConflict();
-      else if (Store.S.vault.kind === 'memory') downloadVault();
-      else Store.saveNow.flush();
-    } else if (a === 'zoom') Board.zoomAt(1);
-    else if (a === 'lock') { if (Store.S.crypt) lock(); else setPass(); }
-    else if (a === 'theme') setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day');
+
+  /* sync icon: a file with a tick when it is safely on disk, a struck-out file when nothing is */
+  const SYNC = {
+    saved: ['ok', 'fileok'], saving: ['busy', 'filedot'], unsaved: ['pending', 'filedot'],
+    error: ['bad', 'filebad'], conflict: ['bad', 'filebad'], memory: ['none', 'filenone'], idle: ['none', 'filenone'],
+  };
+  function renderSync() {
+    if (!Store.S.vault || !syncEl) return;
+    const v = Store.S.vault, st = Store.S.status;
+    const [cls, ic] = SYNC[st] || SYNC.idle;
+    const where = v.kind === 'dir' ? `${v.name}/${v.file}` : v.kind === 'opfs' ? 'browser storage' : '';
+    const tip = {
+      saved: `Saved to ${where}`, saving: `Saving to ${where}…`, unsaved: `Unsaved changes, saving to ${where} shortly`,
+      error: `${Store.S.statusText || 'Save failed'}. Click to retry.`, conflict: `${v.file} changed on disk. Click to choose a version.`,
+    }[st] || (v.kind === 'memory' ? 'Not saved to any file. Click to download the vault.' : '');
+    syncEl.className = 'hud-btn hud-sync sync-' + cls;
+    syncEl.innerHTML = icon(ic) + (Store.S.crypt ? `<span class="sync-lock">${icon('lock')}</span>` : '');
+    syncEl.title = tip + (Store.S.crypt ? ' Encrypted.' : '');
+    syncEl.setAttribute('aria-label', syncEl.title);
+    const act = Store.S.data && Store.S.data.ui.active;
+    document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? (isSecrets() ? 'Secrets' : (Store.board(Store.S.data.ui.board) || {}).name) + ' — ' : '') + 'frogmouth';
+  }
+  function onSyncClick() {
+    const st = Store.S.status;
+    if (st === 'conflict') resolveConflict();
+    else if (Store.S.vault.kind === 'memory') downloadVault();
+    else Store.saveNow.flush();
   }
 
   async function resolveConflict() {
@@ -304,8 +244,7 @@ const App = (() => {
     if (!name || !name.trim() || name.trim() === b.name) return;
     b.name = name.trim();
     Store.change('boards');
-    renderAll();
-    for (const r of Store.S.notes.values()) if (r.board === b) { /* noop: hints read live */ }
+    renderChrome();
   }
   async function deleteBoard(id) {
     const d = Store.S.data;
@@ -315,10 +254,10 @@ const App = (() => {
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
     for (const n of b.notes) Store.S.notes.delete(n.id);
-    const tabI = d.ui.tabs.indexOf('b:' + id);
-    if (tabI >= 0) closeTab('b:' + id);
+    if (d.ui.board === id) activate(isSecrets() ? 'secrets' : 'b:' + d.boards[Math.min(i, d.boards.length - 1)].id);
+    if (d.ui.board === id) d.ui.board = d.boards[0].id;
     Store.change('boards');
-    renderAll();
+    renderChrome();
     pushUndo(`Deleted board ${b.name}`, () => {
       d.boards.splice(Math.min(i, d.boards.length), 0, b);
       for (const n of b.notes) Store.S.notes.set(n.id, { note: n, board: b });
@@ -355,7 +294,7 @@ const App = (() => {
         await Store.setPassphrase(a.value);
         if (Store.S.vault.kind === 'memory') Store.change('crypt');
         toast(change ? 'Passphrase changed' : 'Vault encrypted');
-        renderStatus();
+        renderSync();
         return true;
       } }],
     });
@@ -363,7 +302,7 @@ const App = (() => {
   async function removePass() {
     if (!(await Modal.confirm('Remove encryption?', 'The vault file will be saved as readable JSON.', 'Remove passphrase'))) return;
     await Store.setPassphrase(null);
-    toast('Encryption removed'); renderStatus();
+    toast('Encryption removed'); renderSync();
   }
   async function lock() {
     if (!Store.S.crypt) return;
@@ -392,31 +331,24 @@ const App = (() => {
     showWelcome();
   }
 
-  function toggleSidebar() {
-    const ui = Store.S.data.ui;
-    ui.sidebar = !ui.sidebar;
-    shell.classList.toggle('no-side', !ui.sidebar);
-    Store.change('ui');
-  }
-
   /* ── commands ── */
-  const isBoard = () => Store.S.data && Store.S.data.ui.active && Store.S.data.ui.active !== 'secrets';
+  const isBoard = () => Store.S.data && Store.S.data.ui.active !== 'secrets';
   function commands() {
     const c = !!Store.S.crypt;
     return [
       { title: 'New note', key: 'N', when: isBoard, run: () => Board.addNote(null, true) },
       { title: 'New board', run: newBoard },
-      { title: 'Rename board', key: 'F2', when: isBoard, run: () => renameBoard(Store.S.data.ui.active.slice(2)) },
-      { title: 'Delete board', when: isBoard, run: () => deleteBoard(Store.S.data.ui.active.slice(2)) },
+      { title: 'Rename board', key: 'F2', when: isBoard, run: () => renameBoard(Store.S.data.ui.board) },
+      { title: 'Delete board', when: isBoard, run: () => deleteBoard(Store.S.data.ui.board) },
       { title: 'Arrange notes', when: isBoard, run: () => Board.arrange() },
       { title: 'Fit all notes on screen', key: '⇧1', when: isBoard, run: () => Board.fit() },
       { title: 'Reset zoom to 100%', key: '0', when: isBoard, run: () => Board.zoomAt(1) },
-      { title: 'Open secrets', key: ALT + 'S', run: () => openTab('secrets') },
+      { title: 'Switch notes / secrets', key: ALT + 'S', run: toggleView },
+      { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
+      { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
       { title: 'Import secrets from .env', run: () => { openTab('secrets'); Secrets.importEnv(); } },
       { title: 'Copy listed secrets as .env', run: () => { openTab('secrets'); Secrets.exportEnv(); } },
-      { title: 'Close tab', key: ALT + 'W', when: () => !!Store.S.data.ui.active, run: () => closeTab(Store.S.data.ui.active) },
-      { title: 'Toggle sidebar', key: MOD + '\\', run: toggleSidebar },
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); enter(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
@@ -432,7 +364,7 @@ const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}1–9`, 'Go to tab'], [`${ALT}[  ${ALT}]`, 'Previous / next tab'], [`${ALT}W`, 'Close tab'], [`${ALT}S`, 'Secrets'], [`${MOD}\\`, 'Toggle sidebar'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
+      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}S`, 'Switch notes / secrets'], [`${ALT}1–9`, 'Go to board'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
       ['Board', [['N, or double-click the board', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click a note, ↵', 'Edit it'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['Del', 'Delete note'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space-drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag right or bottom edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
@@ -459,21 +391,18 @@ const App = (() => {
     if (mod && lower === 's') { e.preventDefault(); if (Store.S.vault.kind === 'memory') downloadVault(); else { Store.saveNow.flush(); } return; }
     if (mod && e.shiftKey && lower === 'l') { e.preventDefault(); lock(); return; }
     if (Modal.isOpen() || Palette.isOpen()) return;
-    if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const t = Store.S.data.ui.tabs[+e.code.slice(5) - 1]; if (t) activate(t); return; }
-    if (e.altKey && !mod && e.code === 'KeyW') { e.preventDefault(); if (Store.S.data.ui.active) closeTab(Store.S.data.ui.active); return; }
-    if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleTab(-1); return; }
-    if (e.altKey && !mod && e.code === 'BracketRight') { e.preventDefault(); cycleTab(1); return; }
-    if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); openTab('secrets'); return; }
-    if (mod && k === '\\') { e.preventDefault(); toggleSidebar(); return; }
+    if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = Store.S.data.boards[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
+    if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleBoard(-1); return; }
+    if (e.altKey && !mod && e.code === 'BracketRight') { e.preventDefault(); cycleBoard(1); return; }
+    if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); toggleView(); return; }
     if (isTypingTarget(e.target)) return;
-    if (mod && lower === 'b') { e.preventDefault(); toggleSidebar(); return; }
     if (mod && lower === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
     if (k === '?') { e.preventDefault(); shortcuts(); return; }
-    if (k === 'F2' && isBoard()) { e.preventDefault(); renameBoard(Store.S.data.ui.active.slice(2)); return; }
-    if (e.target.closest && e.target.closest('.side')) return;
+    if (k === 'F2' && isBoard()) { e.preventDefault(); renameBoard(Store.S.data.ui.board); return; }
+    if (e.target.closest && e.target.closest('.hud')) return;
     if (e.altKey && !e.shiftKey) return;
     const act = Store.S.data.ui.active;
-    const handled = act === 'secrets' ? Secrets.key(e) : act ? Board.key(e) : false;
+    const handled = act === 'secrets' ? Secrets.key(e) : Board.key(e);
     if (handled) e.preventDefault();
   }
 
@@ -481,30 +410,31 @@ const App = (() => {
   function boot() {
     const app = $('#app');
     welcome = h('div', { class: 'welcome' });
-    tabsEl = h('div', { class: 'tabs', role: 'tablist' });
-    side = h('aside', { class: 'side' });
     boardVp = h('div', { class: 'board-vp', hidden: true });
     secretsEl = h('div', { class: 'secrets', hidden: true });
-    viewEmpty = h('div', { class: 'view-empty', hidden: true, html: `<p>No tab open.</p><p class="muted">Pick a board on the left or press <kbd>${MOD}K</kbd>.</p>` });
-    statusEl = h('footer', { class: 'status' });
-    const brand = h('div', { class: 'brand', title: 'frogmouth' }, Bird.make('face'));
-    shell = h('div', { class: 'shell', hidden: true },
-      h('header', { class: 'top' }, brand, tabsEl,
-        h('button', { class: 'top-btn', title: 'New board', html: icon('plus'), onclick: newBoard }),
-        h('button', { class: 'top-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() })),
-      h('div', { class: 'main' }, side, h('section', { class: 'view' }, boardVp, secretsEl, viewEmpty)),
-      statusEl);
+    boardBtn = h('button', { class: 'hud-board', title: 'Boards and settings', html: `<span></span>${icon('down')}`, onclick: boardMenu });
+    switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
+      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Notes (${ALT}S)`, 'aria-label': 'Notes', html: icon('board'), onclick: () => { if (isSecrets()) toggleView(); } }),
+      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (!isSecrets()) toggleView(); } }));
+    syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
+    // everything floats over the canvas; the notes get the whole screen
+    const hud = h('div', { class: 'hud' },
+      h('div', { class: 'hud-group' },
+        h('div', { class: 'hud-pill hud-brand' }, h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('face')), boardBtn),
+        switchEl),
+      h('div', { class: 'hud-group' },
+        h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
+        h('div', { class: 'hud-pill' }, syncEl)));
+    shell = h('div', { class: 'shell', hidden: true }, boardVp, secretsEl, hud);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
     Board.init(boardVp);
     Secrets.init(secretsEl);
-    statusEl.addEventListener('click', onStatusClick);
     addEventListener('keydown', onKey);
-    bus.on('status', renderStatus);
-    bus.on('zoom', () => { const z = statusEl.querySelector('[data-act="zoom"]'); if (z) z.textContent = Math.round(Board.zoom() * 100) + '%'; });
+    bus.on('status', renderSync);
     bus.on('change', (what) => {
-      if (what === 'secrets' || what === 'boards' || what === 'notes') renderSide();
       if (what === 'secrets') Board.refreshChips();
-      renderStatus();
+      if (what === 'boards') renderChrome();
+      renderSync();
     });
     bus.on('goto-note', gotoNote);
     addEventListener('beforeunload', (e) => {

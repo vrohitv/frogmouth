@@ -17,7 +17,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 ## What it does
 
 **Boards of sticky notes**
-- Multiple boards, opened as tabs like files in an editor.
+- The notes get the whole window. Only a few controls float over it: the logo with the current board's name (click it for the board menu), a notes/secrets switch, search, and the sync icon.
+- Multiple boards: switch from the board menu, with `⌥1`–`⌥9`, or with `⌘K` then `#`.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.
@@ -34,7 +35,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Dropping any other file copies it into `files/` and tags it in the note.
 
 **Secrets**
-- Key/value pairs with plain tags (`aws`) and key:value tags (`env:prod`). The sidebar lists tags as a tree.
+- Key/value pairs with plain tags (`aws`) and key:value tags (`env:prod`). Every tag is listed as a chip under the filter; click one to filter by it.
 - Filter syntax: `env:prod aws -legacy`.
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
@@ -43,11 +44,16 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards.
 
-**Sync indicators** in the status bar: saved, unsaved, saving, save failed (click to retry), and *changed on disk*.
+**Sync icon** (top right):
+- A file with a tick: everything is saved to the vault file.
+- A file with a dot: unsaved changes, saving shortly.
+- A file with `!`: the save failed (click to retry), or the file changed on disk (click to choose a version).
+- A struck-out file: nothing is written to any file (the in-tab mode). Click to download the vault.
+- A small lock on the icon means the vault is encrypted.
 - The vault file is watched. If another window, a sync tool or `git pull` changes it, frogmouth reloads it.
 - If you also have unsaved edits, it asks which version to keep.
 
-**Encryption** (optional): click **Plain** in the status bar to set a passphrase.
+**Encryption** (optional): choose **Encrypt with a passphrase** in the board menu (or `⌘⇧P`).
 - The vault file becomes AES-256-GCM with a PBKDF2-SHA256 key (600k iterations).
 - The vault locks after 15 minutes idle or on `⌘⇧L`.
 - Images and tagged files in the folder are **not** encrypted.
@@ -64,10 +70,8 @@ Press `?` in the app for the full list.
 | `⌘K` / `⌘P` | Search |
 | `⌘⇧P` | Commands |
 | `⌘S` | Save now |
-| `⌥1`–`⌥9`, `⌥[` `⌥]` | Switch tabs |
-| `⌥W` | Close tab |
-| `⌥S` | Secrets |
-| `⌘\` | Sidebar |
+| `⌥S` | Switch notes / secrets |
+| `⌥1`–`⌥9`, `⌥[` `⌥]` | Switch boards |
 | `⌘Z` | Undo a delete |
 
 | Board | |
@@ -110,7 +114,7 @@ Unencrypted, `vault.frogmouth` is pretty-printed JSON, so it diffs well in git:
 {"frogmouth":1,"encrypted":false,"saved":"…","data":{
  "boards":[{"id":"…","name":"Inbox","notes":[{"id":"…","x":80,"y":80,"w":300,"color":"straw","html":"<p>Title</p>…"}]}],
  "secrets":[{"id":"…","key":"DATABASE_URL","value":"…","tags":["env:prod","db"],"desc":""}],
- "ui":{"tabs":["b:…","secrets"],"active":"b:…","sidebar":true}}}
+ "ui":{"board":"…","active":"b:…"}}}
 ```
 
 ## Privacy and security
@@ -141,7 +145,7 @@ src/js/06-editor.js   note editor: / menu, @ tags, markdown shortcuts, code bloc
 src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange
 src/js/08-secrets.js  secrets list, tags, .env import/export
 src/js/09-palette.js  search and commands
-src/js/10-app.js      shell: welcome, tabs, sidebar, status bar, keyboard
+src/js/10-app.js      shell: welcome, floating controls, board menu, sync icon, keyboard
 test/smoke.js         smoke tests (UI typing, sanitizer, crypto, real file writes via OPFS)
 ```
 

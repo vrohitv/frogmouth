@@ -194,5 +194,10 @@ const ICONS = {
   sync: '<path d="M13 5.5A5.5 5.5 0 0 0 3 6M3 10.5A5.5 5.5 0 0 0 13 10M13 2.5v3h-3M3 13.5v-3h3"/>',
   dice: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><circle cx="5.5" cy="5.5" r=".8"/><circle cx="10.5" cy="10.5" r=".8"/><circle cx="8" cy="8" r=".8"/>',
   down: '<path d="M4 6l4 4 4-4"/>',
+  tick: '<path d="M3.5 8.5l3 3 6-7"/>',
+  fileok: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M5.5 9.8l1.8 1.8 3.4-3.8"/>',
+  filedot: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><circle cx="8" cy="10" r="1.7"/>',
+  filebad: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M8 7v3M8 12.3v.2"/>',
+  filenone: '<path d="M3.5 1.5h6l3 3v10h-9z" stroke-dasharray="2.2 1.6"/><path d="M1.5 1.5l13 13"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;
