@@ -140,7 +140,8 @@ export function toast(msg, opts = {}) {
   let timer;
   const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 180); };
   if (opts.action) {
-    el.append(h('button', { class: 'toast-act', text: opts.label || 'Undo', onclick: () => { close(); opts.action(); } }));
+    const label = opts.label || 'Undo';
+    el.append(h('button', { class: 'toast-act', title: opts.title || label, 'aria-label': label, html: icon(opts.icon || 'undo'), onclick: () => { close(); opts.action(); } }));
   }
   host.append(el);
   while (host.children.length > 4) host.firstChild.remove();
@@ -221,6 +222,11 @@ const ICONS = {
   fileok: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M5.5 9.8l1.8 1.8 3.4-3.8"/>',
   filedot: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><circle cx="8" cy="10" r="1.7"/>',
   filebad: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path d="M9.5 1.5v3h3"/><path d="M8 7v3M8 12.3v.2"/>',
+  trash: '<path d="M2.5 4.5h11M6 4.5V2.8h4v1.7M4 4.5l.7 9h6.6l.7-9M6.8 7v4.2M9.2 7v4.2"/>',
+  tag: '<path d="M2.5 2.5h5.2l5.8 5.8-5.2 5.2-5.8-5.8z"/><circle cx="5.4" cy="5.4" r=".9"/>',
+  download: '<path d="M8 2.5v7.5M4.8 7 8 10.2 11.2 7M2.5 13.5h11"/>',
+  go: '<path d="M2.5 8h10.5M9 4l4 4-4 4"/>',
+  undo: '<path d="M5.5 3 2.5 6l3 3"/><path d="M2.5 6h6.5a4 4 0 0 1 0 8H6.5"/>',
   filenone: '<path d="M3.5 1.5h6l3 3v10h-9z" stroke-dasharray="2.2 1.6"/><path d="M1.5 1.5l13 13"/>',
 };
 export const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;

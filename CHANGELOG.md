@@ -6,7 +6,7 @@
 - Fixed: pressing `↵` in a board note's tag field saved the tags but left the field on screen, so the chips never came back; each further edit stacked another field.
 - Fixed: clicking the board while renaming a board pill kept the field open, and clicking another pill while renaming saved the name but did not switch to that board.
 - Fixed: two renames at once in the Boards panel could lose one; clicking another row now keeps the rename in progress.
-- **Deleting a secret** now has a visible × on every row (as well as `Del` and the editor's Delete…), and takes three confirmations: a warning, the key name typed out, and a last check. Each step has the safe choice focused. Undo still works until the tab closes.
+- **Deleting a secret** now has a visible bin on every row (as well as `Del` and the bin in the editor), and takes three confirmations: a warning, the key name typed out, and a last check. Each step has the safe choice focused. Undo still works until the tab closes.
 - **No stray click or key saves or deletes anything:**
   - Dialogs that delete something focus Cancel, so `↵` or `Space` cancels; the destructive button takes a click or `⌘↵` / `Ctrl+Enter` (shown on it).
   - Menus, `⌘K` results, the Boards panel and the colour picker act on a full click, so pressing the wrong item and sliding off it does nothing.
@@ -14,6 +14,7 @@
   - The secret editor no longer saves on a click outside it: with changes it stays open and says `⌘↵` saves, `Esc` discards; without changes it closes.
   - Arrange can be undone (`⌘Z`).
 - Fixed: the Cancel button in confirmation dialogs did nothing (only `Esc` or a click outside closed them).
+- **Icons instead of words on buttons:** new secret, export, save, cancel, delete, the note view's actions, `+` for a new note, tags, links and boards at a note's foot, search, undo in toasts and every dialog's buttons. Each has its name and shortcut in its tooltip and for screen readers. Words stay where they are the content (tags, key and board names) and on the first-run screen and the disk-conflict choice, where an icon alone would be a guess.
 - **More keyboard:** `⌥⇧` + arrows resize the selected notes, `⌥⇧[` / `⌥⇧]` move the current board left or right among the pills (also in `⌘⇧P`), `L` opens "notes that link here", and `⌘↵` ticks the todo item under the caret.
 - The note view goes back to reading when you click outside the text, with no caret left in it.
 - After editing tags in All notes, a click into the filter keeps focus there.

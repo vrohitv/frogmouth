@@ -41,9 +41,9 @@ export const Peek = (() => {
     const isHere = !!(b && r.boards.includes(b));
     const away = r.boards.filter((x) => x !== b);
     const out = [];
-    if (isHere) out.push({ id: 'show', label: 'Show on this board', key: 'A' });
-    else if (b) out.push({ id: 'add', label: `Add to ${b.name}`, key: 'A' });
-    if (away.length) out.push({ id: 'go', label: `Open on ${away[0].name}${away.length > 1 ? ` (+${away.length - 1})` : ''}`, key: kb('enter'), primary: !isHere });
+    if (isHere) out.push({ id: 'show', label: 'Show on this board', key: 'A', icon: 'fit' });
+    else if (b) out.push({ id: 'add', label: `Add to ${b.name}`, key: 'A', icon: 'plus' });
+    if (away.length) out.push({ id: 'go', label: `Open on ${away[0].name}${away.length > 1 ? ` (+${away.length - 1})` : ''}`, key: kb('enter'), icon: 'go', primary: !isHere });
     return out;
   }
 
@@ -84,8 +84,7 @@ export const Peek = (() => {
       h('div', { class: 'pk-foot' },
         h('span', { class: 'pk-tags', html: (n.tags || []).map((t) => Tags.chip(t)).join('') }),
         h('span', { class: 'pk-hint muted', text: 'Click the text to edit' }),
-        ...actions().map((a) => h('button', { class: 'btn' + (a.primary ? ' primary' : ''), 'data-a': a.id, html: `${esc(a.label)} <kbd>${esc(a.key)}</kbd>` })),
-        h('button', { class: 'btn', 'data-a': 'close', html: 'Close <kbd>Esc</kbd>' })));
+        ...actions().map((a) => h('button', { class: 'btn ic-only' + (a.primary ? ' primary' : ''), 'data-a': a.id, title: `${a.label} (${a.key})`, 'aria-label': a.label, html: icon(a.icon) }))));
     title();
     card.focus({ preventScroll: true });
   }

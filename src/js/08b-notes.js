@@ -90,7 +90,7 @@ export const NotesList = (() => {
       return `<div class="nrow${i === cur ? ' on' : ''}" data-id="${esc(n.id)}" role="option">` +
         `<div class="n-title"><i class="n-dot paper-${esc(n.color)}"></i><div><b>${esc(n.title || 'Untitled')}</b><span>${esc(snippet(n))}</span></div></div>` +
         `<div class="n-boards">${r.boards.map((b) => `<button class="n-board" data-a="board" data-board="${esc(b.id)}" tabindex="-1" title="Open it on ${esc(b.name)}">${icon('board')}<span>${esc(b.name)}</span></button>`).join('') || '<span class="n-noboard">on no board</span>'}<button class="nf-add" data-a="place" tabindex="-1" title="Put it on a board (A)">${icon('plus')}</button></div>` +
-        `<div class="n-tags">${(n.tags || []).map((t) => Tags.chip(t, active.has(t.toLowerCase()))).join('')}<button class="nf-add" data-a="tag" tabindex="-1" title="Edit tags (T)">${n.tags && n.tags.length ? icon('edit') : '+ tag'}</button></div>` +
+        `<div class="n-tags">${(n.tags || []).map((t) => Tags.chip(t, active.has(t.toLowerCase()))).join('')}<button class="nf-add" data-a="tag" tabindex="-1" title="${n.tags && n.tags.length ? 'Edit tags' : 'Add tags'} (T)" aria-label="Tags">${icon(n.tags && n.tags.length ? 'edit' : 'tag')}</button></div>` +
         `<div class="n-links">${r.out.length ? `<button data-a="out" tabindex="-1" title="Notes this one links to">→ ${r.out.length}</button>` : ''}${r.inn.length ? `<button data-a="in" tabindex="-1" title="Notes linking here">← ${r.inn.length}</button>` : ''}</div>` +
         `<div class="n-upd" title="${esc(new Date(n.updated || n.created || 0).toLocaleString())}">${esc(relTime(n.updated || n.created))}</div></div>`;
     }).join('');
