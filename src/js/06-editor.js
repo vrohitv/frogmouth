@@ -660,14 +660,16 @@ export const Editor = (() => {
     else toast('Open a vault folder to attach files', { kind: 'warn' });
   }
 
-  /* How a tagged file may be opened. A blob URL runs with this page's origin, so
-     an HTML or SVG file opened as a document could reach the stored folder
-     handles: only passive types open as themselves, text-like files open as
-     plain text, everything else is downloaded. */
+  /* The type a tagged file opens with in a new tab. Vault files are the user's own,
+     so they open as themselves (HTML renders, SVG and images show, PDFs open);
+     the page's no-network policy carries over to them. Files with no known type
+     but readable text open as text; anything else the browser downloads. */
+  const EXT_TYPES = { html: 'text/html', htm: 'text/html', svg: 'image/svg+xml', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', wav: 'audio/wav' };
   function openAs(type, path) {
-    if (/^(image\/(png|jpe?g|gif|webp|avif|bmp)|application\/pdf|video\/|audio\/)/.test(type)) return 'view';
-    if (/^text\//.test(type) || /\.(excalidraw|json|md|txt|log|csv|ya?ml|toml|ini|env|js|ts|py|go|rs|sh|sql|css|html?|svg|xml)$/i.test(path)) return 'text';
-    return 'download';
+    const ext = (path.split('.').pop() || '').toLowerCase();
+    if (EXT_TYPES[ext]) return EXT_TYPES[ext];
+    if (/\.(excalidraw|json|md|txt|log|csv|ya?ml|toml|ini|env|js|mjs|ts|tsx|jsx|py|go|rs|rb|java|c|h|cpp|sh|sql|css|xml)$/i.test(path)) return 'text/plain;charset=utf-8';
+    return type || 'application/octet-stream';
   }
 
   /* file tag actions */
@@ -687,11 +689,9 @@ export const Editor = (() => {
       ],
       onPick: async (it) => {
         if (it.id === 'copy') { await copyText(path); toast('Copied ' + path); return; }
-        const how = it.id === 'open' ? openAs(f.type, path) : 'download';
-        const asTab = how !== 'download';
-        const url = URL.createObjectURL(new Blob([f], { type: how === 'view' ? f.type : how === 'text' ? 'text/plain;charset=utf-8' : 'application/octet-stream' }));
-        if (asTab) window.open(url, '_blank', 'noopener');
-        else { const a = h('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove(); if (it.id === 'open') toast(`${f.name} can't be shown here, so it was downloaded`); }
+        const url = URL.createObjectURL(new Blob([f], { type: it.id === 'open' ? openAs(f.type, path) : 'application/octet-stream' }));
+        if (it.id === 'open') window.open(url, '_blank', 'noopener');
+        else { const a = h('a', { href: url, download: f.name }); document.body.append(a); a.click(); a.remove(); }
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       },
     });
@@ -952,5 +952,13 @@ export const Editor = (() => {
 
   const refit = (root) => { for (const f of root.querySelectorAll('figure.pic')) { sizePic(f); fitPic(f); } };
 
-  return { refit, mount, sanitize, derive, refreshChips, openAs };
+  /* push the focused note's pending edit to the store now (before the tab closes or hides) */
+  function flush() {
+    const a = document.activeElement;
+    const body = a && a.closest && a.closest('.note-body');
+    const c = body && commits.get(body);
+    if (c) c.flush();
+  }
+
+  return { refit, mount, sanitize, derive, refreshChips, openAs, flush };
 })();

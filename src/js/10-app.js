@@ -1,5 +1,6 @@
 import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon, fuzzy, markPositions } from './00-util.js';
 import { Bird } from './01-bird.js';
+import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
 import { Popup, Modal } from './05-ui.js';
 import { Board } from './07-board.js';
@@ -11,7 +12,6 @@ import { Palette } from './09-palette.js';
 export const App = (() => {
   let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl;
   const undoStack = [];
-  let lastActivity = now();
 
   /* ── theme ── */
   function setTheme(t) {
@@ -20,7 +20,7 @@ export const App = (() => {
   }
   setTheme(ls.get('theme', matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'night'));
 
-  /* ── welcome / unlock ───────────────────────────────────────── */
+  /* ── welcome ──────────────────────────────────────────────────── */
   function showWelcome(mode = 'start', env = null) {
     shell.hidden = true;
     welcome.hidden = false;
@@ -29,25 +29,27 @@ export const App = (() => {
     const card = h('div', { class: 'w-card' });
     welcome.append(h('div', { class: 'w-inner' }, bird, card));
 
-    if (mode === 'locked') {
-      const inp = h('input', { class: 'field w-pass', type: 'password', placeholder: 'Passphrase', 'data-shy': '', autocomplete: 'current-password' });
+    if (mode === 'encrypted') {
+      // a vault encrypted by a pre-1.0 build: decrypt once, then it is plain JSON from here on
+      const inp = h('input', { class: 'field w-pass', type: 'password', placeholder: 'Its passphrase', 'data-shy': '', autocomplete: 'current-password' });
       const err = h('p', { class: 'w-err', role: 'alert' });
       const go = async () => {
         if (!inp.value) return;
-        btn.disabled = true; btn.textContent = 'Unlocking…';
+        btn.disabled = true; btn.textContent = 'Opening…';
         try {
-          await Store.unlock(inp.value, env);
+          await Store.decryptOld(inp.value, env);
           enter();
+          toast(`${Store.S.vault.file} is now plain JSON. The encrypted original is in .fm-backups.`, { timeout: 7000 });
         } catch {
           err.textContent = 'That passphrase does not open this vault.';
           card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
-          btn.disabled = false; btn.textContent = 'Unlock'; inp.select();
+          btn.disabled = false; btn.textContent = 'Open'; inp.select();
         }
       };
-      const btn = h('button', { class: 'btn primary', text: 'Unlock', onclick: go });
+      const btn = h('button', { class: 'btn primary', text: 'Open', onclick: go });
       inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
       card.append(
-        h('p', { class: 'w-lead', html: `<b>${esc(Store.S.vault.file)}</b> in ${esc(Store.S.vault.name)} is locked.` }),
+        h('p', { class: 'w-lead', html: `<b>${esc(Store.S.vault.file)}</b> was encrypted by an earlier version of frogmouth. Enter its passphrase once to open it; from then on it is saved as plain JSON.` }),
         h('div', { class: 'w-row' }, inp, btn), err,
         h('button', { class: 'btn ghost small', text: 'Choose another vault', onclick: () => { Store.close(); showWelcome(); } }));
       setTimeout(() => inp.focus(), 50);
@@ -73,7 +75,7 @@ export const App = (() => {
     alt.append(h('button', { class: 'btn ghost', text: 'Import a .fm file', onclick: importFile }));
     alt.append(h('button', { class: 'btn ghost', text: 'Try it without saving', onclick: () => { Store.openMemory(); enter(); } }));
     actions.append(alt);
-    card.append(h('p', { class: 'w-fine', html: `This page makes no network requests. The vault is readable JSON unless you set a passphrase (AES-256).` }));
+    card.append(h('p', { class: 'w-fine', html: `This page makes no network requests. Your vault is a readable JSON file in your folder.` }));
   }
 
   async function pickFolder() {
@@ -105,11 +107,11 @@ export const App = (() => {
       try {
         const j = JSON.parse(await f.text());
         if (j.encrypted) {
-          Store.S.vault = { kind: 'memory', name: f.name, file: f.name };
-          const pass = await Modal.prompt('Passphrase for ' + f.name, '', { type: 'password', shy: true, label: 'Unlock' });
+          // made by a pre-1.0 build: decrypt once into a plain vault in this tab
+          const pass = await Modal.prompt(`${f.name} was encrypted by an earlier version`, '', { type: 'password', shy: true, label: 'Open', placeholder: 'Its passphrase' });
           if (!pass) return;
-          await Store.unlock(pass, j);
-          Store.S.vault = { kind: 'memory', name: f.name, file: f.name };
+          Store.openMemory(null, f.name);
+          await Store.decryptOld(pass, j);
           Store.setStatus('memory', 'Kept in memory');
           enter();
         } else { Store.openMemory(j.data || j, f.name); enter(); }
@@ -121,7 +123,7 @@ export const App = (() => {
   async function openVault(dir, kind) {
     try {
       const res = await Store.openDir(dir, kind);
-      if (res.locked) { if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 }); return showWelcome('locked', res.env); }
+      if (res.encrypted) { if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 }); return showWelcome('encrypted', res.env); }
       enter();
       if (res.fresh) toast(`Created ${Store.FILE} in ${Store.S.vault.name}`);
       if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 });
@@ -238,9 +240,9 @@ export const App = (() => {
     // only the pills scroll; the all-boards and + buttons always stay in reach
     const scroller = h('div', { class: 'bp-scroll' }, pills);
     scroller.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { scroller.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
-    boardsEl.replaceChildren(scroller,
+    boardsEl.replaceChildren(...[scroller,
     hidden > 0 ? h('button', { class: 'bp-more', title: `All ${d.boards.length} boards (${ALT}J)`, html: `${icon('grid')}<span>${d.boards.length}</span>`, onclick: boardPicker }) : null,
-    h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard }));
+    h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard })].filter(Boolean));
     const on = boardsEl.querySelector('.board-pill.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
@@ -275,7 +277,6 @@ export const App = (() => {
     const r = menuBtn.getBoundingClientRect();
     const items = [
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
-      Store.S.crypt ? { id: 'lock', label: 'Lock vault', icon: 'lock', hint: `${MOD}⇧L` } : { id: 'encrypt', label: 'Encrypt with a passphrase…', icon: 'lock' },
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: `${MOD}S` } : { id: 'download', label: 'Download a copy', icon: 'down' },
       { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
@@ -283,7 +284,7 @@ export const App = (() => {
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -303,8 +304,8 @@ export const App = (() => {
     }[st] || (v.kind === 'memory' ? 'Not saved to any file. Click to download the vault.' : '');
     syncEl.className = 'hud-sync sync-' + cls;
     const label = v.kind === 'dir' ? v.name : v.kind === 'opfs' ? 'Browser storage' : 'No folder';
-    syncEl.innerHTML = `<span class="sync-ic">${icon(ic)}${Store.S.crypt ? `<span class="sync-lock">${icon('lock')}</span>` : ''}</span><span class="sync-where">${esc(label)}</span>`;
-    syncEl.title = tip + (Store.S.crypt ? ' Encrypted.' : '');
+    syncEl.innerHTML = `<span class="sync-ic">${icon(ic)}</span><span class="sync-where">${esc(label)}</span>`;
+    syncEl.title = tip;
     syncEl.setAttribute('aria-label', syncEl.title);
     const act = Store.S.data && Store.S.data.ui.active;
     document.title = (st === 'unsaved' || st === 'error' || st === 'conflict' ? '● ' : '') + (act ? (isSecrets() ? 'Secrets' : act === 'notes' ? 'Notes' : (Store.board(Store.S.data.ui.board) || {}).name) + ' — ' : '') + 'frogmouth';
@@ -325,7 +326,7 @@ export const App = (() => {
     });
     if (v === 'disk') {
       try { await Store.reloadFrom(); toast('Loaded the disk version'); }
-      catch { toast('The disk version is encrypted with a different passphrase. Lock and reopen.', { kind: 'warn', timeout: 6000 }); }
+      catch (err) { toast(`Could not load the disk version: ${err.message}`, { kind: 'warn', timeout: 6000 }); }
     } else if (v === 'mine') { await Store.keepMine(); toast('Your version was written to disk'); }
   }
 
@@ -424,43 +425,6 @@ export const App = (() => {
   }
   function undo() { const fn = undoStack.pop(); if (fn) { fn(); toast('Restored'); } }
 
-  /* ── encryption ── */
-  function setPass(change) {
-    const a = h('input', { class: 'field', type: 'password', placeholder: 'Passphrase', 'data-shy': '', autocomplete: 'new-password' });
-    const b = h('input', { class: 'field', type: 'password', placeholder: 'Repeat it', 'data-shy': '', autocomplete: 'new-password' });
-    const err = h('p', { class: 'w-err' });
-    Modal.open({
-      title: change ? 'Change the passphrase' : 'Encrypt this vault',
-      body: h('div', { class: 'stack' }, a, b, err, h('p', { class: 'muted small', text: 'The .fm file is encrypted with AES-256-GCM. Images and tagged files in the folder are not. There is no recovery: a forgotten passphrase means a lost vault.' })),
-      actions: [{ label: 'Cancel', value: null }, { label: change ? 'Change passphrase' : 'Encrypt', primary: true, run: async () => {
-        if (a.value.length < 8) { err.textContent = 'Use at least 8 characters.'; return false; }
-        if (a.value !== b.value) { err.textContent = 'The two entries differ.'; return false; }
-        await Store.setPassphrase(a.value);
-        if (Store.S.vault.kind === 'memory') Store.change('crypt');
-        toast(change ? 'Passphrase changed' : 'Vault encrypted');
-        renderSync();
-        return true;
-      } }],
-    });
-  }
-  async function removePass() {
-    if (!(await Modal.confirm('Remove encryption?', 'The vault file will be saved as readable JSON.', 'Remove passphrase'))) return;
-    await Store.setPassphrase(null);
-    toast('Encryption removed'); renderSync();
-  }
-  async function lock() {
-    if (!Store.S.crypt) return;
-    if (Store.S.vault.kind === 'memory') { toast('Download the vault before locking; it only lives in this tab', { kind: 'warn' }); return; }
-    Store.saveNow.cancel();
-    await Store.save();
-    const { dir, kind } = Store.S.vault;
-    Board.unmount();
-    Store.close();
-    await openVault(dir, kind);
-  }
-  setInterval(() => { if (Store.S.crypt && Store.S.vault && Store.S.vault.kind !== 'memory' && now() - lastActivity > 15 * 60000) lock(); }, 30000);
-  ['pointerdown', 'keydown'].forEach((ev) => addEventListener(ev, () => { lastActivity = now(); }, true));
-
   async function downloadVault() {
     const text = await Store.serialize();
     download(Store.S.vault.kind === 'memory' && /\.fm$/.test(Store.S.vault.name) ? Store.S.vault.name : Store.FILE, text);
@@ -478,7 +442,6 @@ export const App = (() => {
   /* ── commands ── */
   const isBoard = () => Store.S.data && Store.S.data.ui.active !== 'secrets';
   function commands() {
-    const c = !!Store.S.crypt;
     return [
       { title: 'New note', key: 'N', when: isBoard, run: () => Board.addNote(null, true) },
       { title: 'New board', run: newBoard },
@@ -501,10 +464,6 @@ export const App = (() => {
       { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
       { title: 'Download a copy of the vault', run: downloadVault },
-      { title: 'Encrypt vault with a passphrase', when: () => !c, run: () => setPass(false) },
-      { title: 'Change passphrase', when: () => c, run: () => setPass(true) },
-      { title: 'Remove passphrase', when: () => c, run: removePass },
-      { title: 'Lock vault', key: MOD + '⇧L', when: () => c, run: lock },
       { title: 'Close vault', run: closeVault },
       { title: 'Keyboard shortcuts', key: '?', run: shortcuts },
     ];
@@ -540,7 +499,6 @@ export const App = (() => {
     if (mod && !e.altKey && (lower === 'k' || (lower === 'p' && !e.shiftKey))) { e.preventDefault(); Popup.close(); Palette.isOpen() ? Palette.hide() : Palette.show(); return; }
     if (mod && e.shiftKey && lower === 'p') { e.preventDefault(); Palette.show('>'); return; }
     if (mod && lower === 's') { e.preventDefault(); if (Store.S.vault.kind === 'memory') downloadVault(); else { Store.saveNow.flush(); } return; }
-    if (mod && e.shiftKey && lower === 'l') { e.preventDefault(); lock(); return; }
     if (Modal.isOpen() || Palette.isOpen()) return;
     if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = pillBoards()[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
     if (e.altKey && !mod && e.code === 'KeyJ') { e.preventDefault(); boardPicker(); return; }
@@ -567,7 +525,7 @@ export const App = (() => {
     boardVp = h('div', { class: 'board-vp', hidden: true });
     secretsEl = h('div', { class: 'secrets page', hidden: true });
     notesEl = h('div', { class: 'notes-page page', hidden: true });
-    menuBtn = h('button', { class: 'hud-menu', title: 'Theme, encryption, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
+    menuBtn = h('button', { class: 'hud-menu', title: 'Theme, export, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
     boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
       h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
@@ -609,11 +567,12 @@ export const App = (() => {
     bus.on('reloaded', () => { if (Store.S.data && !shell.hidden) enter(); });
     bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
     addEventListener('beforeunload', (e) => {
+      Editor.flush();
       if (!Store.S.data || !Store.S.dirty) return;
       if (Store.S.vault.kind !== 'memory') Store.saveNow.flush();
       e.preventDefault(); e.returnValue = '';
     });
-    document.addEventListener('visibilitychange', () => { if (document.hidden && Store.S.dirty && Store.S.vault && Store.S.vault.kind !== 'memory') Store.saveNow.flush(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) Editor.flush(); if (document.hidden && Store.S.dirty && Store.S.vault && Store.S.vault.kind !== 'memory') Store.saveNow.flush(); });
     showWelcome();
   }
 

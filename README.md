@@ -20,7 +20,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 ## What it does
 
 **Boards of sticky notes**
-- The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, encryption and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
+- The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, export and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
 - Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board.
 - With many boards, only your six most recently used get pills. The board-count button (or `⌥J`) opens a searchable list of every board; typing a name that doesn't exist creates it. `⌥1`–`⌥9` jump to the pills, and `⌘K` then `#` searches boards too.
 - **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
@@ -68,15 +68,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - A file with a dot: unsaved changes, saving shortly.
 - A file with `!`: the save failed (click to retry), or the file changed on disk (click to choose a version).
 - A struck-out file: nothing is written to any file (the in-tab mode). Click to download the vault.
-- A small lock on the icon means the vault is encrypted.
 - The vault file is watched. If another window, a sync tool or `git pull` changes it, frogmouth reloads it.
 - If you also have unsaved edits, it asks which version to keep.
-
-**Encryption** (optional): choose **Encrypt with a passphrase** in the board menu (or `⌘⇧P`).
-- The vault file becomes AES-256-GCM with a PBKDF2-SHA256 key (600k iterations).
-- The vault locks after 15 minutes idle or on `⌘⇧L`.
-- Images and tagged files in the folder are **not** encrypted.
-- There is no recovery for a forgotten passphrase.
 
 **Backups**: once a day, the vault file is copied to `.fm-backups/`. The last 14 copies are kept.
 
@@ -123,17 +116,17 @@ Press `?` in the app for the full list.
 
 ```
 my-vault/
-  vault.fm               # all boards, notes and secrets (JSON, or encrypted JSON)
+  vault.fm               # all boards, notes and secrets, as readable JSON
   assets/                # images pasted or dropped into notes
   files/                 # other files dropped into notes
   .fm-backups/           # daily copies of vault.fm
   anything-else.excalidraw   # any file here can be tagged with @
 ```
 
-Unencrypted, `vault.fm` is pretty-printed JSON, so it diffs well in git. Notes are stored once; boards hold placements that point at them (vaults from before version 2, where boards owned their notes, are converted on open):
+`vault.fm` is pretty-printed JSON, so it diffs well in git and you can read or fix it in any editor. Notes are stored once; boards hold placements that point at them (vaults from before version 2, where boards owned their notes, are converted on open):
 
 ```json
-{"frogmouth":1,"encrypted":false,"saved":"…","data":{
+{"frogmouth":1,"saved":"…","data":{
  "version":2,
  "notes":[{"id":"n1","color":"straw","tags":["docs"],"html":"<p>Title</p>…","title":"Title","text":"…"}],
  "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}]}],
@@ -145,7 +138,7 @@ Unencrypted, `vault.fm` is pretty-printed JSON, so it diffs well in git. Notes a
 
 - A Content-Security-Policy in the page forbids every network request (`connect-src 'none'`, no external scripts, styles, fonts or images). Nothing leaves your machine.
 - Note HTML is sanitized on load and paste. Scripts, event handlers, `javascript:` links, remote images and paths with `..` are removed.
-- In a plain vault, secrets are only as safe as the folder they sit in. Use a passphrase if the folder syncs anywhere.
+- The vault is a plain JSON file: secrets are as private as the folder they sit in, like any other file on your disk.
 
 ## Development
 
@@ -170,7 +163,7 @@ src/css/app.css       all styles (night and day themes)
 src/fonts/            JetBrains Mono woff2 files + OFL license
 src/js/00-util.js     helpers, tags, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
-src/js/02-crypto.js   optional AES-GCM vault encryption
+src/js/02-crypto.js   opens vaults encrypted by pre-1.0 builds, once, to save them as plain JSON
 src/js/03-store.js    state, the .fm file, autosave, disk watching, images, files
 src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor

@@ -1,10 +1,10 @@
 import { MOD, clamp, now, h, uid, debounce, esc, bus, toast, download, idb } from './00-util.js';
-import { Vcrypt } from './02-crypto.js';
+import { decryptLegacy } from './02-crypto.js';
 import { Editor } from './06-editor.js';
 
 /* ── store: state, the .fm file, sync, images ───────────────────────
-   A vault is a folder. Inside it lives one `*.fm` file (JSON,
-   optionally encrypted) plus any images, which notes reference by path
+   A vault is a folder. Inside it lives one `*.fm` file (plain,
+   readable JSON) plus any images, which notes reference by path
    relative to the folder. Writes are debounced and atomic
    (createWritable swaps the file on close). */
 export const Store = (() => {
@@ -16,7 +16,7 @@ export const Store = (() => {
   const S = {
     data: null,
     vault: null, // {kind:'dir'|'opfs'|'memory', dir, fh, name, file}
-    crypt: null,
+    force: false,
     dirty: false, saving: false, again: false,
     lastMod: 0,
     status: 'idle', statusText: '',
@@ -117,6 +117,7 @@ export const Store = (() => {
       x.desc = String(x.desc || '');
     }
     d.ui = Object.assign({ board: null, active: null }, d.ui || {});
+    d.ui.recent = Array.isArray(d.ui.recent) ? d.ui.recent.filter((id) => typeof id === 'string') : [];
     d.version = 2;
     return d;
   }
@@ -198,7 +199,7 @@ export const Store = (() => {
     return fm ? { fh: fm } : legacy ? { fh: legacy, legacy: true } : null;
   }
 
-  /* returns {ok:true, fresh?, migrated?} | {locked:true, env, migrated?} */
+  /* returns {ok:true, fresh?, migrated?} | {encrypted:true, env, migrated?} (a vault encrypted by a pre-1.0 build) */
   async function openDir(dir, kind = 'dir') {
     const found = await findFile(dir);
     let fh = found && found.fh, created = false, migrated = null;
@@ -222,15 +223,12 @@ export const Store = (() => {
     S.lastMod = file.lastModified;
     if (kind === 'dir') rememberRecent(dir);
     if (!text.trim()) {
-      S.crypt = null;
       setData(blankData());
       await save();
       return { ok: true, fresh: true };
     }
     const env = parse(text);
-    S.openedText = text; // backed up once the vault is readable
-    if (env.encrypted) return { locked: true, env, migrated };
-    S.crypt = null;
+    if (env.encrypted) { S.openedText = text; return { encrypted: true, env, migrated }; }
     setData(env.data);
     backup(text);
     return { ok: true, migrated };
@@ -244,17 +242,20 @@ export const Store = (() => {
     return { data: j }; // tolerate a bare data object
   }
 
-  async function unlock(pass, env) {
-    const { c, text } = await Vcrypt.open(pass, env);
-    S.crypt = c;
-    setData(JSON.parse(text));
-    if (S.openedText) backup(S.openedText); // the encrypted file as it was, like plain vaults
+  /* frogmouth no longer encrypts: open a pre-1.0 encrypted vault once, keep the
+     encrypted file in the backups folder, and save it back as plain JSON */
+  async function decryptOld(pass, env) {
+    const plain = await decryptLegacy(pass, env); // throws on a wrong passphrase
+    setData(JSON.parse(plain));
+    if (S.openedText) await backup(S.openedText, '-encrypted');
+    S.openedText = null;
+    S.dirty = true; S.rev++;
+    if (S.vault.kind !== 'memory') { S.force = true; await save(); }
     return true;
   }
 
   function openMemory(data, name = 'Scratch') {
     S.vault = { kind: 'memory', name, file: FILE };
-    S.crypt = null;
     setData(data || blankData());
     setStatus('memory', 'Kept in memory');
   }
@@ -272,39 +273,47 @@ export const Store = (() => {
     saveNow.cancel();
     for (const u of S.imgCache.values()) URL.revokeObjectURL(u);
     S.imgCache.clear();
-    S.data = null; S.vault = null; S.crypt = null; S.dirty = false; S.openedText = null;
+    S.data = null; S.vault = null; S.dirty = false; S.openedText = null; S.force = false;
     S.notes.clear();
     setStatus('idle');
     bus.emit('closed'); // views drop their DOM and caches (note text, revealed secrets, search index)
   }
 
   /* ── saving ── */
-  async function serialize() {
-    const body = JSON.stringify(S.data, null, 1);
-    if (S.crypt) return JSON.stringify(await Vcrypt.seal(S.crypt, body));
-    return '{"frogmouth":1,"encrypted":false,"saved":"' + new Date().toISOString() + '","data":' + body + '}\n';
+  function serialize() {
+    return '{"frogmouth":1,"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
   }
 
+  /* Write the vault. Each save records which change (S.rev) it wrote, so edits made
+     while a write is in flight stay "unsaved" and get their own save. Before writing,
+     the file is checked: if something else changed it since we last read or wrote it,
+     nothing is overwritten and the user chooses (see keepMine / reloadFrom). */
   async function save() {
     if (!S.vault || S.vault.kind === 'memory') return;
     if (S.saving) { S.again = true; return; }
     S.saving = true;
     setStatus('saving', 'Saving…');
     try {
-      const text = await serialize();
+      if (S.vault.kind === 'dir' && !S.force) {
+        const onDisk = await S.vault.fh.getFile();
+        if (onDisk.lastModified > S.lastMod) { setStatus('conflict', 'Changed on disk'); return; }
+      }
+      const rev = S.rev;
+      const text = serialize();
       const w = await S.vault.fh.createWritable();
       await w.write(text);
       await w.close();
       const f = await S.vault.fh.getFile();
       S.lastMod = f.lastModified;
-      S.dirty = false;
-      setStatus('saved', 'Saved');
+      if (S.rev === rev) { S.dirty = false; setStatus('saved', 'Saved'); }
+      else { setStatus('unsaved', 'Unsaved'); S.again = true; }
     } catch (err) {
       console.error(err);
       setStatus('error', err && err.name === 'NotAllowedError' ? 'No write permission' : 'Save failed');
     } finally {
       S.saving = false;
-      if (S.again) { S.again = false; save(); }
+      S.force = false; // a forced write is one-off, whatever happened
+      if (S.again) { S.again = false; if (S.status !== 'conflict') save(); }
     }
   }
   const saveNow = debounce(save, 350);
@@ -314,7 +323,7 @@ export const Store = (() => {
     S.dirty = true;
     S.rev++;
     if (S.vault.kind === 'memory') setStatus('memory', 'Unsaved — download to keep');
-    else { if (S.status !== 'conflict') setStatus('unsaved', 'Unsaved'); saveNow(); }
+    else if (S.status !== 'conflict') { setStatus('unsaved', 'Unsaved'); saveNow(); } // in a conflict, wait for the user's choice
     bus.emit('change', what);
   }
 
@@ -332,7 +341,7 @@ export const Store = (() => {
       toast('Reloaded — the vault changed on disk');
     } catch (err) {
       if (err && err.name === 'NotFoundError') setStatus('error', 'Vault file is missing');
-      else if (err && err.message === 'locked') setStatus('conflict', 'Changed on disk with another passphrase');
+      else if (err && err.message === 'encrypted') setStatus('error', 'The file on disk was encrypted by an older version; reopen the folder');
     }
   }
   setInterval(checkDisk, 2000);
@@ -342,15 +351,9 @@ export const Store = (() => {
     f = f || (await S.vault.fh.getFile());
     const text = await f.text();
     const env = parse(text);
+    if (env.encrypted) throw new Error('encrypted');
     S.lastMod = f.lastModified;
-    if (env.encrypted) {
-      if (!S.crypt) throw new Error('locked');
-      const { text: plain } = await Vcrypt.openWithKey(S.crypt, env);
-      setData(JSON.parse(plain));
-    } else {
-      S.crypt = null;
-      setData(env.data);
-    }
+    setData(env.data);
     bus.emit('reloaded'); // the app re-renders every view from the new data
   }
 
@@ -364,25 +367,20 @@ export const Store = (() => {
     return S.status === 'saved';
   }
 
+  /* resolve a conflict in favour of this tab: overwrite the disk version once */
   async function keepMine() {
-    S.lastMod = Infinity; // ignore the disk version
-    await save();
-  }
-
-  /* ── encryption toggles ── */
-  async function setPassphrase(pass) {
-    S.crypt = pass ? await Vcrypt.create(pass) : null;
-    S.dirty = true;
+    S.force = true;
+    setStatus('unsaved', 'Unsaved');
     await save();
   }
 
   /* ── daily backup of the raw file, keeps the last 14 ── */
-  async function backup(text) {
+  async function backup(text, tag = '') {
     if (!S.vault || S.vault.kind !== 'dir') return;
     try {
       const dir = await S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
       const day = new Date().toISOString().slice(0, 10);
-      const name = S.vault.file.replace(/\.(fm|frogmouth)$/, '') + '-' + day + EXT;
+      const name = S.vault.file.replace(/\.(fm|frogmouth)$/, '') + '-' + day + tag + EXT;
       try { await dir.getFileHandle(name); return; } catch {}
       const fh = await dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(text); await w.close();
@@ -501,8 +499,8 @@ export const Store = (() => {
   const linksOut = (note) => { const out = new Set(); const re = /data-note="([^"]+)"/g; let m; while ((m = re.exec(note.html))) if (S.notes.has(m[1])) out.add(m[1]); return [...out]; };
 
   return {
-    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, unlock, openMemory, close,
-    serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, setPassphrase, recents, forgetRecent,
+    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, decryptOld, openMemory, close,
+    serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
   };
 })();

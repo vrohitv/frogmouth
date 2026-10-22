@@ -6,7 +6,7 @@ import MARK from '../brand/mark.json';
    are the same amber eyes.
    Eyes follow the pointer (or the text caret while typing), blink,
    squint when idle (frogmouths camouflage by narrowing their eyes) and
-   shut tight while a secret or passphrase is being typed. */
+   shut tight while a secret is being typed. */
 export const Bird = (() => {
   const NS = 'http://www.w3.org/2000/svg';
   const FONT = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';

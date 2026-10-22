@@ -1,5 +1,4 @@
 import { $, $$, isMac, now, uid, esc, fuzzy } from '../src/js/00-util.js';
-import { Vcrypt } from '../src/js/02-crypto.js';
 import { Store } from '../src/js/03-store.js';
 import { HL } from '../src/js/04-highlight.js';
 import { Popup } from '../src/js/05-ui.js';
@@ -111,15 +110,7 @@ import { App } from '../src/js/10-app.js';
     ok('sanitize rejects path traversal', !sh.includes('passwd'), sh);
 
 
-    const c = await Vcrypt.create('correct horse');
-    const sealed = await Vcrypt.seal(c, '{"hello":1}');
-    const opened = await Vcrypt.open('correct horse', sealed);
-    ok('encrypt round trip', opened.text === '{"hello":1}');
-    let bad = false; try { await Vcrypt.open('wrong', sealed); } catch { bad = true; }
-    ok('wrong passphrase fails', bad);
-    ok('ciphertext hides plaintext', !JSON.stringify(sealed).includes('hello'));
-
-    ok('tagged HTML/SVG files never open as live documents', Editor.openAs('text/html', 'files/x.html') === 'text' && Editor.openAs('image/svg+xml', 'a.svg') === 'text' && Editor.openAs('application/xhtml+xml', 'a.xhtml') === 'download' && Editor.openAs('', 'files/a.excalidraw') === 'text' && Editor.openAs('image/png', 'a.png') === 'view' && Editor.openAs('application/zip', 'a.zip') === 'download');
+    ok('tagged files open as themselves', Editor.openAs('', 'files/x.html') === 'text/html' && Editor.openAs('', 'a.svg') === 'image/svg+xml' && Editor.openAs('', 'files/a.excalidraw').startsWith('text/plain') && Editor.openAs('image/png', 'a.png') === 'image/png' && Editor.openAs('', 'r.pdf') === 'application/pdf' && Editor.openAs('application/zip', 'a.zip') === 'application/zip');
     ok('fuzzy subsequence', fuzzy('rtb', 'retry with backoff') && !fuzzy('zzz', 'retry'));
 
     /* ── app in memory mode ── */
@@ -412,6 +403,8 @@ import { App } from '../src/js/10-app.js';
     window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
     ok('clicking the board closes it', !Popup.isOpen());
 
+    ok('no stray "null" in the board pills', !/null|undefined/.test($('.hud-boards').textContent), $('.hud-boards').textContent);
+
     // many boards: only recent ones get pills; the rest are one search away
     {
       const d = Store.S.data, before = d.boards.length;
@@ -440,7 +433,7 @@ import { App } from '../src/js/10-app.js';
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === 1 && parsed.encrypted === false && parsed.data.version === 2 && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === 1 && !('encrypted' in parsed) && parsed.data.version === 2 && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
     ok('normalize round trip', re.boards[0].items.length === Store.S.data.boards[0].items.length && re.notes.length === Store.S.data.notes.length);
 
@@ -517,25 +510,62 @@ import { App } from '../src/js/10-app.js';
         ok('file imported to files/', fp === 'files/arch.excalidraw', fp);
         const all = await Store.listFiles();
         ok('list files sees both', all.includes('files/arch.excalidraw') && all.some((p) => p.startsWith('assets/')), JSON.stringify(all));
-        await Store.setPassphrase('passphrase1');
-        const enc = await (await dir.getFileHandle('vault.fm')).getFile();
-        const ej = JSON.parse(await enc.text());
-        ok('encrypted on disk', ej.encrypted === true && !JSON.stringify(ej).includes('OPFS_KEY'));
-        Store.close();
-        const again = await Store.openDir(dir, 'opfs');
-        ok('reopen asks for passphrase', again.locked);
-        await Store.unlock('passphrase1', again.env);
-        ok('unlock restores data', Store.S.data.secrets.some((s) => s.key === 'OPFS_KEY'));
+        const plainOnDisk = JSON.parse(await (await (await dir.getFileHandle('vault.fm')).getFile()).text());
+        ok('the vault is plain JSON', !('encrypted' in plainOnDisk) && plainOnDisk.data.secrets.some((s) => s.key === 'OPFS_KEY'));
+
+        // saving: an edit made while a write is in flight stays unsaved and gets its own write
+        Store.S.data.secrets.push({ id: uid(), key: 'RACE_ONE', value: '1', tags: [], desc: '' }); Store.change('secrets');
+        await wait(360); // the debounced save starts...
+        Store.S.data.secrets.push({ id: uid(), key: 'RACE_TWO', value: '2', tags: [], desc: '' }); Store.change('secrets'); // ...and this lands mid-write
+        ok('an edit during a save keeps the vault marked unsaved', Store.S.dirty === true);
+        await wait(900);
+        const raced = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
+        ok('the later edit is written too', raced.includes('RACE_ONE') && raced.includes('RACE_TWO') && !Store.S.dirty && Store.S.status === 'saved', Store.S.status);
+
+        // a change made elsewhere is never silently overwritten: the save stops and asks
+        Store.S.vault.kind = 'dir'; // the folder-vault code path (OPFS handles speak the same API)
+        await wait(30);
+        const outside = JSON.stringify({ frogmouth: 1, data: { ...JSON.parse(JSON.stringify(Store.S.data)), secrets: [{ id: 'x', key: 'FROM_OUTSIDE', value: '1', tags: [] }] } });
+        const xw2 = await (await dir.getFileHandle('vault.fm')).createWritable(); await xw2.write(outside); await xw2.close();
+        Store.S.data.secrets.push({ id: uid(), key: 'MINE', value: '1', tags: [], desc: '' }); Store.change('secrets');
+        await wait(600);
+        const kept = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
+        ok('a conflicting save does not overwrite the other version', Store.S.status === 'conflict' && kept.includes('FROM_OUTSIDE') && !kept.includes('"MINE"'), Store.S.status);
+        await Store.keepMine();
+        const mine = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
+        ok('"Keep mine" then writes this version once', mine.includes('"MINE"') && Store.S.status === 'saved' && !Store.S.force, Store.S.status);
+        Store.S.vault.kind = 'opfs';
         // a change made outside the app is reloaded and shown (the board must not keep stale notes)
         App.enter(); await wait(50);
         const disk = JSON.parse(JSON.stringify(Store.S.data));
         disk.notes.push({ id: 'ext1', html: '<p>Written by another window</p>', color: 'rose' });
         disk.boards[0].items.push({ note: 'ext1', x: 900, y: 40, w: 260 });
-        const sealed2 = JSON.stringify(await Vcrypt.seal(Store.S.crypt, JSON.stringify(disk)));
-        const ew = await (await dir.getFileHandle('vault.fm')).createWritable(); await ew.write(sealed2); await ew.close();
+        const ew = await (await dir.getFileHandle('vault.fm')).createWritable(); await ew.write(JSON.stringify({ frogmouth: 1, data: disk })); await ew.close();
         await Store.reloadFrom(); await wait(80);
         ok('external changes re-render the board', !!$('.note[data-id="ext1"]') && Board.current() === Store.S.data.boards[0], $$('.note').length);
-        // locking leaves nothing readable behind
+        // a vault encrypted by a pre-1.0 build opens once with its passphrase and is saved back as plain JSON
+        {
+          const te = new TextEncoder(), b64 = (a) => btoa(String.fromCharCode(...new Uint8Array(a)));
+          const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+          const base = await crypto.subtle.importKey('raw', te.encode('old secret'), 'PBKDF2', false, ['deriveKey']);
+          const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 1000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+          const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, te.encode(JSON.stringify({ boards: [{ id: 'eb', name: 'Was locked', items: [] }], notes: [], secrets: [{ id: 's1', key: 'OLD_KEY', value: 'v', tags: [] }] })));
+          const encDir = await root.getDirectoryHandle('fm-enc-' + Date.now(), { create: true });
+          const encText = JSON.stringify({ frogmouth: 1, encrypted: true, kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: 1000, salt: b64(salt) }, cipher: { name: 'AES-GCM', iv: b64(iv) }, data: b64(ct) });
+          const xw = await (await encDir.getFileHandle('vault.fm', { create: true })).createWritable(); await xw.write(encText); await xw.close();
+          Store.close();
+          const er = await Store.openDir(encDir, 'opfs');
+          ok('an old encrypted vault asks for its passphrase once', er.encrypted === true);
+          let wrong = false; try { await Store.decryptOld('nope', er.env); } catch { wrong = true; }
+          ok('a wrong passphrase is refused', wrong);
+          await Store.decryptOld('old secret', er.env);
+          const nowPlain = JSON.parse(await (await (await encDir.getFileHandle('vault.fm')).getFile()).text());
+          ok('it is saved back as plain JSON', !nowPlain.encrypted && nowPlain.data.secrets[0].key === 'OLD_KEY' && Store.S.data.boards[0].name === 'Was locked');
+          await root.removeEntry(encDir.name, { recursive: true });
+          Store.close();
+          await Store.openDir(dir, 'opfs'); App.enter(); await wait(30);
+        }
+        // closing leaves nothing behind on the page
         App.openTab('secrets'); await wait(20);
         Store.close(); await wait(20);
         ok('closing clears notes and secrets from the page', !$$('.note').length && !$('.s-list').children.length && !Store.S.notes.size);

@@ -208,7 +208,7 @@ export const Secrets = (() => {
     const all = Store.S.data.secrets;
     if (!all.length) { toast('There are no secrets to export'); return; }
     const ok = await Modal.confirm('Export all secrets as JSON?',
-      `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text, even if this vault is encrypted. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false);
+      `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false);
     if (!ok) return;
     const day = new Date().toISOString().slice(0, 10);
     const out = {
