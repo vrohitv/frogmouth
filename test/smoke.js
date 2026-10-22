@@ -558,6 +558,17 @@ import { App } from '../src/js/10-app.js';
       ok('the zoom percent follows the zoom', $('.nav-pct').textContent === '50%', $('.nav-pct').textContent);
       $('.nav-pct').click(); await frameP(); await frameP();
       ok('clicking the percent goes back to 100%', Board.zoom() === 1 && $('.nav-pct').textContent === '100%');
+      // one notch of a mouse wheel is one 10% step, not a jump across the whole range
+      const notch = (dy, o = {}) => $('.board-vp').dispatchEvent(new WheelEvent('wheel', { deltaY: dy, ctrlKey: true, bubbles: true, cancelable: true, clientX: 600, clientY: 400, ...o }));
+      notch(-100);
+      ok('one wheel notch in zooms 10%', Math.abs(Board.zoom() - 1.1) < 1e-9, Board.zoom());
+      Board.zoomAt(1); notch(100);
+      ok('one wheel notch out zooms 10%', Math.abs(Board.zoom() - 1 / 1.1) < 1e-9, Board.zoom());
+      Board.zoomAt(1); notch(-3, { deltaMode: 1 });
+      ok('a notch counted in lines is one step too', Math.abs(Board.zoom() - 1.1) < 1e-9, Board.zoom());
+      Board.zoomAt(1); for (let i = 0; i < 10; i++) notch(-2);
+      ok('a pinch still zooms in proportion', Math.abs(Board.zoom() - Math.exp(0.2)) < 1e-9, Board.zoom());
+      Board.zoomAt(1);
       [...$$('.nav-btn')].find((b) => b.textContent === '+').click();
       ok('+ zooms in', Board.zoom() > 1);
       Board.zoomAt(1); await frameP(); await frameP();

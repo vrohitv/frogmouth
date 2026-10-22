@@ -1,4 +1,4 @@
-import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText, isMac, isAltGr, kb } from './00-util.js';
+import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText, isMac, isAltGr, kb, wheelZoom } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { HL } from './04-highlight.js';
@@ -348,8 +348,7 @@ export const Editor = (() => {
     if (!fig || e.target.closest('.pic-ui')) return;
     e.preventDefault(); e.stopPropagation();
     const [lx, ly] = local(fig, e);
-    const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-    zoomPic(fig, Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0025)), lx, ly);
+    zoomPic(fig, wheelZoom(e, e.ctrlKey ? 0.01 : 0.0025), lx, ly);
   }, { passive: false, capture: true });
   document.addEventListener('pointerdown', (e) => {
     const fig = e.target.closest && e.target.closest('figure.pic');
