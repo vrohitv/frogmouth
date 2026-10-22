@@ -74,7 +74,7 @@ def mark(x=0, y=0, size=128):
 
     body = "".join(layer(l) for l in MARK["back"])
     body += "".join(eye(e["cx"], e["cy"], e["r"], e["slant"], 2, 1.6) for e in MARK["eyes"])
-    body += "".join(layer(l) for l in MARK["front"])
+    body += "".join(layer(l) for l in MARK["front"] if not l.get("mouth"))  # the mouth only shows when the live bird gapes
     return f'<g transform="translate({f(x)} {f(y)}) scale({f(k)})">{body}</g>'
 
 

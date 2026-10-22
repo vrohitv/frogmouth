@@ -449,8 +449,6 @@ export const App = (() => {
       { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
       { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
-      { title: 'Import secrets from .env', run: () => { openTab('secrets'); Secrets.importEnv(); } },
-      { title: 'Copy listed secrets as .env', run: () => { openTab('secrets'); Secrets.exportEnv(); } },
       { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },

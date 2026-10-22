@@ -52,6 +52,8 @@ import { App } from '../src/js/10-app.js';
       await type('co');
     }
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
+    if (mode === 'shot-secret-edit') { App.openTab('secrets'); await wait(50); Secrets.edit(Store.S.data.secrets[1]); }
+    if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
       const infra = { id: uid(), name: 'Infra', created: now(), items: [] };
       Store.S.data.boards.push(infra); Store.index();
@@ -95,8 +97,6 @@ import { App } from '../src/js/10-app.js';
     ok('sanitize keeps safe links + chips', sh.includes('https://ok.dev') && sh.includes('data-note="n1"') && sh.includes('files/a.excalidraw') && sh.includes('data-h="200"'), sh);
     ok('sanitize rejects path traversal', !sh.includes('passwd'), sh);
 
-    const env = Secrets.parseEnv('# c\nexport A=1\nB="two words" # note\nC=\'x y\'\nD="multi\\nline"\nE = spaced\nbad line');
-    ok('parse .env', env.length === 5 && env[1].value === 'two words' && env[2].value === 'x y' && env[3].value === 'multi\nline' && env[4].value === 'spaced', JSON.stringify(env));
 
     const c = await Vcrypt.create('correct horse');
     const sealed = await Vcrypt.seal(c, '{"hello":1}');
@@ -285,6 +285,14 @@ import { App } from '../src/js/10-app.js';
     ok('negated filter', $$('.srow').length === 0);
     Secrets.setFilter('');
     ok('values masked', !$('.s-list').textContent.includes('s3cr3t'));
+    Secrets.edit(null);
+    await wait(220); // let the open animation finish
+    {
+      const r = $('.s-drawer').getBoundingClientRect();
+      ok('secret editor opens centred', Math.abs(r.left + r.width / 2 - innerWidth / 2) < 2 && Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2, JSON.stringify([r.left, r.top, r.width, r.height, innerWidth, innerHeight]));
+      $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      ok('clicking outside closes the editor', $('.s-drawer').hidden);
+    }
     ok('tag row lists every tag', $$('.s-tagrow .chip').length === 7, $$('.s-tagrow .chip').length);
     ok('switcher shows secrets active', $('.hud-switch [data-view="secrets"]').classList.contains('on'));
     $('.hud-switch [data-view="board"]').click();

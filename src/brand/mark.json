@@ -1,25 +1,91 @@
 {
-  "about": "The frogmouth symbol on a 128 grid. Read by src/js/01-bird.js (live eyes) and tools/brand.py (static assets). Layers are drawn in order; eyes go between 'back' and 'front'. Lids are generated: heavy, angled down toward the beak.",
-  "viewBox": [0, 0, 128, 128],
+  "about": "The frogmouth symbol on a 128 grid. Read by src/js/01-bird.js (live eyes, opening mouth) and tools/brand.py (static assets). Layers are drawn in order; eyes go between 'back' and 'front'. Lids are generated: heavy, angled down toward the beak. 'mouth' layers sit hidden behind the beak; 'jaw' layers drop when the bird gapes.",
+  "viewBox": [
+    0,
+    0,
+    128,
+    128
+  ],
   "colors": {
-    "plume": "#5F6866", "shade": "#4F5755", "brow": "#D3D9D6", "lid": "#454D4B", "lash": "#2B3231",
-    "horn": "#B8AE90", "ridge": "#D0C7A9", "gape": "#252B2A",
-    "iris": "#F2B33D", "irisIn": "#F7C860", "ring": "#1E1606", "pupil": "#0F1211", "glint": "#FFF7E2"
+    "plume": "#5F6866",
+    "shade": "#4F5755",
+    "brow": "#D3D9D6",
+    "lid": "#454D4B",
+    "lash": "#2B3231",
+    "horn": "#B8AE90",
+    "ridge": "#D0C7A9",
+    "gape": "#252B2A",
+    "iris": "#F2B33D",
+    "irisIn": "#F7C860",
+    "ring": "#1E1606",
+    "pupil": "#0F1211",
+    "glint": "#FFF7E2",
+    "mouth": "#E9C93F",
+    "mouthDeep": "#C79A1E"
   },
   "back": [
-    { "fill": "plume", "d": "M10 56C10 32 32 18 64 18C96 18 118 32 118 56C118 80 100 96 80 101L64 106L48 101C28 96 10 80 10 56Z" },
-    { "fill": "shade", "opacity": 0.45, "d": "M16 77C20 61 38 52 64 52C90 52 108 61 112 77C106 88 94 97 80 101L64 106L48 101C34 97 22 88 16 77Z" },
-    { "fill": "brow", "d": "M60 42C52 31 33 27 16 36C29 32 44 35 55 46Z" },
-    { "fill": "brow", "d": "M68 42C76 31 95 27 112 36C99 32 84 35 73 46Z" }
+    {
+      "fill": "plume",
+      "d": "M10 56C10 32 32 18 64 18C96 18 118 32 118 56C118 80 100 96 80 101L64 106L48 101C28 96 10 80 10 56Z"
+    },
+    {
+      "fill": "shade",
+      "opacity": 0.45,
+      "d": "M16 77C20 61 38 52 64 52C90 52 108 61 112 77C106 88 94 97 80 101L64 106L48 101C34 97 22 88 16 77Z"
+    },
+    {
+      "fill": "brow",
+      "d": "M60 42C52 31 33 27 16 36C29 32 44 35 55 46Z"
+    },
+    {
+      "fill": "brow",
+      "d": "M68 42C76 31 95 27 112 36C99 32 84 35 73 46Z"
+    }
   ],
   "eyes": [
-    { "cx": 42, "cy": 52, "r": 13, "slant": -1 },
-    { "cx": 86, "cy": 52, "r": 13, "slant": 1 }
+    {
+      "cx": 42,
+      "cy": 52,
+      "r": 13,
+      "slant": -1
+    },
+    {
+      "cx": 86,
+      "cy": 52,
+      "r": 13,
+      "slant": 1
+    }
   ],
   "front": [
-    { "fill": "horn", "d": "M30 74Q64 68 98 74Q88 88 72 98Q67 102 64 112Q61 102 56 98Q40 88 30 74Z" },
-    { "fill": "ridge", "d": "M52 72Q64 70 76 72L64 94Z" },
-    { "stroke": "gape", "width": 3.2, "d": "M20 77Q42 71 64 71Q86 71 108 77" },
-    { "stroke": "brow", "width": 2, "d": "M64 69V58M60 69L57.5 60M68 69L70.5 60" }
+    {
+      "fill": "mouth",
+      "mouth": true,
+      "d": "M31 75Q64 69 97 75Q86 90 64 95Q42 90 31 75Z"
+    },
+    {
+      "fill": "mouthDeep",
+      "mouth": true,
+      "d": "M46 77Q64 74 82 77Q74 86 64 88Q54 86 46 77Z"
+    },
+    {
+      "fill": "horn",
+      "jaw": true,
+      "d": "M30 74Q64 68 98 74Q88 88 72 98Q67 102 64 112Q61 102 56 98Q40 88 30 74Z"
+    },
+    {
+      "fill": "ridge",
+      "jaw": true,
+      "d": "M52 72Q64 70 76 72L64 94Z"
+    },
+    {
+      "stroke": "gape",
+      "width": 3.2,
+      "d": "M20 77Q42 71 64 71Q86 71 108 77"
+    },
+    {
+      "stroke": "brow",
+      "width": 2,
+      "d": "M64 69V58M60 69L57.5 60M68 69L70.5 60"
+    }
   ]
 }

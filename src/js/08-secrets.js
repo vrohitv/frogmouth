@@ -6,7 +6,7 @@ import { App } from './10-app.js';
 /* ── secrets: key/value pairs with plain and key:value tags ────────── */
 export const Secrets = (() => {
   let root, list, filterInp, countEl, drawer, tagsRow;
-  let rows = [], cur = 0, editingId = null;
+  let rows = [], cur = 0, editingId = null, closeEditor = null;
   const revealed = new Set();
   const MASK = '••••••••••••';
 
@@ -25,8 +25,6 @@ export const Secrets = (() => {
         h('div', { class: 's-search', html: icon('search') }, filterInp),
         countEl,
         h('button', { class: 'btn', html: `${icon('plus')}New secret <kbd>N</kbd>`, onclick: () => edit(null) }),
-        h('button', { class: 'btn ghost', text: 'Import .env', onclick: importEnv }),
-        h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv }),
         h('button', { class: 'btn ghost', text: 'Export JSON', title: 'Download every secret as a JSON file', onclick: () => exportJson() })),
       tagsRow,
       h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
@@ -52,6 +50,8 @@ export const Secrets = (() => {
       else if (a && a.dataset.a === 'key') copyKey(x);
       else { mark(); }
     });
+    // a click on the dimmed page outside the editor closes it
+    root.addEventListener('mousedown', (e) => { if (e.target === root && closeEditor) closeEditor(); });
     list.addEventListener('dblclick', (e) => { const row = e.target.closest('.srow'); if (row && !e.target.closest('button')) edit(Store.secret(row.dataset.id)); });
   }
 
@@ -73,7 +73,7 @@ export const Secrets = (() => {
     tagsRow.innerHTML = [...freq.keys()].sort().map((t) => chip(t, active.has(t.toLowerCase()))).join('');
     countEl.textContent = toks.length ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'secret' : 'secrets'}`;
     if (!all.length) {
-      list.innerHTML = `<div class="s-empty"><p>No secrets yet.</p><p class="muted">Press <kbd>N</kbd> to add one, or paste a <code>.env</code> file with Import .env. Tags like <code>env:prod</code> group them.</p></div>`;
+      list.innerHTML = `<div class="s-empty"><p>No secrets yet.</p><p class="muted">Press <kbd>N</kbd> to add one. Tags like <code>env:prod</code> group them.</p></div>`;
       return;
     }
     if (!rows.length) { list.innerHTML = `<div class="s-empty"><p>Nothing matches “${esc(filterInp.value.trim())}”.</p><p class="muted">Press <kbd>Esc</kbd> to clear the filter.</p></div>`; return; }
@@ -176,7 +176,8 @@ export const Secrets = (() => {
       cur = Math.max(0, rows.indexOf(target)); mark();
       list.focus();
     };
-    const close = () => { drawer.hidden = true; drawer.replaceChildren(); editingId = null; root.classList.remove('drawer-open'); };
+    const close = () => { drawer.hidden = true; drawer.replaceChildren(); editingId = null; closeEditor = null; root.classList.remove('drawer-open'); };
+    closeEditor = () => { close(); list.focus(); };
 
     drawer.replaceChildren(...[
       h('div', { class: 'd-head' }, h('h3', { text: isNew ? 'New secret' : x.key }), h('button', { class: 'icon-btn', title: 'Close (Esc)', html: icon('x'), onclick: () => { close(); list.focus(); } })),
@@ -200,52 +201,6 @@ export const Secrets = (() => {
     (isNew ? keyI : valI).focus();
   }
 
-  /* ── .env import / export ── */
-  function parseEnv(text) {
-    const out = [];
-    const lines = text.replace(/\r\n?/g, '\n').split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      let l = lines[i].trim();
-      if (!l || l[0] === '#') continue;
-      l = l.replace(/^export\s+/, '');
-      const m = /^([A-Za-z_][\w.-]*)\s*[=:]\s*(.*)$/.exec(l);
-      if (!m) continue;
-      let v = m[2];
-      if (v[0] === '"') {
-        let s = v.slice(1);
-        while (!/(^|[^\\])"\s*(#.*)?$/.test(s) && i + 1 < lines.length) s += '\n' + lines[++i];
-        v = s.replace(/"\s*(#.*)?$/, '').replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-      } else if (v[0] === "'") v = v.slice(1).replace(/'\s*(#.*)?$/, '');
-      else v = v.replace(/\s+#.*$/, '').trim();
-      out.push({ key: m[1], value: v });
-    }
-    return out;
-  }
-  function importEnv() {
-    const ta = h('textarea', { class: 'field mono', rows: '10', placeholder: 'DATABASE_URL=postgres://…\nexport API_KEY="…"', spellcheck: 'false', 'data-shy': '' });
-    const tags = h('input', { class: 'field mono', placeholder: 'Tags for all of them, e.g. env:staging api', spellcheck: 'false' });
-    const info = h('p', { class: 'muted small', text: 'Paste the contents of a .env file. Existing keys with the same tags are updated.' });
-    ta.addEventListener('input', () => { const n = parseEnv(ta.value).length; info.textContent = n ? `${n} ${n === 1 ? 'secret' : 'secrets'} found.` : 'Paste the contents of a .env file.'; });
-    Modal.open({
-      title: 'Import .env', wide: true,
-      body: h('div', { class: 'stack' }, ta, tags, info),
-      actions: [{ label: 'Cancel', value: null }, { label: 'Import', primary: true, run: () => {
-        const items = parseEnv(ta.value);
-        if (!items.length) { info.textContent = 'No KEY=value lines found.'; return false; }
-        const tg = [...new Set(tagsOf(tags.value))];
-        const sig = (t) => t.slice().sort().join(' ');
-        let added = 0, updated = 0;
-        for (const it of items) {
-          const ex = Store.S.data.secrets.find((s) => s.key === it.key && sig(s.tags) === sig(tg));
-          if (ex) { if (ex.value !== it.value) { ex.value = it.value; ex.updated = now(); updated++; } }
-          else { Store.S.data.secrets.push({ id: uid(), key: it.key, value: it.value, tags: tg.slice(), desc: '', created: now(), updated: now() }); added++; }
-        }
-        Store.change('secrets'); render();
-        toast(`Imported: ${added} added, ${updated} updated`);
-        return true;
-      } }],
-    });
-  }
   /* every secret (not the notes) as a JSON download */
   async function exportJson() {
     const all = Store.S.data.secrets;
@@ -268,12 +223,7 @@ export const Secrets = (() => {
     toast(`Exported ${all.length} ${all.length === 1 ? 'secret' : 'secrets'} to frogmouth-secrets-${day}.json`);
   }
 
-  async function exportEnv() {
-    if (!rows.length) { toast('Nothing to copy'); return; }
-    const q = (v) => (/^[\w@%+=:,./-]*$/.test(v) ? v : '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"');
-    const text = rows.map((x) => `${x.key}=${q(x.value)}`).join('\n') + '\n';
-    if (await copyText(text)) toast(`Copied ${rows.length} ${rows.length === 1 ? 'line' : 'lines'} as .env`);
-  }
+
 
   /* ── sidebar data ── */
   function tagStats() {
@@ -311,5 +261,5 @@ export const Secrets = (() => {
   function focus() { if (drawer.hidden) list.focus({ preventScroll: true }); }
   function select(id) { const x = Store.secret(id); if (!x) return; if (!matches(x, filterInp.value.toLowerCase().split(/\s+/).filter(Boolean))) setFilter(''); cur = rows.indexOf(x); mark(); flash(x); }
 
-  return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, exportJson, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
+  return { init, render, key, focus, edit, select, setFilter, exportJson, tagStats, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
 })();

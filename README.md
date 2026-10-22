@@ -57,7 +57,6 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Filter syntax: `env:prod aws -legacy`.
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
-- Import a pasted `.env` file. Copy the listed secrets back out as `.env`.
 - **Export JSON** downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
 - Generate random values.
 
@@ -173,7 +172,7 @@ src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor
 src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images
 src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange, note tags
-src/js/08-secrets.js  secrets list, .env import/export, JSON export
+src/js/08-secrets.js  secrets list, JSON export
 src/js/08b-notes.js   all-notes page: sort, filter, tags, links
 src/js/09-palette.js  search and commands
 src/js/10-app.js      shell: welcome, floating controls, board pills, sync icon, keyboard

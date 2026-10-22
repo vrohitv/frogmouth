@@ -84,7 +84,12 @@ export const Bird = (() => {
       MARK.back.forEach((l) => head.append(layer(l)));
       es = MARK.eyes.map((e) => eye(e.cx, e.cy, e.r, svg, e.slant));
       es.forEach((e) => head.append(e.g));
-      MARK.front.forEach((l) => head.append(layer(l)));
+      // the beak is a jaw over a hidden yellow mouth: click and the bird gapes
+      const jaw = s('g', { class: 'fm-jaw' });
+      for (const l of MARK.front) {
+        if (!l.jaw) head.append(layer(l));
+        else { jaw.append(layer(l)); if (!jaw.parentNode) head.append(jaw); }
+      }
       svg.setAttribute('viewBox', MARK.viewBox.join(' '));
       head.style.transformOrigin = '64px 104px';
       heads.add({ svg, head });
@@ -138,12 +143,13 @@ export const Bird = (() => {
     }, 110);
   }
 
+  /* the frogmouth's threat display: eyes wide, enormous yellow gape */
   function startle(svg) {
     activity();
-    svg.classList.remove('ruffle'); void svg.getBoundingClientRect(); svg.classList.add('ruffle');
+    svg.classList.add('gaping');
     setMood('wide');
-    clearTimeout(startle.t);
-    startle.t = setTimeout(() => setMood('rest'), 900);
+    clearTimeout(svg._gape);
+    svg._gape = setTimeout(() => { svg.classList.remove('gaping'); setMood('rest'); }, 1100);
   }
 
   function activity() {

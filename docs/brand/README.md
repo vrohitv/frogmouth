@@ -14,7 +14,7 @@ The wordmark is set in JetBrains Mono ExtraBold, the app's own typeface. Its two
 | `frogmouth-wordmark-on-dark.svg`, `-on-light.svg` | The wordmark alone, where the symbol already appears nearby. |
 | `frogmouth-app-icon.svg` | The symbol on a slate rounded square, 512 × 512. |
 
-The lockups blink every few seconds when shown as images (CSS inside the SVG; still for people who prefer reduced motion). In the app the eyes are live: they follow the pointer or the text caret, squint when idle, and close while a secret or passphrase is typed.
+The lockups blink every few seconds when shown as images (CSS inside the SVG; still for people who prefer reduced motion). In the app the eyes are live: they follow the pointer or the text caret, squint when idle, and close while a secret or passphrase is typed. Click the bird and it does what real tawny frogmouths do when startled: eyes wide, and the beak drops open to show a bright yellow mouth.
 
 ## Colours
 
