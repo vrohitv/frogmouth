@@ -88,9 +88,11 @@ def mark(x=0, y=0, size=128, amt=REST, gape=False, small=False):
     body = "".join(layer(l) for l in MARK["back"] if keep(l))
     body += "".join(eye(e["cx"], e["cy"], e["r"] * er, 2.4 if small else 2, 2.2 if small else 1.6, amt, glint=not small) for e in MARK["eyes"])
     front = MARK["front"]
-    body += "".join(layer(l) for l in front if l.get("mouth") and gape)
+    hx, hy = MARK["hinge"]
+    if gape:  # mouth and lower jaw unfolded below the hinge, upper beak folded up toward it
+        body += "".join(layer(l) for l in front if l.get("mouth"))
     jaw = "".join(layer(l, sw) for l in front if l.get("jaw") and keep(l))
-    body += f'<g transform="translate(0 16)">{jaw}</g>' if gape else jaw
+    body += f'<g transform="translate({hx} {hy}) scale(1 .42) translate({-hx} {-hy})">{jaw}</g>' if gape else jaw
     body += "".join(layer(l, sw) for l in front if not l.get("mouth") and not l.get("jaw") and keep(l))
     return f'<g transform="translate({f(x)} {f(y)}) scale({f(size / 128)})">{body}</g>'
 

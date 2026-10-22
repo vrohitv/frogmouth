@@ -1,5 +1,5 @@
 {
-  "about": "The frogmouth symbol on a 128 grid (base unit 2). Read by src/js/01-bird.js (live eyes, opening mouth) and tools/brand.py (static assets). Layers are drawn in order; eyes go between 'back' and 'front'. Lids are generated: heavy, level and gently drooping (calm, never angry); the brows carry the sharp lines. 'mouth' layers sit hidden behind the beak; 'jaw' layers drop when the bird gapes; 'detail' layers are left out of the small icon.",
+  "about": "The frogmouth symbol on a 128 grid (base unit 2). Read by src/js/01-bird.js (live eyes, opening mouth) and tools/brand.py (static assets). Layers are drawn in order; eyes go between 'back' and 'front'. Lids are generated: heavy, level and gently drooping (calm, never angry); the brows carry the sharp lines. 'mouth' layers (the open mouth and lower jaw) unfold downward from the hinge line when the bird gapes, while 'jaw' layers (the upper beak) fold up toward it; 'detail' layers are left out of the small icon.",
   "viewBox": [
     0,
     0,
@@ -62,12 +62,18 @@
     {
       "fill": "mouth",
       "mouth": true,
-      "d": "M31 75Q64 72 97 75Q86 90 64 95Q42 90 31 75Z"
+      "d": "M22 73Q64 69 106 73Q100 99 64 113Q28 99 22 73Z"
     },
     {
       "fill": "mouthDeep",
       "mouth": true,
-      "d": "M46 77Q64 75 82 77Q74 86 64 88Q54 86 46 77Z"
+      "d": "M44 80Q64 77 84 80Q78 97 64 103Q50 97 44 80Z"
+    },
+    {
+      "stroke": "horn",
+      "width": 5,
+      "mouth": true,
+      "d": "M22 73Q28 99 64 113Q100 99 106 73"
     },
     {
       "fill": "horn",
@@ -92,5 +98,9 @@
       "detail": true,
       "d": "M64 70V60M60 70L57.5 61.5M68 70L70.5 61.5"
     }
+  ],
+  "hinge": [
+    64,
+    73
   ]
 }

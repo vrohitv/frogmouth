@@ -136,8 +136,10 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .fm-lidg { transition: transform .26s cubic-bezier(.3, .7, .3, 1); }
 .fm-lidg.fast { transition-duration: .08s; }
 .fm-head { transform-box: view-box; transform-origin: 0 0; transition: transform .5s cubic-bezier(.2, .8, .3, 1); }
-.fm-jaw { transition: transform .16s cubic-bezier(.3, .7, .4, 1); }
-.fm.gaping .fm-jaw { transform: translateY(16px); transition-duration: .12s; }
+.fm-jaw, .fm-mouth { transform-box: view-box; transition: transform .2s cubic-bezier(.3, .7, .4, 1); }
+.fm-mouth { transform: scaleY(0); }
+.fm.gaping .fm-mouth { transform: scaleY(1); transition-duration: .16s; }
+.fm.gaping .fm-jaw { transform: scaleY(.42); transition-duration: .16s; }
 .fm.gaping .fm-head { transform: none !important; }
 
 /* ── welcome ── */

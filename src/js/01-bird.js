@@ -83,12 +83,16 @@ export const Bird = (() => {
       MARK.back.forEach((l) => head.append(layer(l)));
       es = MARK.eyes.map((e) => eye(e.cx, e.cy, e.r, svg));
       es.forEach((e) => head.append(e.g));
-      // the beak is a jaw over a hidden yellow mouth: click and the bird gapes
-      const jaw = s('g', { class: 'fm-jaw' });
+      // gape: hinged at the mouth line, the upper beak folds up while the wide
+      // yellow mouth and lower jaw unfold downward (see .fm.gaping in app.css)
+      const mouth = s('g', { class: 'fm-mouth' }), jaw = s('g', { class: 'fm-jaw' });
       for (const l of MARK.front) {
-        if (!l.jaw) head.append(layer(l));
-        else { jaw.append(layer(l)); if (!jaw.parentNode) head.append(jaw); }
+        if (l.mouth) { mouth.append(layer(l)); if (!mouth.parentNode) head.append(mouth); }
+        else if (l.jaw) { jaw.append(layer(l)); if (!jaw.parentNode) head.append(jaw); }
+        else head.append(layer(l));
       }
+      const [hx, hy] = MARK.hinge;
+      mouth.style.transformOrigin = jaw.style.transformOrigin = `${hx}px ${hy}px`;
       svg.setAttribute('viewBox', MARK.viewBox.join(' '));
       head.style.transformOrigin = '64px 104px';
       heads.add({ svg, head });

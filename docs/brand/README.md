@@ -35,7 +35,7 @@ A mascot is a set of faces, not one. The app shows them live; `frogmouth-express
 | Squint | After 30 seconds idle, the way a frogmouth narrows its eyes to stay hidden. Sleepier still after two minutes. |
 | Eyes closed | While a secret value or passphrase is being typed. |
 | Wide | On search, and when startled. |
-| Gape | Click the bird: eyes wide, the beak drops open to show a bright yellow mouth, the frogmouth's real threat display. |
+| Gape | Click the bird: eyes wide, the upper beak folds up and a wide yellow mouth opens below it, the frogmouth's real threat display. |
 
 ## Colours
 
