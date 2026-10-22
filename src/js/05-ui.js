@@ -145,28 +145,59 @@ export const Modal = (() => {
   return { open, confirm, prompt, isOpen: () => stack.length > 0 };
 })();
 
+/* ── inline fields: an input that edits something in place (tags, a board name) ──
+   Enter saves, Esc cancels, and leaving the field saves: focus moving away, or a press
+   anywhere outside it. The press counts even where the page cancels it and so keeps
+   focus where it was (the board does, to drag notes and pan), and even when the field
+   was taken out of the page meanwhile (removing an element never blurs it). The save
+   waits for the press to end, so a click on another board pill still lands on it.
+   end(save) runs exactly once; `inside` is a selector for parts that belong to the
+   field (its suggestions), `key(e)` sees keys first and returns true for its own. */
+export function inlineField(inp, end, { inside, key } = {}) {
+  let over = false, pressing = false;
+  const finish = (save) => {
+    if (over) return;
+    over = true;
+    removeEventListener('pointerdown', down, true);
+    end(save);
+  };
+  const up = () => {
+    removeEventListener('pointerup', up, true); removeEventListener('pointercancel', up, true);
+    setTimeout(() => finish(true)); // after the click this press makes
+  };
+  function down(e) {
+    if (pressing || inp.contains(e.target) || (inside && e.target.closest && e.target.closest(inside))) return;
+    pressing = true;
+    addEventListener('pointerup', up, true); addEventListener('pointercancel', up, true);
+  }
+  addEventListener('pointerdown', down, true);
+  inp.addEventListener('keydown', (e) => {
+    e.stopPropagation(); // keys type here, they are not shortcuts
+    if (e.isComposing || (key && key(e))) return; // Enter that ends an IME composition is not a save
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  // Tab, or a click on something that takes focus; not a switch to another window (focus stays here)
+  inp.addEventListener('blur', () => setTimeout(() => { if (!pressing && document.activeElement !== inp) finish(true); }));
+  return finish;
+}
+
 /* ── inline tag editor with completion from every tag in the vault ── */
 export function editTags(host, tags, onDone) {
   const inp = h('input', { class: 'tag-input', value: tags.length ? tags.join(' ') + ' ' : '', placeholder: 'api env:prod …', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Tags, space separated' });
   host.replaceChildren(inp);
   inp.focus();
   inp.setSelectionRange(inp.value.length, inp.value.length);
-  let done = false;
-  const finish = (save) => {
-    if (done) return;
-    done = true;
-    Popup.close();
-    onDone(save ? Tags.split(inp.value) : null);
-  };
+  let mine = false; // the suggestions on screen are this field's
   const lastTok = () => inp.value.slice(inp.value.lastIndexOf(' ') + 1);
   const suggest = () => {
     const tok = lastTok().toLowerCase();
-    if (!tok) { Popup.close(); return; }
+    if (!tok) { if (mine) Popup.close(); return; }
     const have = new Set(Tags.split(inp.value.slice(0, inp.value.length - tok.length)));
     const items = Store.allTags().filter((t) => t.toLowerCase().startsWith(tok) && t.toLowerCase() !== tok && !have.has(t)).slice(0, 12)
       .map((t) => ({ label: t, labelHtml: Tags.chip(t), tag: t }));
-    if (!items.length) { Popup.close(); return; }
-    if (Popup.isOpen()) { Popup.update(items); return; }
+    if (!items.length) { if (mine) Popup.close(); return; }
+    if (mine && Popup.isOpen()) { Popup.update(items); return; }
     const r = inp.getBoundingClientRect();
     Popup.open({
       x: r.left, y: r.bottom + 2, items,
@@ -174,17 +205,28 @@ export function editTags(host, tags, onDone) {
         inp.value = inp.value.slice(0, inp.value.length - lastTok().length) + it.tag + ' ';
         inp.focus();
       },
+      onClose: () => { mine = false; },
     });
+    mine = true;
   };
   inp.addEventListener('input', suggest);
-  inp.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (Popup.isOpen() && ['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) && Popup.key(e)) { e.preventDefault(); return; }
-    if (Popup.isOpen() && e.key === 'Enter' && lastTok()) { if (Popup.key(e)) { e.preventDefault(); return; } }
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); if (Popup.isOpen()) Popup.close(); else finish(false); }
+  inlineField(inp, (save) => {
+    if (mine) Popup.close();
+    const out = save ? Tags.split(inp.value) : null;
+    // the input goes before onDone, so the host can show its chips again (a host that
+    // still holds an input takes it for an edit in progress and leaves it alone)
+    inp.remove();
+    onDone(out);
+  }, {
+    inside: '.pop',
+    key: (e) => {
+      if (!mine || !Popup.isOpen()) return false;
+      // Enter picks a suggestion while a word is being typed; after a space it saves
+      if (['ArrowDown', 'ArrowUp', 'Tab'].includes(e.key) || (e.key === 'Enter' && lastTok())) { if (Popup.key(e)) { e.preventDefault(); return true; } }
+      if (e.key === 'Escape') { e.preventDefault(); Popup.close(); return true; } // first Esc closes the suggestions
+      return false;
+    },
   });
-  inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp) finish(true); }, 120));
   return inp;
 }
 
