@@ -4,12 +4,12 @@
 
 First production release.
 
-- **Vault file renamed to `.fm`** (`vault.fm`, backups in `.fm-backups/`). Vaults from earlier builds (`vault.frogmouth`) are copied to `.fm` when opened; the old file is left untouched.
+- One plain JSON vault file per folder: `vault.fm`, with daily backups in `.fm-backups/`.
 - Notes live in one library and can sit on several boards; deleting a board never deletes notes.
 - All-notes page with sorting, filters, tags and links in both directions; tags shared with secrets.
 - Board pills with a searchable board picker for many boards (`⌥J`).
 - Secrets: key/value with plain and key:value tags, centred editor, JSON export.
-- Plain JSON vault with daily backups, disk-change detection and conflict resolution. Encryption was removed: frogmouth is a productivity tool, not a password manager. A vault encrypted by an earlier build asks for its passphrase once and is saved back as plain JSON (the encrypted original goes to `.fm-backups/`).
+- Disk-change detection and conflict resolution. No encryption: frogmouth is a productivity tool, an alternative to a notepad.
 - Brand: frogmouth symbol, wordmark and logo system in `docs/brand/`.
 
 ### Fixed in the pre-release audit

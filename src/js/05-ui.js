@@ -136,10 +136,9 @@ export const Modal = (() => {
   const confirm = (title, text, label = 'Delete', danger = true) =>
     open({ title, body: h('p', { class: 'muted', text }), actions: [{ label: 'Cancel', value: false }, { label, primary: true, danger, value: true }] }).then(Boolean);
 
-  function prompt(title, value = '', { placeholder = '', label = 'Save', shy = false, type = 'text', hint } = {}) {
-    const inp = h('input', { class: 'field', value, placeholder, type, spellcheck: 'false', autocomplete: 'off' });
-    if (shy) inp.setAttribute('data-shy', '');
-    return open({ title, body: h('div', null, inp, hint ? h('p', { class: 'muted small', text: hint }) : null),
+  function prompt(title, value = '', { placeholder = '', label = 'Save' } = {}) {
+    const inp = h('input', { class: 'field', value, placeholder, spellcheck: 'false', autocomplete: 'off' });
+    return open({ title, body: h('div', null, inp),
       actions: [{ label: 'Cancel', value: null }, { label, primary: true, run: () => inp.value }] });
   }
 

@@ -13,7 +13,7 @@ The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a
 
 1. Download `frogmouth.html` and open it in Chrome, Edge, Brave or Arc. Opening it straight from disk (`file://`) works.
 2. Click **Open a folder** and pick (or create) a folder for your vault.
-3. frogmouth creates `vault.fm` in that folder and saves to it as you type. (Vaults from older versions, `vault.frogmouth`, are copied to `vault.fm` on open; the old file is left as a backup.)
+3. frogmouth creates `vault.fm` in that folder and saves to it as you type.
 
 Firefox and Safari cannot write to folders on disk. There you can use **Try it without saving** and **Import a .fm file**, and download the vault with `⌘S`.
 
@@ -123,7 +123,7 @@ my-vault/
   anything-else.excalidraw   # any file here can be tagged with @
 ```
 
-`vault.fm` is pretty-printed JSON, so it diffs well in git and you can read or fix it in any editor. Notes are stored once; boards hold placements that point at them (vaults from before version 2, where boards owned their notes, are converted on open):
+`vault.fm` is pretty-printed JSON, so it diffs well in git and you can read or fix it in any editor. Notes are stored once; boards hold placements that point at them:
 
 ```json
 {"frogmouth":1,"saved":"…","data":{
@@ -163,7 +163,6 @@ src/css/app.css       all styles (night and day themes)
 src/fonts/            JetBrains Mono woff2 files + OFL license
 src/js/00-util.js     helpers, tags, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
-src/js/02-crypto.js   opens vaults encrypted by pre-1.0 builds, once, to save them as plain JSON
 src/js/03-store.js    state, the .fm file, autosave, disk watching, images, files
 src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor

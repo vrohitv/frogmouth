@@ -21,7 +21,7 @@ export const App = (() => {
   setTheme(ls.get('theme', matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'night'));
 
   /* ── welcome ──────────────────────────────────────────────────── */
-  function showWelcome(mode = 'start', env = null) {
+  function showWelcome() {
     shell.hidden = true;
     welcome.hidden = false;
     welcome.replaceChildren();
@@ -29,32 +29,6 @@ export const App = (() => {
     const card = h('div', { class: 'w-card' });
     welcome.append(h('div', { class: 'w-inner' }, bird, card));
 
-    if (mode === 'encrypted') {
-      // a vault encrypted by a pre-1.0 build: decrypt once, then it is plain JSON from here on
-      const inp = h('input', { class: 'field w-pass', type: 'password', placeholder: 'Its passphrase', 'data-shy': '', autocomplete: 'current-password' });
-      const err = h('p', { class: 'w-err', role: 'alert' });
-      const go = async () => {
-        if (!inp.value) return;
-        btn.disabled = true; btn.textContent = 'Opening…';
-        try {
-          await Store.decryptOld(inp.value, env);
-          enter();
-          toast(`${Store.S.vault.file} is now plain JSON. The encrypted original is in .fm-backups.`, { timeout: 7000 });
-        } catch {
-          err.textContent = 'That passphrase does not open this vault.';
-          card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
-          btn.disabled = false; btn.textContent = 'Open'; inp.select();
-        }
-      };
-      const btn = h('button', { class: 'btn primary', text: 'Open', onclick: go });
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
-      card.append(
-        h('p', { class: 'w-lead', html: `<b>${esc(Store.S.vault.file)}</b> was encrypted by an earlier version of frogmouth. Enter its passphrase once to open it; from then on it is saved as plain JSON.` }),
-        h('div', { class: 'w-row' }, inp, btn), err,
-        h('button', { class: 'btn ghost small', text: 'Choose another vault', onclick: () => { Store.close(); showWelcome(); } }));
-      setTimeout(() => inp.focus(), 50);
-      return;
-    }
 
     const actions = h('div', { class: 'w-actions' });
     card.append(h('p', { class: 'w-lead', text: 'Sticky notes and secrets, kept in one file in a folder you choose.' }), actions);
@@ -101,20 +75,13 @@ export const App = (() => {
     catch (err) { toast('Browser storage is unavailable here', { kind: 'warn' }); }
   }
   function importFile() {
-    const inp = h('input', { type: 'file', accept: '.fm,.frogmouth,application/json', style: { display: 'none' } });
+    const inp = h('input', { type: 'file', accept: '.fm,application/json', style: { display: 'none' } });
     inp.onchange = async () => {
       const f = inp.files[0]; inp.remove(); if (!f) return;
       try {
         const j = JSON.parse(await f.text());
-        if (j.encrypted) {
-          // made by a pre-1.0 build: decrypt once into a plain vault in this tab
-          const pass = await Modal.prompt(`${f.name} was encrypted by an earlier version`, '', { type: 'password', shy: true, label: 'Open', placeholder: 'Its passphrase' });
-          if (!pass) return;
-          Store.openMemory(null, f.name);
-          await Store.decryptOld(pass, j);
-          Store.setStatus('memory', 'Kept in memory');
-          enter();
-        } else { Store.openMemory(j.data || j, f.name); enter(); }
+        Store.openMemory(j.data || j, f.name);
+        enter();
       } catch { toast('That file could not be read as a vault', { kind: 'warn' }); }
     };
     document.body.append(inp); inp.click();
@@ -123,10 +90,8 @@ export const App = (() => {
   async function openVault(dir, kind) {
     try {
       const res = await Store.openDir(dir, kind);
-      if (res.encrypted) { if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 }); return showWelcome('encrypted', res.env); }
       enter();
       if (res.fresh) toast(`Created ${Store.FILE} in ${Store.S.vault.name}`);
-      if (res.migrated) toast(`Copied ${res.migrated.from} to ${res.migrated.to}. The old file is kept as a backup.`, { timeout: 7000 });
     } catch (err) {
       console.error(err);
       Modal.open({ title: 'Could not open the vault', body: h('p', { text: err.message || String(err) }), actions: [{ label: 'OK', primary: true }] });
@@ -141,7 +106,6 @@ export const App = (() => {
     const ui = Store.S.data.ui;
     if (!Store.board(ui.board)) ui.board = ui.active && ui.active.startsWith('b:') && Store.board(ui.active.slice(2)) ? ui.active.slice(2) : Store.S.data.boards[0].id;
     if (ui.active !== 'secrets' && ui.active !== 'notes') ui.active = 'b:' + ui.board;
-    delete ui.tabs; delete ui.sidebar; // from the old tabbed layout
     activate(ui.active, false);
     Bird.blink(true);
   }

@@ -1,5 +1,4 @@
 import { MOD, clamp, now, h, uid, debounce, esc, bus, toast, download, idb } from './00-util.js';
-import { decryptLegacy } from './02-crypto.js';
 import { Editor } from './06-editor.js';
 
 /* ── store: state, the .fm file, sync, images ───────────────────────
@@ -9,9 +8,8 @@ import { Editor } from './06-editor.js';
    (createWritable swaps the file on close). */
 export const Store = (() => {
   const FILE = 'vault.fm';
-  const EXT = '.fm', LEGACY_EXT = '.frogmouth'; // vaults made before the rename still open
+  const EXT = '.fm';
   const BACKUPS = '.fm-backups';
-  const isVaultName = (n) => n.endsWith(EXT) || n.endsWith(LEGACY_EXT);
   const IMG_RE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i;
   const S = {
     data: null,
@@ -64,7 +62,6 @@ export const Store = (() => {
     };
   }
 
-  const NOTE_KEYS = ['id', 'html', 'title', 'text', 'tags', 'color', 'created', 'updated'];
   function normNote(n) {
     n.id = String(n.id || uid());
     n.color = n.color || 'straw';
@@ -91,18 +88,6 @@ export const Store = (() => {
       b.id = String(b.id || uid());
       b.name = String(b.name || 'Untitled');
       b.items = Array.isArray(b.items) ? b.items.filter((it) => it && typeof it === 'object') : [];
-      // version 1 vaults kept whole notes inside each board: lift them into the library
-      if (Array.isArray(b.notes)) {
-        for (const old of b.notes) {
-          if (!old || typeof old !== 'object') continue;
-          const n = {};
-          for (const k of NOTE_KEYS) if (k in old) n[k] = old[k];
-          normNote(n);
-          if (!byId.has(n.id)) byId.set(n.id, n);
-          b.items.push({ note: n.id, x: old.x, y: old.y, w: old.w, h: old.h, z: old.z });
-        }
-        delete b.notes;
-      }
       const seen = new Set();
       b.items = b.items.filter((it) => { it.note = String(it.note || ''); if (!byId.has(it.note) || seen.has(it.note)) return false; seen.add(it.note); return true; }).map(normItem);
     }
@@ -187,31 +172,20 @@ export const Store = (() => {
   }
 
   /* ── open / load ── */
-  /* vault.fm, else the first *.fm, else a legacy *.frogmouth (preferring vault.frogmouth) */
+  /* vault.fm, else the first *.fm in the folder */
   async function findFile(dir) {
-    let fm = null, legacy = null;
+    let first = null;
     for await (const [name, h] of dir.entries()) {
-      if (h.kind !== 'file') continue;
-      if (name === FILE) return { fh: h };
-      if (name.endsWith(EXT) && (!fm || name < fm.name)) fm = h;
-      if (name.endsWith(LEGACY_EXT) && (!legacy || name === 'vault' + LEGACY_EXT || (legacy.name !== 'vault' + LEGACY_EXT && name < legacy.name))) legacy = h;
+      if (h.kind !== 'file' || !name.endsWith(EXT)) continue;
+      if (name === FILE) return h;
+      if (!first || name < first.name) first = h;
     }
-    return fm ? { fh: fm } : legacy ? { fh: legacy, legacy: true } : null;
+    return first;
   }
 
-  /* returns {ok:true, fresh?, migrated?} | {encrypted:true, env, migrated?} (a vault encrypted by a pre-1.0 build) */
+  /* returns {ok:true, fresh?} */
   async function openDir(dir, kind = 'dir') {
-    const found = await findFile(dir);
-    let fh = found && found.fh, created = false, migrated = null;
-    if (found && found.legacy) {
-      // copy a pre-rename vault to <name>.fm; the old file stays untouched as a safety copy
-      const text = await (await fh.getFile()).text();
-      const fmName = fh.name.slice(0, -LEGACY_EXT.length) + EXT;
-      const nfh = await dir.getFileHandle(fmName, { create: true });
-      const w = await nfh.createWritable(); await w.write(text); await w.close();
-      migrated = { from: fh.name, to: fmName };
-      fh = nfh;
-    }
+    let fh = await findFile(dir), created = false;
     if (!fh) {
       fh = await dir.getFileHandle(FILE, { create: true });
       created = true;
@@ -227,31 +201,15 @@ export const Store = (() => {
       await save();
       return { ok: true, fresh: true };
     }
-    const env = parse(text);
-    if (env.encrypted) { S.openedText = text; return { encrypted: true, env, migrated }; }
-    setData(env.data);
+    setData(parse(text));
     backup(text);
-    return { ok: true, migrated };
+    return { ok: true };
   }
 
   function parse(text) {
     let j;
     try { j = JSON.parse(text); } catch { throw new Error(`${S.vault ? S.vault.file : 'This file'} is not valid JSON. Fix it in a text editor or restore a backup from ${BACKUPS}.`); }
-    if (j && j.encrypted) return j;
-    if (j && j.data) return { data: j.data };
-    return { data: j }; // tolerate a bare data object
-  }
-
-  /* frogmouth no longer encrypts: open a pre-1.0 encrypted vault once, keep the
-     encrypted file in the backups folder, and save it back as plain JSON */
-  async function decryptOld(pass, env) {
-    const plain = await decryptLegacy(pass, env); // throws on a wrong passphrase
-    setData(JSON.parse(plain));
-    if (S.openedText) await backup(S.openedText, '-encrypted');
-    S.openedText = null;
-    S.dirty = true; S.rev++;
-    if (S.vault.kind !== 'memory') { S.force = true; await save(); }
-    return true;
+    return j && j.data ? j.data : j; // the envelope, or a bare data object
   }
 
   function openMemory(data, name = 'Scratch') {
@@ -273,7 +231,7 @@ export const Store = (() => {
     saveNow.cancel();
     for (const u of S.imgCache.values()) URL.revokeObjectURL(u);
     S.imgCache.clear();
-    S.data = null; S.vault = null; S.dirty = false; S.openedText = null; S.force = false;
+    S.data = null; S.vault = null; S.dirty = false; S.force = false;
     S.notes.clear();
     setStatus('idle');
     bus.emit('closed'); // views drop their DOM and caches (note text, revealed secrets, search index)
@@ -341,7 +299,6 @@ export const Store = (() => {
       toast('Reloaded — the vault changed on disk');
     } catch (err) {
       if (err && err.name === 'NotFoundError') setStatus('error', 'Vault file is missing');
-      else if (err && err.message === 'encrypted') setStatus('error', 'The file on disk was encrypted by an older version; reopen the folder');
     }
   }
   setInterval(checkDisk, 2000);
@@ -350,10 +307,9 @@ export const Store = (() => {
   async function reloadFrom(f) {
     f = f || (await S.vault.fh.getFile());
     const text = await f.text();
-    const env = parse(text);
-    if (env.encrypted) throw new Error('encrypted');
+    const data = parse(text);
     S.lastMod = f.lastModified;
-    setData(env.data);
+    setData(data);
     bus.emit('reloaded'); // the app re-renders every view from the new data
   }
 
@@ -375,12 +331,12 @@ export const Store = (() => {
   }
 
   /* ── daily backup of the raw file, keeps the last 14 ── */
-  async function backup(text, tag = '') {
+  async function backup(text) {
     if (!S.vault || S.vault.kind !== 'dir') return;
     try {
       const dir = await S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
       const day = new Date().toISOString().slice(0, 10);
-      const name = S.vault.file.replace(/\.(fm|frogmouth)$/, '') + '-' + day + tag + EXT;
+      const name = S.vault.file.replace(/\.fm$/, '') + '-' + day + EXT;
       try { await dir.getFileHandle(name); return; } catch {}
       const fh = await dir.getFileHandle(name, { create: true });
       const w = await fh.createWritable(); await w.write(text); await w.close();
@@ -444,7 +400,7 @@ export const Store = (() => {
         if (out.length > 5000) return;
         if (name.startsWith('.') || name === 'node_modules') continue;
         if (h.kind === 'directory') { if (depth < 6) await walk(h, prefix + name + '/', depth + 1); }
-        else if (!isVaultName(name) && (!re || re.test(name))) out.push(prefix + name);
+        else if (!name.endsWith(EXT) && (!re || re.test(name))) out.push(prefix + name);
       }
     }
     await walk(S.vault.dir, '', 0);
@@ -499,7 +455,7 @@ export const Store = (() => {
   const linksOut = (note) => { const out = new Set(); const re = /data-note="([^"]+)"/g; let m; while ((m = re.exec(note.html))) if (S.notes.has(m[1])) out.add(m[1]); return [...out]; };
 
   return {
-    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, decryptOld, openMemory, close,
+    S, FILE, canPickDir, canOPFS, blankData, normalize, index, openDir, openMemory, close,
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
   };

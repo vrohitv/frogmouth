@@ -10,7 +10,7 @@ export const Secrets = (() => {
   const revealed = new Set();
   const MASK = '••••••••••••';
 
-  const parseTag = Tags.parse, chip = Tags.chip, tagsOf = Tags.split;
+  const chip = Tags.chip, tagsOf = Tags.split;
 
   function init(el) {
     root = el;

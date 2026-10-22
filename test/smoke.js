@@ -433,7 +433,7 @@ import { App } from '../src/js/10-app.js';
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === 1 && !('encrypted' in parsed) && parsed.data.version === 2 && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === 1 && parsed.data.version === 2 && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
     ok('normalize round trip', re.boards[0].items.length === Store.S.data.boards[0].items.length && re.notes.length === Store.S.data.notes.length);
 
@@ -483,10 +483,6 @@ import { App } from '../src/js/10-app.js';
       ok('shift+Del deletes the note everywhere', !Store.noteRef(onlySide.id) && d.notes.length === total);
       keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
       ok('undo restores a deleted note', !!Store.noteRef(onlySide.id) && Store.noteRef(onlySide.id).boards.length === 1);
-      // migrate a version-1 vault where boards owned their notes
-      const v1 = { boards: [{ id: 'b1', name: 'Old', notes: [{ id: 'n1', x: 5, y: 6, w: 300, html: '<p>Legacy</p>', color: 'rose', tags: ['old'] }] }], secrets: [] };
-      const m = Store.normalize(v1);
-      ok('version 1 vaults migrate', m.version === 2 && m.notes.length === 1 && m.notes[0].title === 'Legacy' && m.notes[0].tags[0] === 'old' && m.boards[0].items[0].note === 'n1' && m.boards[0].items[0].x === 5 && !m.boards[0].notes && !('x' in m.notes[0]));
       App.openTab('secrets');
     }
 
@@ -511,7 +507,7 @@ import { App } from '../src/js/10-app.js';
         const all = await Store.listFiles();
         ok('list files sees both', all.includes('files/arch.excalidraw') && all.some((p) => p.startsWith('assets/')), JSON.stringify(all));
         const plainOnDisk = JSON.parse(await (await (await dir.getFileHandle('vault.fm')).getFile()).text());
-        ok('the vault is plain JSON', !('encrypted' in plainOnDisk) && plainOnDisk.data.secrets.some((s) => s.key === 'OPFS_KEY'));
+        ok('the vault is plain JSON', plainOnDisk.data.secrets.some((s) => s.key === 'OPFS_KEY'));
 
         // saving: an edit made while a write is in flight stays unsaved and gets its own write
         Store.S.data.secrets.push({ id: uid(), key: 'RACE_ONE', value: '1', tags: [], desc: '' }); Store.change('secrets');
@@ -543,42 +539,11 @@ import { App } from '../src/js/10-app.js';
         const ew = await (await dir.getFileHandle('vault.fm')).createWritable(); await ew.write(JSON.stringify({ frogmouth: 1, data: disk })); await ew.close();
         await Store.reloadFrom(); await wait(80);
         ok('external changes re-render the board', !!$('.note[data-id="ext1"]') && Board.current() === Store.S.data.boards[0], $$('.note').length);
-        // a vault encrypted by a pre-1.0 build opens once with its passphrase and is saved back as plain JSON
-        {
-          const te = new TextEncoder(), b64 = (a) => btoa(String.fromCharCode(...new Uint8Array(a)));
-          const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
-          const base = await crypto.subtle.importKey('raw', te.encode('old secret'), 'PBKDF2', false, ['deriveKey']);
-          const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 1000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
-          const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, te.encode(JSON.stringify({ boards: [{ id: 'eb', name: 'Was locked', items: [] }], notes: [], secrets: [{ id: 's1', key: 'OLD_KEY', value: 'v', tags: [] }] })));
-          const encDir = await root.getDirectoryHandle('fm-enc-' + Date.now(), { create: true });
-          const encText = JSON.stringify({ frogmouth: 1, encrypted: true, kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: 1000, salt: b64(salt) }, cipher: { name: 'AES-GCM', iv: b64(iv) }, data: b64(ct) });
-          const xw = await (await encDir.getFileHandle('vault.fm', { create: true })).createWritable(); await xw.write(encText); await xw.close();
-          Store.close();
-          const er = await Store.openDir(encDir, 'opfs');
-          ok('an old encrypted vault asks for its passphrase once', er.encrypted === true);
-          let wrong = false; try { await Store.decryptOld('nope', er.env); } catch { wrong = true; }
-          ok('a wrong passphrase is refused', wrong);
-          await Store.decryptOld('old secret', er.env);
-          const nowPlain = JSON.parse(await (await (await encDir.getFileHandle('vault.fm')).getFile()).text());
-          ok('it is saved back as plain JSON', !nowPlain.encrypted && nowPlain.data.secrets[0].key === 'OLD_KEY' && Store.S.data.boards[0].name === 'Was locked');
-          await root.removeEntry(encDir.name, { recursive: true });
-          Store.close();
-          await Store.openDir(dir, 'opfs'); App.enter(); await wait(30);
-        }
         // closing leaves nothing behind on the page
         App.openTab('secrets'); await wait(20);
         Store.close(); await wait(20);
         ok('closing clears notes and secrets from the page', !$$('.note').length && !$('.s-list').children.length && !Store.S.notes.size);
         await root.removeEntry(dir.name, { recursive: true });
-        // a vault made before the .fm rename opens, is copied to .fm, and the old file stays
-        const old = await root.getDirectoryHandle('fm-legacy-' + Date.now(), { create: true });
-        const legacyText = JSON.stringify({ frogmouth: 1, encrypted: false, data: { boards: [{ id: 'b1', name: 'Old', notes: [{ id: 'n1', html: '<p>From before</p>' }] }], secrets: [] } });
-        const ow = await (await old.getFileHandle('vault.frogmouth', { create: true })).createWritable(); await ow.write(legacyText); await ow.close();
-        Store.close();
-        const lr = await Store.openDir(old, 'opfs');
-        const names = []; for await (const [n] of old.entries()) names.push(n);
-        ok('legacy .frogmouth vault opens and is copied to .fm', lr.ok && lr.migrated && lr.migrated.to === 'vault.fm' && names.includes('vault.fm') && names.includes('vault.frogmouth') && Store.S.vault.file === 'vault.fm' && Store.S.data.notes[0].title === 'From before', JSON.stringify([lr, names]));
-        await root.removeEntry(old.name, { recursive: true });
       } catch (err) { ok('opfs flow', false, err && (err.stack || err.message)); }
     }
   } catch (err) {

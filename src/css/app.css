@@ -44,7 +44,6 @@
 :root {
   --sans: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --side-w: 232px;
 }
 
 * { box-sizing: border-box; }
@@ -159,11 +158,6 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .recent span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
 .w-alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .w-fine { color: var(--faint); font-size: 12px; max-width: 52ch; margin: 6px 0 0; }
-.w-row { display: flex; gap: 8px; width: min(360px, 100%); }
-.w-pass { height: 38px; font-size: 15px; }
-.w-err { color: var(--danger); min-height: 1.2em; margin: 0; font-size: 12.5px; }
-.shake { animation: shake .36s; }
-@keyframes shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
 
 /* ── shell: the canvas fills the window, controls float over it ── */
 .shell { position: fixed; inset: 0; }
