@@ -103,7 +103,7 @@ export const App = (() => {
       if (res.fresh) toast(`Created ${Store.FILE} in ${Store.S.vault.name}`);
     } catch (err) {
       console.error(err);
-      Modal.open({ title: 'Could not open the vault', body: h('p', { text: err.message || String(err) }), actions: [{ label: 'OK', primary: true }] });
+      Modal.open({ title: 'Could not open the vault', body: h('p', { text: err.message || String(err) }), actions: [{ label: 'OK', icon: 'tick', primary: true }] });
     }
   }
 
@@ -573,7 +573,7 @@ export const App = (() => {
     Modal.open({
       title: 'Keyboard', wide: true, cls: 'keys',
       body: h('div', { class: 'keys-grid' }, rows.map(([t, list]) => h('section', null, h('h3', { text: t }), h('dl', null, list.map(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]))))),
-      actions: [{ label: 'Close', primary: true }],
+      actions: [{ label: 'Close', icon: 'x', primary: true }],
     });
   }
 
@@ -643,7 +643,7 @@ export const App = (() => {
           h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('word')), menuBtn),
         switchEl, boardsEl),
       h('div', { class: 'hud-group' },
-        h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${kb('mod+k')}</kbd>`, onclick: () => Palette.show() }),
+        h('button', { class: 'hud-pill hud-search', title: `Search notes, boards, secrets (${kb('mod+k')})`, 'aria-label': 'Search', html: icon('search'), onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill hud-sync-pill' }, syncEl)));
     trailEl = h('nav', { class: 'hud-trail', hidden: true, 'aria-label': 'Boards you came through' });
     shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud, trailEl);

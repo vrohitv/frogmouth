@@ -26,8 +26,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - With many boards, **pinned boards always keep a pill**; your most recently used boards fill the rest (six in all). `⌥1`–`⌥9` jump to the pills, and `⌘K` then `#` searches boards too.
 - **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
 - **Deleting a board never deletes notes.** They stay in All notes (marked *on no board* if that was their only board) and on any other boards.
-- On a board, `Del` or × **removes the note from that board** only, after a confirming second press or click (the × turns into **Remove?**). `⇧Del` (or ⇧-click ×) deletes the note everywhere after a confirmation dialog. Both can be undone.
-- **Add an existing note** to a board with **+ Note → Add an existing note…** (bottom right, next to the zoom) or `A`: find it by title and it lands in the middle of the screen. On the All notes page, **+** next to the boards (or `a`) puts a note on another board.
+- On a board, `Del` or × **removes the note from that board** only, after a confirming second press or click (the × turns into a red bin). `⇧Del` (or ⇧-click ×) deletes the note everywhere after a confirmation dialog. Both can be undone.
+- **Add an existing note** to a board with the **+** button → **Add an existing note…** (bottom right, next to the zoom) or `A`: find it by title and it lands in the middle of the screen. On the All notes page, **+** next to the boards (or `a`) puts a note on another board.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from any edge or corner; dragging the left or top edge keeps the opposite edge exactly where it is. Double-click a bottom edge for automatic height. Pick from nine paper colours with `1`–`9`, or the colour dot at the top left of a note, which opens a small picker. Each one is a light and a dark pair that switches with the theme: soft pastels by day, deep muted tints at night, the same hue in both.
 - **Work on several notes at once.** `⇧`-click adds a note to the selection, `⇧`-drag on empty board draws a box around notes, and `⌘A` selects them all. Drag any selected note to move the group; arrows nudge, `1`–`9` colour, `⌘D` duplicates and `Del` `Del` removes them all, with one undo.
@@ -43,8 +43,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Markdown shortcuts: `# `, `## `, `- `, `1. `, `[] `, `> `, `---`, ```` ```lang ````, and `` `inline code` ``.
 - **Tables**: `/table` (or `/table 4x3` for 4 columns, 3 rows). `Tab` goes to the next cell and adds a row at the end, `↵` goes to the cell below, `⇧↵` breaks a line inside a cell and `⌘↵` leaves the table. Type `/` in a cell to add or delete rows and columns. Tables pasted from a spreadsheet or a web page come in as plain grids, and table text is searchable.
 - `@` links another note, **a board** (`@@` lists boards only) **or tags any file in the vault folder**, such as `diagram.excalidraw`. Clicking a file tag opens the file, saves a copy, or copies its path.
-- Notes that link to a note are listed at its foot ("2 notes link here").
-- **Clicking a note link opens that note right where you are**, full size over the board (the note view); you never leave your board unless you ask to. It opens for reading: click the text to edit, and links inside open in the same view (`‹` goes back). `↵` opens it on its board, `A` adds it to this board (or shows it, if it is already here), `Esc` closes. Picking a note from "N notes link here" does the same, and so does opening a note that is on no board.
+- Notes that link to a note are listed at its foot: a link icon with the count (`L` opens the list).
+- **Clicking a note link opens that note right where you are**, full size over the board (the note view); you never leave your board unless you ask to. It opens for reading: click the text to edit, and links inside open in the same view (`‹` goes back). `↵` opens it on its board, `A` adds it to this board (or shows it, if it is already here), `Esc` closes. Picking a note from the links at a note's foot does the same, and so does opening a note that is on no board.
 - **Board links** make a note a map of your boards: a "Projects" note with `@@Q3 Launch`, `@@Infra` and so on. Clicking one opens that board and shows a trail of where you came from (`‹ Projects › Q3 Launch`); click a step or press `⌥←` to go back to exactly the view you left. Links only point at boards, they never put anything on one.
 - Code blocks are syntax-highlighted as you type: JS/TS, Python, Go, Rust, C-family, shell, SQL, JSON, YAML, CSS, HTML, Ruby, PHP and diff. They auto-indent, take `Tab`, and have their own undo. The language label is a menu.
 - Images: paste, drop or `/image`. Pasted images are saved into `assets/` in the vault. **Each image zooms (wheel) and pans (drag) inside its own frame**, separate from the board. Double-click an image to fit it, and drag its bottom edge to change its height.
@@ -52,7 +52,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Tags on notes**
 - Notes take the same tags as secrets: plain (`api`) and key:value (`env:prod`).
-- On the board they show at the foot of each note. Add them with **+ tag** or `T` on a selected note; names autocomplete from every tag in the vault.
+- On the board they show at the foot of each note. Add them with the tag icon or `T` on a selected note; names autocomplete from every tag in the vault.
 - Click a tag on a note to see every note with that tag.
 
 **All notes page** (the middle icon, `⌥L`)
@@ -66,7 +66,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Filter syntax: `env:prod aws -legacy`.
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
-- **Export JSON** downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
+- **Export** (the download icon) downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
 - Generate random values.
 
 **Tags and filters** (All notes, Secrets and `⌘K` search alike)
@@ -135,7 +135,9 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `↵` | Edit |
 | `N` | New |
 | `/` | Filter |
-| `Del` or × | Delete, after three confirmations |
+| `Del` or the bin | Delete, after three confirmations |
+
+Buttons are icons; hover one for its name and shortcut.
 
 ## The vault folder
 

@@ -486,7 +486,7 @@ export const Board = (() => {
     pct = btn('100%', 'Zoom to 100% (0)', () => zoomAt(1), 'nav-pct');
     map = h('canvas', { class: 'minimap', role: 'img', 'aria-label': 'Minimap: click or drag to move around the board' });
     // + Note: a new note, or one that already exists (from the library or another board)
-    const addBtn = btn(`${icon('plus')}<span>Note</span>`, 'Add a note: new (N) or existing (A)', () => {
+    const addBtn = btn(icon('plus'), 'Add a note: new (N) or existing (A)', () => {
       const r = addBtn.getBoundingClientRect();
       Popup.open({
         x: r.left, y: r.top - 92, above: r.top, items: [
@@ -815,7 +815,7 @@ export const Board = (() => {
       const el = els.get(id); if (!el) continue;
       el.classList.remove('arming');
       const x = el.querySelector('.note-x');
-      x.classList.remove('armed'); x.innerHTML = icon('x'); x.title = xTitle();
+      x.classList.remove('armed'); x.innerHTML = icon('x'); x.title = xTitle(); x.setAttribute('aria-label', 'Remove from this board');
     }
     armed = null;
   }
@@ -829,8 +829,10 @@ export const Board = (() => {
     for (const id of ids) els.get(id).classList.add('arming');
     const x = els.get(ids.includes(sel) ? sel : ids[0]).querySelector('.note-x');
     x.classList.add('armed');
-    x.innerHTML = `Remove${ids.length > 1 ? ' ' + ids.length : ''}? <kbd>Del</kbd>`;
-    x.title = `Click again (or press Del or Enter) to remove ${ids.length > 1 ? 'them' : 'it'} from this board`;
+    // armed: a red bin (with the count for several); the tooltip says what a second click does
+    x.innerHTML = icon('trash') + (ids.length > 1 ? `<span>${ids.length}</span>` : '');
+    x.title = `Click again (or press Del or Enter) to remove ${ids.length > 1 ? `these ${ids.length} notes` : 'it'} from this board`;
+    x.setAttribute('aria-label', x.title);
     armTimer = setTimeout(disarm, 3000);
   }
   addEventListener('pointerdown', (e) => { if (armed && !(e.target.closest && e.target.closest('.note-x.armed'))) disarm(); }, true);
@@ -979,9 +981,9 @@ export const Board = (() => {
     if (foot.dataset.sig === sig) return;
     foot.dataset.sig = sig;
     foot.innerHTML =
-      `<div class="nf-tags">${(n.tags || []).map((t) => Tags.chip(t)).join('')}<button class="nf-add" tabindex="-1" title="Edit tags (T)">${n.tags && n.tags.length ? icon('edit') : '+ tag'}</button></div>` +
-      `<div class="nf-meta">${others > 0 ? `<button class="nf-boards" tabindex="-1" title="This note is also on other boards">${icon('board')}${others + 1} boards</button>` : ''}` +
-      (back.length ? `<button class="backlinks" tabindex="-1">← ${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here</button>` : '') + '</div>';
+      `<div class="nf-tags">${(n.tags || []).map((t) => Tags.chip(t)).join('')}<button class="nf-add" tabindex="-1" title="${n.tags && n.tags.length ? 'Edit tags' : 'Add tags'} (T)" aria-label="Tags">${icon(n.tags && n.tags.length ? 'edit' : 'tag')}</button></div>` +
+      `<div class="nf-meta">${others > 0 ? `<button class="nf-boards" tabindex="-1" title="On ${others + 1} boards: open it on another" aria-label="On ${others + 1} boards">${icon('board')}${others + 1}</button>` : ''}` +
+      (back.length ? `<button class="backlinks" tabindex="-1" title="${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here (L)" aria-label="${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here">${icon('link')}${back.length}</button>` : '') + '</div>';
   }
   const refreshFeet = debounce(() => {
     if (!board) return;

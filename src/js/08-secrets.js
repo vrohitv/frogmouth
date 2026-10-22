@@ -25,8 +25,8 @@ export const Secrets = (() => {
       h('div', { class: 's-bar' },
         h('div', { class: 's-search', html: icon('search') }, filterInp),
         countEl,
-        h('button', { class: 'btn', html: `${icon('plus')}New secret <kbd>N</kbd>`, onclick: () => edit(null) }),
-        h('button', { class: 'btn ghost', text: 'Export JSON', title: 'Download every secret as a JSON file', onclick: () => exportJson() })),
+        h('button', { class: 'btn ic-only', title: 'New secret (N)', 'aria-label': 'New secret', html: icon('plus'), onclick: () => edit(null) }),
+        h('button', { class: 'btn ghost ic-only', title: 'Export every secret as a JSON file', 'aria-label': 'Export JSON', html: icon('download'), onclick: () => exportJson() })),
       tagsRow,
       h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
       list, drawer);
@@ -89,7 +89,7 @@ export const Secrets = (() => {
         `<div class="s-tags">${x.tags.map((t) => chip(t, active.has(t.toLowerCase()))).join('')}</div>` +
         `<div class="s-act"><button data-a="reveal" title="Reveal (Space)" tabindex="-1">${icon(show ? 'eyeoff' : 'eye')}</button>` +
         `<button data-a="copy" title="Copy value (C)" tabindex="-1">${icon('copy')}</button>` +
-        `<button data-a="delete" class="s-del" title="Delete (Del): asks three times" aria-label="Delete ${esc(x.key)}" tabindex="-1">${icon('x')}</button></div></div>`;
+        `<button data-a="delete" class="s-del" title="Delete (Del): asks three times" aria-label="Delete ${esc(x.key)}" tabindex="-1">${icon('trash')}</button></div></div>`;
     });
     list.innerHTML = out;
     scrollCur();
@@ -201,10 +201,10 @@ export const Secrets = (() => {
       x ? h('p', { class: 'muted small', text: `Created ${relTime(x.created)}. Updated ${relTime(x.updated)}.` }) : null,
       pending,
       h('div', { class: 'd-actions' },
-        x ? h('button', { class: 'btn danger ghost', text: 'Delete…', title: 'Delete this secret: asks three times', onclick: async () => { if (await askDelete(x)) close(); } }) : h('span'),
+        x ? h('button', { class: 'btn danger ghost ic-only', title: 'Delete this secret: asks three times', 'aria-label': 'Delete secret', html: icon('trash'), onclick: async () => { if (await askDelete(x)) close(); } }) : h('span'),
         h('span', { class: 'grow' }),
-        h('button', { class: 'btn ghost', text: 'Cancel', onclick: () => { close(); list.focus(); } }),
-        h('button', { class: 'btn primary', html: `${isNew ? 'Add secret' : 'Save'} <kbd>${kb('mod+enter')}</kbd>`, onclick: save }))].filter(Boolean));
+        h('button', { class: 'btn ghost ic-only', title: 'Cancel (Esc)', 'aria-label': 'Cancel', html: icon('x'), onclick: () => { close(); list.focus(); } }),
+        h('button', { class: 'btn primary ic-only', title: `${isNew ? 'Add secret' : 'Save'} (${kb('mod+enter')})`, 'aria-label': isNew ? 'Add secret' : 'Save', html: icon('tick'), onclick: save }))].filter(Boolean));
     drawer.onkeydown = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); list.focus(); }
       if (e.key === 'Enter' && (modKey(e) || (e.target.tagName === 'INPUT'))) { e.preventDefault(); save(); }
@@ -222,7 +222,7 @@ export const Secrets = (() => {
     const go = await Modal.open({
       title: `Delete ${x.key}?`,
       body: h('div', null, step(1), h('p', { class: 'muted', text: 'The secret and its value will be removed from this vault.' })),
-      actions: [{ label: 'Cancel', value: false }, { label: 'Continue', primary: true, danger: true, value: true }],
+      actions: [{ label: 'Cancel', icon: 'x', value: false }, { label: 'Continue', icon: 'go', primary: true, danger: true, value: true }],
     });
     if (!go) return false;
     const inp = h('input', { class: 'field mono', placeholder: x.key, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Key name' });
@@ -230,13 +230,13 @@ export const Secrets = (() => {
     const typed = await Modal.open({
       title: 'Type the key name to confirm',
       body: h('div', null, step(2), h('p', { class: 'muted', html: `Type <code>${esc(x.key)}</code> exactly.` }), inp),
-      actions: [{ label: 'Cancel', value: false }, { label: 'Continue', primary: true, danger: true, disabled: true, run: () => inp.value === x.key }],
+      actions: [{ label: 'Cancel', icon: 'x', value: false }, { label: 'Continue', icon: 'go', primary: true, danger: true, disabled: true, run: () => inp.value === x.key }],
     });
     if (!typed) return false;
     const sure = await Modal.open({
       title: `Last check: delete ${x.key}?`,
       body: h('div', null, step(3), h('p', { class: 'muted', text: 'It leaves the vault file with the next save. Undo works only until you close this tab.' })),
-      actions: [{ label: 'Keep it', value: false }, { label: 'Delete secret', primary: true, danger: true, value: true }],
+      actions: [{ label: 'Keep it', icon: 'x', value: false }, { label: 'Delete secret', icon: 'trash', primary: true, danger: true, value: true }],
     });
     if (!sure || !Store.S.data.secrets.includes(x)) return false;
     remove(x);
@@ -249,7 +249,7 @@ export const Secrets = (() => {
     const all = Store.S.data.secrets;
     if (!all.length) { toast('There are no secrets to export'); return; }
     const ok = await Modal.confirm('Export all secrets as JSON?',
-      `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false);
+      `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false, 'download');
     if (!ok) return;
     const day = new Date().toISOString().slice(0, 10);
     const out = {

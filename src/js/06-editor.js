@@ -758,7 +758,7 @@ export const Editor = (() => {
   async function linkCmd() {
     const r = rng(); const saved = r && r.cloneRange();
     const text = saved ? saved.toString() : '';
-    const url = await Modal.prompt('Link to', /^https?:/.test(text) ? text : 'https://', { label: 'Insert link' });
+    const url = await Modal.prompt('Link to', /^https?:/.test(text) ? text : 'https://', { label: 'Insert link', ic: 'link' });
     if (!url || !/^(https?:|mailto:)/i.test(url)) return;
     const s = getSelection(); s.removeAllRanges(); if (saved) s.addRange(saved);
     if (text) exec('createLink', url);

@@ -118,8 +118,10 @@ export const Modal = (() => {
       const risky = actions.some((a) => a.danger);
       if (actions.length) {
         card.append(h('div', { class: 'modal-actions' }, actions.map((a) =>
-          h('button', { class: 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : ''), disabled: a.disabled || null,
-            html: esc(a.label) + (a.primary && risky ? ` <kbd>${kb('mod+enter')}</kbd>` : ''), onclick: async () => {
+          // with an icon the button is the icon alone; its name and key are in the tooltip
+          h('button', { class: 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : '') + (a.icon ? ' ic-only' : ''), disabled: a.disabled || null,
+            title: a.icon ? a.label + (a.primary ? ` (${kb('mod+enter')})` : a.value === false || a.value === null ? ' (Esc)' : '') : null, 'aria-label': a.icon ? a.label : null,
+            html: a.icon ? icon(a.icon) : esc(a.label) + (a.primary && risky ? ` <kbd>${kb('mod+enter')}</kbd>` : ''), onclick: async () => {
               // a button with a value always closes (Cancel's is false); run() returns false to stay open
               const v = a.value !== undefined ? a.value : a.run ? await a.run() : true;
               if (a.value !== undefined || v !== false) done(v);
@@ -139,13 +141,13 @@ export const Modal = (() => {
     });
   }
 
-  const confirm = (title, text, label = 'Delete', danger = true) =>
-    open({ title, body: h('p', { class: 'muted', text }), actions: [{ label: 'Cancel', value: false }, { label, primary: true, danger, value: true }] }).then(Boolean);
+  const confirm = (title, text, label = 'Delete', danger = true, ic = danger ? 'trash' : 'tick') =>
+    open({ title, body: h('p', { class: 'muted', text }), actions: [{ label: 'Cancel', icon: 'x', value: false }, { label, icon: ic, primary: true, danger, value: true }] }).then(Boolean);
 
-  function prompt(title, value = '', { placeholder = '', label = 'Save' } = {}) {
+  function prompt(title, value = '', { placeholder = '', label = 'Save', ic = 'tick' } = {}) {
     const inp = h('input', { class: 'field', value, placeholder, spellcheck: 'false', autocomplete: 'off' });
     return open({ title, body: h('div', null, inp),
-      actions: [{ label: 'Cancel', value: null }, { label, primary: true, run: () => inp.value }] });
+      actions: [{ label: 'Cancel', icon: 'x', value: null }, { label, icon: ic, primary: true, run: () => inp.value }] });
   }
 
   return { open, confirm, prompt, isOpen: () => stack.length > 0 };

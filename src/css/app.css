@@ -103,6 +103,10 @@ kbd {
 .btn.small { height: 26px; padding: 0 8px; font-size: 12px; }
 .btn.big { height: 42px; padding: 0 18px; font-size: 15px; }
 .btn:disabled { opacity: .6; cursor: default; }
+/* an action shown as its icon alone: square, the name in its tooltip */
+.btn.ic-only { width: 30px; padding: 0; justify-content: center; }
+.btn.ic-only .ic { width: 16px; height: 16px; }
+.btn.big.ic-only { width: 42px; }
 .icon-btn {
   display: inline-grid; place-items: center; width: 24px; height: 24px;
   border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; padding: 0;
@@ -247,8 +251,7 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .hud-btn .ic { width: 17px; height: 17px; }
 .hud-btn:hover { color: var(--text); background: var(--panel-2); }
 .hud-switch .hud-btn.on { color: var(--accent); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-.hud-search { gap: 8px; padding: 0 8px 0 12px; width: 260px; color: var(--muted); cursor: text; font: inherit; }
-.hud-search span { flex: 1; text-align: left; }
+.hud-search { padding: 0 10px; color: var(--muted); cursor: pointer; font: inherit; }
 .hud-search:hover { color: var(--text); border-color: var(--faint); }
 .hud-sync {
   display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px 0 7px; max-width: 26ch;
@@ -351,8 +354,8 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note-x .ic { width: 11px; height: 11px; }
 .note:hover .note-x, .note.sel .note-x { opacity: .5; }
 .note-x:hover { opacity: 1 !important; background: var(--rule); }
-.note-x.armed { width: auto; height: 18px; padding: 0 4px 0 7px; gap: 5px; display: inline-flex; align-items: center; opacity: 1 !important; background: var(--danger); color: #fff; font: 600 10.5px var(--sans); animation: tin .12s ease-out; }
-.note-x.armed kbd { background: rgba(255, 255, 255, .2); color: #fff; border-color: rgba(255, 255, 255, .35); padding: 1px 3px; font-size: 9.5px; }
+.note-x.armed { width: auto; min-width: 20px; height: 18px; padding: 0 4px; gap: 3px; justify-content: center; display: inline-flex; align-items: center; opacity: 1 !important; background: var(--danger); color: #fff; font: 600 10.5px var(--sans); animation: tin .12s ease-out; }
+.note-x.armed .ic { width: 12px; height: 12px; }
 .note.arming { outline-color: var(--danger) !important; }
 .note-body {
   flex: 1; min-height: 0; overflow: auto; padding: 0 14px 10px; outline: none;
@@ -580,7 +583,8 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .toast:not(:has(button)) { padding-right: 14px; }
 .toast-warn { background: var(--danger); color: #fff; }
 .toast.out { opacity: 0; transform: translateY(4px); transition: .16s; }
-.toast-act { border: 0; background: none; color: var(--toast-act, #9cc4a2); font-weight: 700; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.toast-act { border: 0; background: none; color: var(--toast-act, #9cc4a2); cursor: pointer; padding: 3px 5px; border-radius: 4px; display: inline-grid; place-items: center; }
+.toast-act .ic { width: 16px; height: 16px; stroke-width: 1.7; }
 @keyframes tin { from { opacity: 0; transform: translateY(6px); } }
 
 /* ── secrets ── */
@@ -700,7 +704,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .note .chip.kv span { color: var(--ink); }
 .nf-meta { display: flex; gap: 10px; margin-left: auto; align-items: center; }
 .note .backlinks, .nf-boards { padding: 0; border: 0; background: none; color: var(--ink); opacity: .55; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-.nf-boards .ic { width: 11px; height: 11px; }
+.nf-boards .ic, .note .backlinks .ic { width: 11px; height: 11px; }
 .note .backlinks:hover, .nf-boards:hover { opacity: 1; text-decoration: underline; }
 .tag-input { font: 11.5px/22px var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 0 6px; outline: none; width: 100%; min-width: 140px; }
 .note .tag-input { background: color-mix(in srgb, var(--paper) 85%, var(--ink)); color: var(--ink); }
@@ -736,11 +740,10 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .pk-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 14px 14px; }
 .pk-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .pk-hint { margin-right: auto; font-size: 12px; }
-.pk-foot .btn kbd { margin-left: 4px; }
 
 /* the + Note button beside the zoom control */
 .nav-row { display: flex; gap: 8px; align-items: center; }
-.nav-btn.nav-add { display: inline-flex; align-items: center; gap: 4px; padding: 0 9px 0 6px; color: var(--text); font-size: 12.5px; }
+.nav-btn.nav-add { display: inline-grid; place-items: center; padding: 0 6px; color: var(--text); }
 .nav-add .ic { width: 14px; height: 14px; }
 
 /* ── the trail of board links followed (← Projects › Q3 Launch) ── */
@@ -803,14 +806,10 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 
 /* ── small screens ── */
 @media (max-width: 1100px) {
-  .hud-search { width: auto; padding: 0 10px; }
-  .hud-search span, .hud-search kbd { display: none; }
 }
 @media (max-width: 760px) {
   :root { --hud-bottom: 48px; }
   .hud { top: 8px; left: 8px; right: 8px; }
-  .hud-search { width: auto; padding: 0 10px; }
-  .hud-search span, .hud-search kbd { display: none; }
   .sync-where { display: none; }
   .bp-name { max-width: 10ch; }
   .bd-row { grid-template-columns: 26px minmax(0, 1fr) auto 56px; }
