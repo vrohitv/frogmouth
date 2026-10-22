@@ -1,19 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 (2026-10-22)
 
-- **Several notes at once**: `⇧`-click, a `⇧`-drag box or `⌘A`. Move, nudge, colour, duplicate, remove or delete them together, with one undo.
-- **Find on a board** (`⌘F` / `Ctrl+F`): every match in every note, a count, notes without a match faded, stepping with `↵`, scrolling inside long notes and wide code blocks. Highlights use the CSS Custom Highlight API, so notes are never modified.
-- **Tables** in notes: `/table` or `/table 4x3`, `Tab` / `↵` between cells, row and column actions in the `/` menu inside a table, and clean pasting from spreadsheets and web pages. Table text is part of search.
-- **Search** shows "Recently edited" notes (with how long ago) and boards by last opened when nothing is typed, and opening a note that matched in its text lands on the match.
-- **Display changes are exact**: the view is kept as the board point at the centre of the window plus the zoom, so plugging in or unplugging a monitor, resizing or browser zoom never moves notes or loses your place, and returning to a size restores the identical view. Arrange no longer depends on the window width. Dragged positions are whole pixels.
-- Leaving a note no longer leaves a text caret blinking in it.
-- The All notes and Secrets filters, and the board's find bar, now sit a clear gap below the floating bar (they were 10px from it), on wide and narrow windows.
-- The `/` menu ranks a two-word command first when all of it is typed (`/delete row`).
-
-## 1.0.0
-
-First production release.
+First release.
 
 - One plain JSON vault file per folder: `vault.fm`, with daily backups in `.fm-backups/`.
 - Notes live in one library and can sit on several boards; deleting a board never deletes notes.
@@ -25,9 +14,17 @@ First production release.
 - Calm UI: neutral, untinted surfaces in dark and light, softened text contrast, muted note colours (dark tints at night, soft pastels by day, a neutral grey by default) and one accent of your choice: Anthropic orange (default), green or purple.
 - Shortcuts follow your system: macOS shows `⌘ ⌥ ⇧`, Windows and Linux show `Ctrl+`, `Alt+`, `Shift+`. Headings are `Ctrl+Shift+1`–`3` off the Mac, and AltGr keys always type, so European layouts can type `@`, `{` and `[` in notes.
 - Line numbers in code blocks, drawn with CSS counters so they are never copied, saved or searched; a softer, familiar syntax palette.
+- **Several notes at once**: `⇧`-click, a `⇧`-drag box or `⌘A`. Move, nudge, colour, duplicate, remove or delete them together, with one undo.
+- **Find on a board** (`⌘F` / `Ctrl+F`): every match in every note, a count, notes without a match faded, stepping with `↵`, scrolling inside long notes and wide code blocks. Highlights use the CSS Custom Highlight API, so notes are never modified.
+- **Tables** in notes: `/table` or `/table 4x3`, `Tab` / `↵` between cells, row and column actions in the `/` menu inside a table, and clean pasting from spreadsheets and web pages. Table text is part of search.
+- **Search** shows "Recently edited" notes (with how long ago) and boards by last opened when nothing is typed, and opening a note that matched in its text lands on the match.
+- **Display changes are exact**: the view is kept as the board point at the centre of the window plus the zoom, so plugging in or unplugging a monitor, resizing or browser zoom never moves notes or loses your place, and returning to a size restores the identical view. Arrange no longer depends on the window width. Dragged positions are whole pixels.
+- The `/` menu ranks a two-word command first when all of it is typed (`/delete row`).
 
 ### Fixed in the pre-release audit
 
+- Leaving a note no longer leaves a text caret blinking in it.
+- The All notes and Secrets filters, and the board's find bar, sat 10px under the floating bar; they now have a clear gap, on wide and narrow windows.
 - A vault reloaded after an outside change (sync tool, git, another window) left the board showing stale notes; every view now re-renders, and a reload waits while you are typing.
 - Closing left note text, revealed secret values and the search index in memory; they are now cleared.
 - "Save failed" could not recover from a revoked folder permission; clicking it now asks for access again.
