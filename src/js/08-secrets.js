@@ -49,6 +49,7 @@ export const Secrets = (() => {
       if (a && a.dataset.a === 'copy') copy(x);
       else if (a && a.dataset.a === 'reveal') reveal(x);
       else if (a && a.dataset.a === 'key') copyKey(x);
+      else if (a && a.dataset.a === 'delete') { mark(); askDelete(x); }
       else { mark(); }
     });
     // a click on the dimmed page outside the editor closes it, keeping any changes
@@ -87,7 +88,8 @@ export const Secrets = (() => {
         `<div class="s-val${show ? ' shown' : ''}">${v}</div>` +
         `<div class="s-tags">${x.tags.map((t) => chip(t, active.has(t.toLowerCase()))).join('')}</div>` +
         `<div class="s-act"><button data-a="reveal" title="Reveal (Space)" tabindex="-1">${icon(show ? 'eyeoff' : 'eye')}</button>` +
-        `<button data-a="copy" title="Copy value (C)" tabindex="-1">${icon('copy')}</button></div></div>`;
+        `<button data-a="copy" title="Copy value (C)" tabindex="-1">${icon('copy')}</button>` +
+        `<button data-a="delete" class="s-del" title="Delete (Del): asks three times" aria-label="Delete ${esc(x.key)}" tabindex="-1">${icon('x')}</button></div></div>`;
     });
     list.innerHTML = out;
     scrollCur();
@@ -178,9 +180,16 @@ export const Secrets = (() => {
       list.focus();
     };
     const close = () => { drawer.hidden = true; drawer.replaceChildren(); editingId = null; closeEditor = null; root.classList.remove('drawer-open'); };
-    // a click outside keeps what was typed: it saves (or asks for the key), and closes when nothing changed
+    /* a click outside closes the editor only when nothing changed. With changes it neither
+       saves (a stray click must not overwrite a secret) nor discards them: it says how to do either */
     const fields = () => [keyI.value, valI.value, tagI.value, descI.value].join('\u0000'), was = fields();
-    closeEditor = () => { if (fields() !== was) save(); else { close(); list.focus(); } };
+    const pending = h('p', { class: 'd-pending', role: 'status', hidden: true, html: `Unsaved changes. <kbd>${kb('mod+enter')}</kbd> saves, <kbd>Esc</kbd> discards.` });
+    closeEditor = () => {
+      if (fields() === was) { close(); list.focus(); return; }
+      pending.hidden = false;
+      pending.classList.remove('nudge'); void pending.offsetWidth; pending.classList.add('nudge');
+      if (!drawer.contains(document.activeElement)) keyI.focus();
+    };
 
     drawer.replaceChildren(...[
       h('div', { class: 'd-head' }, h('h3', { text: isNew ? 'New secret' : x.key }), h('button', { class: 'icon-btn', title: 'Close (Esc)', html: icon('x'), onclick: () => { close(); list.focus(); } })),
@@ -190,8 +199,9 @@ export const Secrets = (() => {
       sugg,
       h('label', null, h('span', { text: 'Note' }), descI),
       x ? h('p', { class: 'muted small', text: `Created ${relTime(x.created)}. Updated ${relTime(x.updated)}.` }) : null,
+      pending,
       h('div', { class: 'd-actions' },
-        x ? h('button', { class: 'btn danger ghost', text: 'Delete', onclick: () => { close(); remove(x); } }) : h('span'),
+        x ? h('button', { class: 'btn danger ghost', text: 'Delete…', title: 'Delete this secret: asks three times', onclick: async () => { if (await askDelete(x)) close(); } }) : h('span'),
         h('span', { class: 'grow' }),
         h('button', { class: 'btn ghost', text: 'Cancel', onclick: () => { close(); list.focus(); } }),
         h('button', { class: 'btn primary', html: `${isNew ? 'Add secret' : 'Save'} <kbd>${kb('mod+enter')}</kbd>`, onclick: save }))].filter(Boolean));
@@ -202,6 +212,36 @@ export const Secrets = (() => {
     drawer.hidden = false;
     root.classList.add('drawer-open');
     (isNew ? keyI : valI).focus();
+  }
+
+  /* Deleting a secret takes three separate confirmations, each with the safe choice
+     focused, so no stray click or key can do it: a warning, the key name typed out,
+     and a last check. Resolves true when the secret was deleted. */
+  async function askDelete(x) {
+    const step = (n) => h('p', { class: 'muted small', text: `Step ${n} of 3` });
+    const go = await Modal.open({
+      title: `Delete ${x.key}?`,
+      body: h('div', null, step(1), h('p', { class: 'muted', text: 'The secret and its value will be removed from this vault.' })),
+      actions: [{ label: 'Cancel', value: false }, { label: 'Continue', primary: true, danger: true, value: true }],
+    });
+    if (!go) return false;
+    const inp = h('input', { class: 'field mono', placeholder: x.key, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Key name' });
+    inp.addEventListener('input', () => { inp.closest('.modal').querySelector('.btn.primary').disabled = inp.value !== x.key; });
+    const typed = await Modal.open({
+      title: 'Type the key name to confirm',
+      body: h('div', null, step(2), h('p', { class: 'muted', html: `Type <code>${esc(x.key)}</code> exactly.` }), inp),
+      actions: [{ label: 'Cancel', value: false }, { label: 'Continue', primary: true, danger: true, disabled: true, run: () => inp.value === x.key }],
+    });
+    if (!typed) return false;
+    const sure = await Modal.open({
+      title: `Last check: delete ${x.key}?`,
+      body: h('div', null, step(3), h('p', { class: 'muted', text: 'It leaves the vault file with the next save. Undo works only until you close this tab.' })),
+      actions: [{ label: 'Keep it', value: false }, { label: 'Delete secret', primary: true, danger: true, value: true }],
+    });
+    if (!sure || !Store.S.data.secrets.includes(x)) return false;
+    remove(x);
+    list.focus({ preventScroll: true });
+    return true;
   }
 
   /* every secret (not the notes) as a JSON download */
@@ -245,7 +285,7 @@ export const Secrets = (() => {
     if (k === 'c' || k === 'y') { copy(x); return true; }
     if (k === 'C' || k === 'Y') { copyKey(x); return true; }
     if (k === ' ') { reveal(x); return true; }
-    if (k === 'Delete' || k === 'Backspace') { remove(x); return true; }
+    if (k === 'Delete' || k === 'Backspace') { askDelete(x); return true; }
     return false;
   }
 

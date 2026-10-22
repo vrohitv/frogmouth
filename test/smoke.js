@@ -400,7 +400,7 @@ import { App } from '../src/js/10-app.js';
       // + Note on the board: a new note, or an existing one
       $('.nav-add').click(); await wait(20);
       ok('+ Note offers a new note or an existing one', Popup.isOpen() && /New note/.test($('.pop').textContent) && /Add an existing note/.test($('.pop').textContent));
-      [...$$('.pop .pop-item')].find((x) => /existing/.test(x.textContent)).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); await wait(20);
+      [...$$('.pop .pop-item')].find((x) => /existing/.test(x.textContent)).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); await wait(20);
       ok('...and "existing" opens the note picker for this board', Popup.isOpen() && /Add a note to/.test($('.pop').textContent) && /Lives elsewhere/.test($('.pop').textContent));
       Popup.close();
       // the note view: a link opens the note right here, full size; you stay on this board
@@ -515,6 +515,8 @@ import { App } from '../src/js/10-app.js';
       const pk = () => $('.cpick');
       ok('the button opens a small picker with the nine colours, the current one marked', !!pk() && pk().querySelectorAll('.cp-sw').length === 9 && pk().querySelector('.cp-sw.on').dataset.color === 'moth' && document.activeElement === pk().querySelector('.cp-sw.on'));
       pk().querySelector('.cp-sw[data-color="sea"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      ok('a press alone does not pick a colour', c1.color !== 'sea' && !!pk());
+      pk().querySelector('.cp-sw[data-color="sea"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       ok('clicking a colour sets it and closes the picker', c1.color === 'sea' && el(c1).classList.contains('paper-sea') && !pk());
       press(c1);
       keydown(document.activeElement, '5');
@@ -825,16 +827,34 @@ import { App } from '../src/js/10-app.js';
       ok('clicking outside closes the editor', $('.s-drawer').hidden);
       Secrets.edit(null);
       $('.s-drawer input').value = 'OUTSIDE_KEY';
-      $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      const added = Store.S.data.secrets.find((x) => x.key === 'OUTSIDE_KEY');
-      ok('clicking outside keeps what was typed', $('.s-drawer').hidden && !!added);
-      Store.S.data.secrets.splice(Store.S.data.secrets.indexOf(added), 1); Store.change('secrets'); Secrets.render();
-      Secrets.edit(null);
-      $('.s-drawer textarea').value = 'a value and no key';
-      $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      ok('without a key it stays open and asks for one', !$('.s-drawer').hidden && $('.s-drawer input').classList.contains('bad'));
+      $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      ok('a click outside with changes neither saves nor discards them', !$('.s-drawer').hidden && !$('.d-pending').hidden && $('.s-drawer input').value === 'OUTSIDE_KEY' && !Store.S.data.secrets.some((x) => x.key === 'OUTSIDE_KEY'));
       keydown($('.s-drawer input'), 'Escape');
-      ok('Esc discards it', $('.s-drawer').hidden && Store.S.data.secrets.length === 5, Store.S.data.secrets.length);
+      ok('Esc discards them', $('.s-drawer').hidden && Store.S.data.secrets.length === 5, Store.S.data.secrets.length);
+    }
+    {
+      // deleting a secret: three confirmations, each waiting on its safe button
+      const victim = Store.S.data.secrets.find((x) => x.key === 'STRIPE_SECRET_KEY');
+      Secrets.select(victim.id);
+      ok('every secret row has a delete button', $$('.srow').every((r) => r.querySelector('[data-a="delete"]')));
+      keydown($('.s-list'), 'Delete');
+      await wait(10);
+      ok('Del asks first (step 1 of 3), with Cancel focused', /Step 1 of 3/.test($('.modal').textContent) && document.activeElement.textContent === 'Cancel');
+      keydown(document.activeElement, 'Enter'); document.activeElement.click(); // Enter on a focused button clicks it
+      await wait(10);
+      ok('Enter there cancels (and Cancel closes the dialog)', !$('.modal') && Store.S.data.secrets.includes(victim), ($('.modal') || {}).textContent);
+      keydown($('.s-list'), 'Delete'); await wait(10);
+      $('.modal .btn.primary').click(); await wait(10);
+      const nameI = $('.modal input'), go = () => $('.modal .btn.primary');
+      ok('step 2 wants the key name typed out', /Step 2 of 3/.test($('.modal').textContent) && go().disabled);
+      nameI.value = 'STRIPE'; nameI.dispatchEvent(new Event('input')); keydown(nameI, 'Enter'); await wait(10);
+      ok('a partial name does not go on', /Step 2 of 3/.test($('.modal').textContent) && go().disabled);
+      nameI.value = 'STRIPE_SECRET_KEY'; nameI.dispatchEvent(new Event('input')); keydown(nameI, 'Enter'); await wait(10);
+      ok('step 3 is a last check, with Keep it focused', /Step 3 of 3/.test($('.modal').textContent) && document.activeElement.textContent === 'Keep it' && Store.S.data.secrets.includes(victim));
+      go().click(); await wait(10);
+      ok('only then is the secret deleted', !$('.modal') && !Store.S.data.secrets.includes(victim));
+      keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+      ok('and undo brings it back', Store.S.data.secrets.includes(victim) && Store.S.data.secrets.length === 5);
     }
     ok('tag row is a pivot: plain tags, then each key with its values', $$('.secrets .s-tagrow > .chip').map((c) => c.dataset.tag).join() === 'aws,billing,db,example' && $$('.secrets .tp-group .tp-k').length === 1 && $$('.secrets .tp-group .tp-v').map((c) => c.dataset.tag).join() === 'env:dev,env:prod,env:staging', $$('.secrets .s-tagrow .chip').map((c) => c.dataset.tag).join());
     {
@@ -1016,7 +1036,7 @@ import { App } from '../src/js/10-app.js';
       await wait(20);
       $('.hud-menu').click();
       const keysItem = $$('.pop-item').find((x) => /Keyboard shortcuts/.test(x.textContent));
-      keysItem && keysItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      keysItem && keysItem.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await wait(30);
       ok('the menu opens the keyboard shortcuts', !!$('.modal.keys'), JSON.stringify(window.__errs));
       if ($('.modal')) keydown($('.modal'), 'Escape');

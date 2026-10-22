@@ -963,6 +963,13 @@ export const Editor = (() => {
       if (modKey(e) && (isMac ? e.altKey : e.shiftKey && !e.altKey) && /^Digit[0-3]$/.test(e.code)) {
         e.preventDefault(); const d = e.code.slice(-1); command(d === '0' ? 'p' : 'h' + d, body, ctx); return;
       }
+      // Mod+Enter ticks or unticks the todo item the caret is in, like a click on its box
+      if (e.key === 'Enter' && modKey(e) && r) {
+        const li = lineBlock(r.startContainer, body);
+        if (li && li.tagName === 'LI' && li.parentNode.getAttribute('data-type') === 'todo') {
+          e.preventDefault(); li.setAttribute('data-checked', li.getAttribute('data-checked') === 'true' ? 'false' : 'true'); commit(); return;
+        }
+      }
       if (e.key === 'Tab' && r) {
         const li = lineBlock(r.startContainer, body);
         if (li && li.tagName === 'LI') { e.preventDefault(); exec(e.shiftKey ? 'outdent' : 'indent'); commit(); return; }

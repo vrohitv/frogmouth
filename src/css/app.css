@@ -593,7 +593,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .s-search .field { padding-left: 32px; height: 34px; font-family: var(--mono); font-size: 12.5px; }
 .s-count { font-size: 12px; min-width: 70px; text-align: right; }
 .s-bar, .s-head, .srow, .n-head, .nrow, .s-empty { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
-.s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 64px; gap: 14px; align-items: center; padding: 0 16px; }
+.s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 92px; gap: 14px; align-items: center; padding: 0 16px; }
 .s-head { height: 26px; color: var(--faint); font-size: 11.5px; border-bottom: 1px solid var(--line); }
 .s-list { overflow-y: auto; outline: none; padding-bottom: 40px; }
 .srow { min-height: 42px; padding-top: 5px; padding-bottom: 5px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); cursor: default; position: relative; }
@@ -628,6 +628,9 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .s-act { display: flex; gap: 2px; justify-content: flex-end; }
 .s-act button { border: 0; background: none; color: var(--muted); width: 28px; height: 26px; border-radius: 4px; cursor: pointer; display: grid; place-items: center; }
 .s-act button:hover { background: var(--panel-2); color: var(--text); }
+/* delete sits apart from copy and reveal, quieter, and only turns red under the pointer */
+.s-act .s-del { margin-left: 6px; opacity: .55; }
+.s-act .s-del:hover { opacity: 1; color: var(--danger); }
 .s-empty { padding: 48px 16px; text-align: center; }
 .s-empty p { margin: 4px 0; }
 /* the secret editor opens as a centred dialog over a dimmed page */
@@ -652,6 +655,9 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .tag-preview, .tag-sugg { display: flex; flex-wrap: wrap; gap: 4px; min-height: 0; }
 .tag-sugg:not(:empty)::before { content: "Used before:"; color: var(--faint); font-size: 11.5px; margin-right: 2px; line-height: 20px; }
 .d-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; align-items: center; }
+.d-pending { margin: 0; font-size: 12.5px; color: var(--danger); }
+.d-pending.nudge { animation: nudge .3s ease-out; }
+@keyframes nudge { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 
 /* ── all notes page ── */
 .n-head, .nrow { display: grid; grid-template-columns: minmax(220px, 2.2fr) minmax(110px, .9fr) minmax(130px, 1.2fr) 74px 82px; gap: 14px; align-items: center; padding: 0 16px; }

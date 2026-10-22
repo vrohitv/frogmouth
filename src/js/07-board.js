@@ -161,8 +161,8 @@ export const Board = (() => {
       if (e.target.closest('.note-x')) {
         e.preventDefault(); e.stopPropagation();
         if (e.shiftKey) confirmDeleteEverywhere(n.id);
-        else if (armed && armed.includes(n.id)) { const a = armed; disarm(); removeMany(a); }
-        else askRemove(n.id);
+        else if (armed && armed.includes(n.id)) { if (Date.now() - armedAt > 500) { const a = armed; disarm(); removeMany(a); } } // not the second half of a double-click
+        else { askRemove(n.id); armedAt = Date.now(); }
       }
     });
     body.addEventListener('focus', () => { el.classList.add('editing'); select(n.id); });
@@ -434,6 +434,7 @@ export const Board = (() => {
     if (armed && k === 'Escape') { disarm(); return true; }
     if (k === 'Enter') { focusBody(n.id); return true; }
     if (k === 't' || k === 'T') { tagNote(n); return true; }
+    if ((k === 'l' || k === 'L') && !modKey(e)) { const el = els.get(n.id); if ((backMap.get(n.id) || []).length && el) backlinksMenu(n, el.querySelector('.note-foot')); return true; }
     if (k === 'Escape') { select(null); return true; }
     // everything below acts on every selected note
     const all = many ? ids : [n.id];
@@ -442,6 +443,19 @@ export const Board = (() => {
     if (/^[1-9]$/.test(k) && !modKey(e)) { for (const id of all) setColor(noteOf(id), COLORS[+k - 1]); return true; }
     if (modKey(e) && k.toLowerCase() === 'd') { const out = all.map((id) => duplicate(itemOf(id))).filter(Boolean); setGroup(out.map((c) => c.id)); return true; }
     const d = e.shiftKey ? GRID * 5 : GRID;
+    // Alt+Shift+arrows resize: right and down grow, left and up shrink
+    if (e.altKey && e.shiftKey) {
+      const rz = { ArrowLeft: [-GRID, 0], ArrowRight: [GRID, 0], ArrowUp: [0, -GRID], ArrowDown: [0, GRID] }[k];
+      if (!rz) return false;
+      for (const id of all) {
+        const m = itemOf(id), el = els.get(id); if (!m || !el) continue;
+        if (rz[0]) m.w = clamp(Math.round((m.w + rz[0]) / GRID) * GRID, 160, 2000);
+        if (rz[1]) m.h = clamp(Math.round(((m.h || el.getBoundingClientRect().height / view.z) + rz[1]) / GRID) * GRID, 80, 3000);
+        place(m, el); Editor.refit(el);
+      }
+      Store.change('notes');
+      return true;
+    }
     const mv = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d] }[k];
     if (mv) { for (const id of all) { const m = itemOf(id); m.x += mv[0]; m.y += mv[1]; place(m); } Store.change('notes'); return true; }
     return false;
@@ -592,11 +606,9 @@ export const Board = (() => {
     picker.style.left = clamp(r.left - 8, 8, innerWidth - pr.width - 8) + 'px';
     picker.style.top = (r.bottom + 6 + pr.height > innerHeight - 8 ? Math.max(8, r.top - pr.height - 6) : r.bottom + 6) + 'px';
     const apply = (c) => { for (const id of ids) { const x = noteOf(id); if (x) setColor(x, c); } closePicker(); };
-    picker.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      const b = e.target.closest('.cp-sw');
-      if (b) { e.preventDefault(); apply(b.dataset.color); }
-    });
+    // a colour applies on the click, so pressing the wrong one and sliding off it changes nothing
+    picker.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (e.target.closest('.cp-sw')) e.preventDefault(); });
+    picker.addEventListener('click', (e) => { const b = e.target.closest('.cp-sw'); if (b) apply(b.dataset.color); });
     picker.addEventListener('keydown', (e) => {
       e.stopPropagation(); // the board does not see keys meant for the picker
       const btns = [...grid.children], i = btns.indexOf(document.activeElement);
@@ -795,7 +807,7 @@ export const Board = (() => {
   }
 
   /* removing asks for a second, confirming action: the × turns into "Remove?" */
-  let armed = null, armTimer = 0; // the notes waiting for that second Del
+  let armed = null, armedAt = 0, armTimer = 0; // the notes waiting for that second Del
   const xTitle = () => `Remove from this board (Del, then confirm). The note stays in All notes. ${kb('shift+click')} deletes it everywhere.`;
   function disarm() {
     clearTimeout(armTimer);
@@ -812,7 +824,7 @@ export const Board = (() => {
     if (!ids.length) return;
     if (armed && armed.length === ids.length && ids.every((id) => armed.includes(id))) { const a = armed; disarm(); removeMany(a); return; }
     disarm();
-    armed = ids;
+    armed = ids; armedAt = 0; // set by a click on ×, whose double-click must not confirm too
     if (ids.length === 1) select(ids[0]);
     for (const id of ids) els.get(id).classList.add('arming');
     const x = els.get(ids.includes(sel) ? sel : ids[0]).querySelector('.note-x');
@@ -929,6 +941,8 @@ export const Board = (() => {
   /* tidy into rows, keeping reading order */
   function arrange() {
     if (!board || !board.items.length) return;
+    const b = board, was = b.items.map((m) => [m, m.x, m.y]);
+    App.pushUndo('Notes arranged', () => { for (const [m, x, y] of was) { m.x = x; m.y = y; if (board === b) place(m); } Store.change('notes'); });
     const gap = 24;
     const order = board.items.slice().sort((a, b) => (Math.round(a.y / 160) - Math.round(b.y / 160)) || a.x - b.x);
     const x0 = Math.round(Math.min(...order.map((n) => n.x)) / GRID) * GRID;

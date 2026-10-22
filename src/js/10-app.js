@@ -186,6 +186,14 @@ export const App = (() => {
     activate('b:' + bs[(i + d + bs.length) % bs.length].id);
   }
 
+  /* the current board one place left or right among the pills, like dragging its pill */
+  function moveBoard(d) {
+    const bs = Store.S.data.boards, i = bs.findIndex((b) => b.id === Store.S.data.ui.board), j = i + d;
+    if (i < 0 || j < 0 || j >= bs.length) return;
+    [bs[i], bs[j]] = [bs[j], bs[i]];
+    Store.change('boards');
+  }
+
   /* ── floating chrome ── */
   function renderChrome() {
     if (!Store.S.data) return;
@@ -216,7 +224,7 @@ export const App = (() => {
     const pills = shown.map((b, i) => {
       const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
-        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename, drag to reorder.` },
+        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename (F2), drag to reorder (${kb('alt+shift+[ / ]')}).` },
         h('span', { class: 'bp-name', text: b.name }),
         many ? h('button', { class: 'bp-x', title: 'Delete board', 'aria-label': `Delete ${b.name}`, html: icon('x'), tabindex: '-1' }) : null);
       pill.addEventListener('click', (e) => {
@@ -338,9 +346,10 @@ export const App = (() => {
       else if (modKey(e) && e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); remove(r); }
       else if (e.altKey && e.code === 'KeyJ') { e.preventDefault(); close(); }
     });
-    list.addEventListener('mousedown', (e) => {
+    // the press keeps focus in the search field; the row acts on the click, so sliding off it cancels
+    list.addEventListener('mousedown', (e) => { if (!e.target.closest('.bd-rename')) e.preventDefault(); });
+    list.addEventListener('click', (e) => {
       const row = e.target.closest('.bd-row'); if (!row || e.target.closest('.bd-rename')) return;
-      e.preventDefault();
       const r = rows[+row.dataset.i]; idx = +row.dataset.i;
       const a = e.target.closest('[data-a]');
       if (!a) return open(r);
@@ -539,6 +548,8 @@ export const App = (() => {
       { title: 'Boards: find, pin, rename, delete…', key: kb('alt+j'), run: boardPicker },
       { title: 'Next board', key: kb('alt+]'), run: () => cycleBoard(1) },
       { title: 'Previous board', key: kb('alt+['), run: () => cycleBoard(-1) },
+      { title: 'Move this board left', key: kb('alt+shift+['), when: isBoardView, run: () => moveBoard(-1) },
+      { title: 'Move this board right', key: kb('alt+shift+]'), when: isBoardView, run: () => moveBoard(1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
       { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ title: `Accent colour: ${label}`, run: () => setAccent(k) })),
@@ -553,11 +564,11 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('mod+z'), 'Undo a delete'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
-      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
-      ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
+      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('alt+shift+[ / ]'), 'Move this board left / right'], ['F2', 'Rename this board'], [kb('mod+z'), 'Undo a delete or arrange'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
+      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], [kb('alt+shift') + ' arrows', 'Resize'], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['L', 'Notes that link here'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
+      ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], [kb('mod+enter'), 'Tick a todo item'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], [kb('enter'), 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s / ' + kb('shift+s'), 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
-      ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], [kb('shift+c'), 'Copy key name'], ['Space', 'Reveal value'], [kb('enter') + '  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
+      ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], [kb('shift+c'), 'Copy key name'], ['Space', 'Reveal value'], [kb('enter') + '  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete (confirmed three times)']]],
     ];
     Modal.open({
       title: 'Keyboard', wide: true, cls: 'keys',
@@ -592,6 +603,7 @@ export const App = (() => {
     }
     if (e.altKey && !mod && /^Digit[1-9]$/.test(e.code)) { e.preventDefault(); const b = pillBoards()[+e.code.slice(5) - 1]; if (b) activate('b:' + b.id); return; }
     if (e.altKey && !mod && e.code === 'KeyJ') { e.preventDefault(); boardPicker(); return; }
+    if (e.altKey && e.shiftKey && !mod && (e.code === 'BracketLeft' || e.code === 'BracketRight')) { e.preventDefault(); moveBoard(e.code === 'BracketLeft' ? -1 : 1); return; }
     if (e.altKey && !mod && e.code === 'BracketLeft') { e.preventDefault(); cycleBoard(-1); return; }
     if (e.altKey && !mod && e.code === 'BracketRight') { e.preventDefault(); cycleBoard(1); return; }
     if (e.altKey && !mod && e.code === 'KeyS') { e.preventDefault(); showView('secrets'); return; }

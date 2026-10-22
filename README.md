@@ -103,7 +103,9 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `⌥B` `⌥L` `⌥S` | Board, all notes, secrets |
 | `⌥J` | Boards panel: find, open, create, pin, rename, delete |
 | `⌥1`–`⌥9`, `⌥[` `⌥]` | Board pills, previous / next board |
-| `⌘Z` | Undo a delete |
+| `⌥⇧[` `⌥⇧]` | Move this board left / right |
+| `F2` | Rename this board |
+| `⌘Z` | Undo a delete or arrange |
 | `⌥←` | Back along board links |
 
 | Board | |
@@ -112,10 +114,11 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `Tab` | Next note |
 | click, drag | Select, move |
 | double-click, `↵` / `Esc` | Edit / stop editing |
-| arrows | Nudge |
+| arrows / `⌥⇧` arrows | Nudge / resize |
 | `1`–`9` | Colour |
 | `⌘D` | Duplicate |
 | `T` | Tag the note |
+| `L` | Notes that link here |
 | `A` | Add an existing note to this board |
 | `⇧`-click, `⇧`-drag, `⌘A` | Select several notes |
 | `⌘F` | Find in every note on the board |
@@ -132,7 +135,7 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `↵` | Edit |
 | `N` | New |
 | `/` | Filter |
-| `Del` | Delete |
+| `Del` or × | Delete, after three confirmations |
 
 ## The vault folder
 

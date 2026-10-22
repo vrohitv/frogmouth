@@ -1,4 +1,4 @@
-import { modKey, clamp, h, esc, icon, Tags } from './00-util.js';
+import { modKey, kb, clamp, h, esc, icon, Tags } from './00-util.js';
 import { Store } from './03-store.js';
 
 /* ── Popup: one floating, keyboard-driven list used for /, @, pickers ─ */
@@ -36,9 +36,10 @@ export const Popup = (() => {
       o.title ? h('div', { class: 'pop-title', text: o.title }) : null,
       o.input ? h('input', { class: 'pop-input', placeholder: o.placeholder || 'Filter', spellcheck: 'false' }) : null,
       h('div', { class: 'pop-list' }));
-    el.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.pop-input')) return;
-      e.preventDefault();
+    // the press keeps focus where it is (a note being edited, a field); the pick waits for the
+    // click, so pressing the wrong item and sliding off it does nothing
+    el.addEventListener('mousedown', (e) => { if (!e.target.closest('.pop-input')) e.preventDefault(); });
+    el.addEventListener('click', (e) => {
       const it = e.target.closest('.pop-item');
       if (it) pick(+it.dataset.i);
     });
@@ -112,23 +113,28 @@ export const Modal = (() => {
       scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) done(null); });
       card.append(h('h2', { text: title }));
       if (body) card.append(typeof body === 'function' ? body(done) : body);
+      // a dialog that destroys something waits on the safe button: a stray Enter or Space
+      // cancels, and the destructive one takes a click, Tab then Enter, or Mod+Enter
+      const risky = actions.some((a) => a.danger);
       if (actions.length) {
         card.append(h('div', { class: 'modal-actions' }, actions.map((a) =>
-          h('button', { class: 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : ''), text: a.label, onclick: async () => {
-            const v = a.value !== undefined ? a.value : a.run ? await a.run() : true;
-            if (v !== false) done(v);
-          } }))));
+          h('button', { class: 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : ''), disabled: a.disabled || null,
+            html: esc(a.label) + (a.primary && risky ? ` <kbd>${kb('mod+enter')}</kbd>` : ''), onclick: async () => {
+              // a button with a value always closes (Cancel's is false); run() returns false to stay open
+              const v = a.value !== undefined ? a.value : a.run ? await a.run() : true;
+              if (a.value !== undefined || v !== false) done(v);
+            } }))));
       }
       card.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { e.stopPropagation(); done(null); }
         if (e.key === 'Enter' && (modKey(e) || (e.target.tagName === 'INPUT'))) {
           const p = actions.find((a) => a.primary);
-          if (p) { e.preventDefault(); card.querySelector('.btn.primary').click(); }
+          if (p) { e.preventDefault(); card.querySelector('.btn.primary').click(); } // does nothing while it is disabled
         }
       });
       document.body.append(scrim);
       stack.push(scrim);
-      const f = card.querySelector('input,textarea,select,.btn.primary');
+      const f = card.querySelector(risky ? 'input,textarea,select,.btn:not(.primary)' : 'input,textarea,select,.btn.primary');
       if (f) f.focus({ preventScroll: true }); // open at the top, even when the focused button is at the bottom
     });
   }
