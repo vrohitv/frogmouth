@@ -1,4 +1,4 @@
-import { modKey, clamp, now, h, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags, fuzzy, markPositions } from './00-util.js';
+import { kb, modKey, clamp, now, h, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags, fuzzy, markPositions } from './00-util.js';
 import { Store } from './03-store.js';
 import { Popup, Modal, editTags } from './05-ui.js';
 import { Editor } from './06-editor.js';
@@ -84,7 +84,7 @@ export const Board = (() => {
     const body = Editor.mount(n, (out) => commit(n, out));
     const grip = h('div', { class: 'note-grip', title: 'Drag to move' },
       h('div', { class: 'note-swatches' }, COLORS.map((c, i) => h('button', { class: 'sw paper-' + c, title: `${c} (${i + 1})`, 'data-color': c, tabindex: '-1' }))),
-      h('button', { class: 'note-x', title: 'Remove from this board (Del, then confirm). The note stays in All notes. ⇧-click deletes it everywhere.', html: icon('x'), tabindex: '-1' }));
+      h('button', { class: 'note-x', title: `Remove from this board (Del, then confirm). The note stays in All notes. ${kb('shift+click')} deletes it everywhere.`, html: icon('x'), tabindex: '-1' }));
     const foot = h('div', { class: 'note-foot' });
     const edges = ['e', 's', 'se'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d, title: d === 's' ? 'Drag to resize. Double-click for auto height.' : 'Drag to resize' }));
     const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, ...edges);

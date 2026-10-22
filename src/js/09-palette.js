@@ -1,4 +1,4 @@
-import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus } from './00-util.js';
+import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus, kb } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { Secrets } from './08-secrets.js';
@@ -91,7 +91,7 @@ export const Palette = (() => {
     list.innerHTML = items.map((it, i) =>
       `<div class="pal-item${i === idx ? ' on' : ''}" data-i="${i}">${icon(TYPE_ICON[it.type] || 'cmd')}` +
       `<div class="pal-main"><div class="pal-title">${markPositions(it.title, it.p)}</div>${it.snip ? `<div class="pal-snip">${it.snip}</div>` : ''}</div>` +
-      `<span class="pal-sub">${it.type === 'cmd' ? (it.key ? `<kbd>${esc(it.key)}</kbd>` : '') : esc(it.sub || '')}${it.type === 'secret' && i === idx ? ' <kbd>↵ copy</kbd>' : ''}</span></div>`).join('');
+      `<span class="pal-sub">${it.type === 'cmd' ? (it.key ? `<kbd>${esc(it.key)}</kbd>` : '') : esc(it.sub || '')}${it.type === 'secret' && i === idx ? ` <kbd>${kb('enter')} copy</kbd>` : ''}</span></div>`).join('');
     const on = list.children[idx]; if (on) on.scrollIntoView({ block: 'nearest' });
   }
 
@@ -106,7 +106,7 @@ export const Palette = (() => {
     if (!el) {
       inp = h('input', { class: 'pal-input', placeholder: 'Search notes, boards, secrets.  > commands', spellcheck: 'false', autocomplete: 'off' });
       list = h('div', { class: 'pal-list' });
-      foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>&gt;</kbd> commands</span><span><kbd>@</kbd> notes</span><span><kbd>$</kbd> secrets</span><span><kbd>#</kbd> boards</span>` });
+      foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>${kb('enter')}</kbd> open</span><span><kbd>&gt;</kbd> commands</span><span><kbd>@</kbd> notes</span><span><kbd>$</kbd> secrets</span><span><kbd>#</kbd> boards</span>` });
       el = h('div', { class: 'scrim pal-scrim' }, h('div', { class: 'pal', role: 'dialog', 'aria-label': 'Search' }, h('div', { class: 'pal-top', html: icon('search') }, inp), list, foot));
       el.addEventListener('mousedown', (e) => { if (e.target === el) hide(); });
       list.addEventListener('mousedown', (e) => { const it = e.target.closest('.pal-item'); if (it) { e.preventDefault(); idx = +it.dataset.i; run(items[idx], e); } });

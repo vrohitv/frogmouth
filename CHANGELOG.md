@@ -12,6 +12,7 @@ First production release.
 - Disk-change detection and conflict resolution. No encryption: frogmouth is a productivity tool, an alternative to a notepad.
 - Brand: frogmouth symbol, wordmark and logo system in `docs/brand/`.
 - Calm UI: neutral, untinted surfaces in dark and light, softened text contrast, muted note colours (dark tints at night, soft pastels by day, a neutral grey by default) and one accent of your choice: Anthropic orange (default), green or purple.
+- Shortcuts follow your system: macOS shows `⌘ ⌥ ⇧`, Windows and Linux show `Ctrl+`, `Alt+`, `Shift+`. Headings are `Ctrl+Shift+1`–`3` off the Mac, and AltGr keys always type, so European layouts can type `@`, `{` and `[` in notes.
 - Line numbers in code blocks, drawn with CSS counters so they are never copied, saved or searched; a softer, familiar syntax palette.
 
 ### Fixed in the pre-release audit
@@ -27,4 +28,5 @@ First production release.
 - A stray "null" appeared in the board pills when every board fitted.
 - The keyboard shortcuts dialog listed "[object HTMLElement]" instead of the shortcuts (an element helper flattened nested children only one level); it now shows every shortcut, opens at the top, and lays out in three columns.
 - Files tagged in notes open as themselves (HTML renders, SVG and PDFs show).
+- The Boards panel's delete moved to `⌘⇧⌫` (`Ctrl+Shift+Backspace`) so `⌘⌫` in its search box deletes text as usual.
 - Removed unused code left over from earlier layouts.

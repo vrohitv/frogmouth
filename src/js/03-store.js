@@ -1,4 +1,4 @@
-import { MOD, clamp, now, h, uid, debounce, esc, bus, toast, download, idb } from './00-util.js';
+import { kb, clamp, now, h, uid, debounce, esc, bus, toast, download, idb } from './00-util.js';
 import { Editor } from './06-editor.js';
 
 /* ── store: state, the .fm file, sync, images ───────────────────────
@@ -41,7 +41,7 @@ export const Store = (() => {
         html: '<p>Welcome to frogmouth</p><p>Everything lives in one <code>.fm</code> file in the folder you chose.</p>' +
           '<ul><li>Type <code>/</code> for blocks: headings, lists, todos, code, images</li><li>Type <code>@</code> to link another note</li>' +
           '<li>Type <code>```</code> then space for a code block</li><li>Click a note to select it, drag to move it, double-click to edit</li></ul>' +
-          `<p>Press <code>${MOD}K</code> to search everything.</p>` },
+          `<p>Press <code>${kb('mod+k')}</code> to search everything.</p>` },
       { id: n2, color: 'night', created: t, updated: t, tags: ['snippet', 'lang:js'],
         html: '<p>Retry with backoff</p><pre class="code" data-lang="js"><code>' + esc(
           'async function retry(fn, tries = 5) {\n  for (let i = 0; i < tries; i++) {\n    try { return await fn(); }\n    catch (err) {\n      // 100ms, 200ms, 400ms ...\n      await sleep(100 * 2 ** i);\n    }\n  }\n  throw new Error("gave up");\n}') +

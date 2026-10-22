@@ -1,10 +1,33 @@
 /* ── tiny helpers ─────────────────────────────────────────────── */
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-export const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-export const MOD = isMac ? '⌘' : 'Ctrl+';
-export const ALT = isMac ? '⌥' : 'Alt+';
+/* ── platform keys ────────────────────────────────────────────────
+   macOS uses ⌘ as the main modifier; Windows and Linux use Ctrl. Shortcuts
+   are written once as 'mod+shift+p' and shown in the platform's own style:
+   ⌘⇧P on a Mac, Ctrl+Shift+P elsewhere. */
+const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+export const isMac = /mac|iphone|ipad|ipod/i.test(platform);
 export const modKey = (e) => (isMac ? e.metaKey : e.ctrlKey);
+/* AltGr on Windows/Linux reports as Ctrl+Alt; it types characters (@, €, …), never shortcuts */
+export const isAltGr = (e) => !isMac && !!(e.getModifierState && e.getModifierState('AltGraph'));
+const KEYS = {
+  mac: { mod: '⌘', alt: '⌥', shift: '⇧', ctrl: '⌃', enter: '↵', backspace: '⌫', del: 'Del', esc: 'Esc', tab: 'Tab', space: 'Space' },
+  pc: { mod: 'Ctrl', alt: 'Alt', shift: 'Shift', ctrl: 'Ctrl', enter: 'Enter', backspace: 'Backspace', del: 'Del', esc: 'Esc', tab: 'Tab', space: 'Space' },
+};
+const MODS = new Set(['mod', 'alt', 'shift', 'ctrl']);
+export function kbFor(mac, spec) {
+  const names = mac ? KEYS.mac : KEYS.pc;
+  return String(spec).split(' / ').map((combo) => {
+    const parts = combo.split('+').map((t) => t.trim()).filter(Boolean);
+    const label = parts.map((t) => names[t.toLowerCase()] || (t.length === 1 ? t.toUpperCase() : t));
+    if (!mac) return label.join('+');
+    const nMods = parts.filter((t) => MODS.has(t.toLowerCase())).length;
+    const mods = label.slice(0, nMods).join(''), rest = label.slice(nMods).join('+');
+    return rest.length > 1 && /^[a-z]/i.test(rest) ? (mods ? `${mods} ${rest}` : rest) : mods + rest;
+  }).join(' / ');
+}
+/* kb('mod+shift+p') → '⌘⇧P' on a Mac, 'Ctrl+Shift+P' on Windows and Linux */
+export const kb = (spec) => kbFor(isMac, spec);
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const now = () => Date.now();
 

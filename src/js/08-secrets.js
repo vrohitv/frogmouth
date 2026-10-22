@@ -1,4 +1,4 @@
-import { $$, MOD, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags, bus } from './00-util.js';
+import { $$, kb, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags, bus } from './00-util.js';
 import { Store } from './03-store.js';
 import { Modal } from './05-ui.js';
 import { App } from './10-app.js';
@@ -193,7 +193,7 @@ export const Secrets = (() => {
         x ? h('button', { class: 'btn danger ghost', text: 'Delete', onclick: () => { close(); remove(x); } }) : h('span'),
         h('span', { class: 'grow' }),
         h('button', { class: 'btn ghost', text: 'Cancel', onclick: () => { close(); list.focus(); } }),
-        h('button', { class: 'btn primary', html: `${isNew ? 'Add secret' : 'Save'} <kbd>${MOD}↵</kbd>`, onclick: save }))].filter(Boolean));
+        h('button', { class: 'btn primary', html: `${isNew ? 'Add secret' : 'Save'} <kbd>${kb('mod+enter')}</kbd>`, onclick: save }))].filter(Boolean));
     drawer.onkeydown = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); list.focus(); }
       if (e.key === 'Enter' && (modKey(e) || (e.target.tagName === 'INPUT'))) { e.preventDefault(); save(); }

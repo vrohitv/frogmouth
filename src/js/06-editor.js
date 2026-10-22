@@ -1,4 +1,4 @@
-import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText } from './00-util.js';
+import { modKey, clamp, now, h, debounce, esc, bus, fuzzy, markPositions, toast, copyText, isMac, isAltGr } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
 import { HL } from './04-highlight.js';
@@ -766,6 +766,7 @@ export const Editor = (() => {
     commits.set(body, commit);
 
     body.addEventListener('keydown', (e) => {
+      if (isAltGr(e)) return; // AltGr types characters (@, €, …) on Windows/Linux layouts
       if (Popup.isOpen() && trig && Popup.key(e)) { e.preventDefault(); e.stopPropagation(); return; }
       const r = rng();
       const pre = r && r.startContainer && (r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode).closest('pre.code');
@@ -813,7 +814,7 @@ export const Editor = (() => {
       if (e.key === 'Escape') { e.preventDefault(); if (Popup.isOpen()) Popup.close(); else body.blur(); return; }
       if (modKey(e) && !e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); toggleInlineCode(); commit(); return; }
       if (modKey(e) && e.shiftKey && e.key.toLowerCase() === 'x') { e.preventDefault(); exec('strikeThrough'); commit(); return; }
-      if (modKey(e) && e.altKey && /^Digit[0-3]$/.test(e.code)) {
+      if (modKey(e) && (isMac ? e.altKey : e.shiftKey && !e.altKey) && /^Digit[0-3]$/.test(e.code)) {
         e.preventDefault(); const d = e.code.slice(-1); command(d === '0' ? 'p' : 'h' + d, body, ctx); return;
       }
       if (e.key === 'Tab' && r) {

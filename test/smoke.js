@@ -1,4 +1,4 @@
-import { $, $$, isMac, now, uid, esc, fuzzy } from '../src/js/00-util.js';
+import { $, $$, isMac, now, uid, esc, fuzzy, kb, kbFor } from '../src/js/00-util.js';
 import { Store } from '../src/js/03-store.js';
 import { HL } from '../src/js/04-highlight.js';
 import { Popup } from '../src/js/05-ui.js';
@@ -114,6 +114,9 @@ import { App } from '../src/js/10-app.js';
 
 
     ok('tagged files open as themselves', Editor.openAs('', 'files/x.html') === 'text/html' && Editor.openAs('', 'a.svg') === 'image/svg+xml' && Editor.openAs('', 'files/a.excalidraw').startsWith('text/plain') && Editor.openAs('image/png', 'a.png') === 'image/png' && Editor.openAs('', 'r.pdf') === 'application/pdf' && Editor.openAs('application/zip', 'a.zip') === 'application/zip');
+    ok('shortcut labels in Mac style', kbFor(true, 'mod+shift+p') === '⌘⇧P' && kbFor(true, 'mod+enter') === '⌘↵' && kbFor(true, 'alt+j') === '⌥J' && kbFor(true, 'mod+shift+backspace') === '⌘⇧⌫' && kbFor(true, 'shift+click') === '⇧ click' && kbFor(true, 'mod+b / mod+i') === '⌘B / ⌘I', [kbFor(true, 'mod+shift+p'), kbFor(true, 'shift+click')].join(' '));
+    ok('shortcut labels in Windows/Linux style', kbFor(false, 'mod+shift+p') === 'Ctrl+Shift+P' && kbFor(false, 'mod+enter') === 'Ctrl+Enter' && kbFor(false, 'alt+j') === 'Alt+J' && kbFor(false, 'mod+shift+backspace') === 'Ctrl+Shift+Backspace' && kbFor(false, 'mod+wheel') === 'Ctrl+wheel' && kbFor(false, 'shift+del') === 'Shift+Del', [kbFor(false, 'mod+shift+p'), kbFor(false, 'mod+wheel')].join(' '));
+    ok('this machine gets its own style', kb('mod+k') === (isMac ? '⌘K' : 'Ctrl+K'));
     ok('fuzzy subsequence', fuzzy('rtb', 'retry with backoff') && !fuzzy('zzz', 'retry'));
 
     /* ── app in memory mode ── */
@@ -484,7 +487,7 @@ import { App } from '../src/js/10-app.js';
       ri.value = 'Renamed four'; keydown(ri, 'Enter');
       ok('rename saves', d.boards.some((b) => b.name === 'Renamed four'));
       bin3.value = 'Renamed four'; bin3.dispatchEvent(new Event('input'));
-      keydown(bin3, 'Backspace', { metaKey: isMac, ctrlKey: !isMac });
+      keydown(bin3, 'Backspace', { metaKey: isMac, ctrlKey: !isMac, shiftKey: true });
       await wait(20);
       ok('delete from the panel removes an empty board', !d.boards.some((b) => b.name === 'Renamed four'));
       bin3.value = 'Brand new space'; bin3.dispatchEvent(new Event('input'));

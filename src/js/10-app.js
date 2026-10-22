@@ -1,4 +1,4 @@
-import { $, MOD, ALT, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon, fuzzy, markPositions, relTime } from './00-util.js';
+import { $, kb, isMac, isAltGr, modKey, now, h, uid, esc, isTypingTarget, bus, toast, download, ls, icon, fuzzy, markPositions, relTime } from './00-util.js';
 import { Bird } from './01-bird.js';
 import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
@@ -41,7 +41,7 @@ export const App = (() => {
     const actions = h('div', { class: 'w-actions' });
     card.append(h('p', { class: 'w-lead', text: 'Sticky notes and secrets, kept in one file in a folder you choose.' }), actions);
     if (Store.canPickDir()) {
-      actions.append(h('button', { class: 'btn primary big', html: `${icon('folder')} Open a folder <kbd>↵</kbd>`, onclick: pickFolder }));
+      actions.append(h('button', { class: 'btn primary big', html: `${icon('folder')} Open a folder <kbd>${kb('enter')}</kbd>`, onclick: pickFolder }));
       const ul = h('div', { class: 'w-recents' });
       actions.append(ul);
       Promise.race([Store.recents(), new Promise((r) => setTimeout(() => r([]), 800))]).then((rec) => {
@@ -143,7 +143,7 @@ export const App = (() => {
   const isSecrets = () => Store.S.data.ui.active === 'secrets';
   const isBoardView = () => Store.S.data.ui.active.startsWith('b:');
   const viewOf = () => (isBoardView() ? 'board' : Store.S.data.ui.active);
-  /* the switcher's three pages; ⌥B ⌥L ⌥S, pressing a page's key again returns to the board */
+  /* the switcher's three pages; Alt+B / Alt+L / Alt+S, pressing a page's key again returns to the board */
   function showView(v) { activate(v === 'board' || viewOf() === v ? 'b:' + Store.S.data.ui.board : v); }
   function cycleBoard(d) {
     const bs = Store.S.data.boards;
@@ -161,7 +161,7 @@ export const App = (() => {
 
   /* board pills: click to open, double-click to rename, drag to reorder, × to delete, + to add */
   /* with many boards only the recently used ones get a pill (kept in board order);
-     the rest are one search away in the board picker (⌥J) */
+     the rest are one search away in the Boards panel (Alt+J) */
   const MAX_PILLS = 6;
   function pillBoards() {
     const d = Store.S.data;
@@ -180,7 +180,7 @@ export const App = (() => {
     const pills = shown.map((b, i) => {
       const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
-        title: `${b.name}${i < 9 ? `  (${ALT}${i + 1})` : ''}. Double-click to rename, drag to reorder.` },
+        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename, drag to reorder.` },
         h('span', { class: 'bp-name', text: b.name }),
         many ? h('button', { class: 'bp-x', title: 'Delete board', 'aria-label': `Delete ${b.name}`, html: icon('x'), tabindex: '-1' }) : null);
       pill.addEventListener('click', (e) => {
@@ -216,14 +216,14 @@ export const App = (() => {
     const scroller = h('div', { class: 'bp-scroll' }, pills);
     scroller.addEventListener('wheel', (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { scroller.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     boardsEl.replaceChildren(...[scroller,
-    h('button', { class: 'bp-more' + (hidden > 0 ? ' has-more' : ''), title: `All ${d.boards.length} boards: find, pin, rename, delete (${ALT}J)`, html: `${icon('grid')}<span>${d.boards.length}</span>`, onclick: boardPicker }),
+    h('button', { class: 'bp-more' + (hidden > 0 ? ' has-more' : ''), title: `All ${d.boards.length} boards: find, pin, rename, delete (${kb('alt+j')})`, html: `${icon('grid')}<span>${d.boards.length}</span>`, onclick: boardPicker }),
     h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard })].filter(Boolean));
     const on = boardsEl.querySelector('.board-pill.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   /* ── the Boards panel: every board, searchable, with pin / rename / delete ──
-     ↑↓ move  ↵ open (or create the typed name)  ⌥P pin  F2 rename  ⌘⌫ delete  Esc close */
+     ↑↓ move, Enter open (or create the typed name), Alt+P pin, F2 rename, Mod+Shift+Backspace delete, Esc close */
   let panel = null;
   function boardPicker() {
     if (panel) { panel.close(); return; }
@@ -232,7 +232,7 @@ export const App = (() => {
     const inp = h('input', { class: 'bd-input', placeholder: 'Find a board, or type a new name', spellcheck: 'false', autocomplete: 'off' });
     const list = h('div', { class: 'bd-list', role: 'listbox' });
     const count = h('span', { class: 'bd-count' });
-    const foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>${ALT}P</kbd> pin</span><span><kbd>F2</kbd> rename</span><span><kbd>${MOD}⌫</kbd> delete</span>` });
+    const foot = h('div', { class: 'pal-foot', html: `<span><kbd>↑↓</kbd> move</span><span><kbd>${kb('enter')}</kbd> open</span><span><kbd>${kb('alt+p')}</kbd> pin</span><span><kbd>F2</kbd> rename</span><span><kbd>${kb('mod+shift+backspace')}</kbd> delete</span>` });
     const box = h('div', { class: 'pal bd-panel', role: 'dialog', 'aria-label': 'Boards' }, h('div', { class: 'pal-top', html: icon('grid') }, inp, count), list, foot);
     const el = h('div', { class: 'scrim pal-scrim' }, box);
     const close = () => { el.remove(); panel = null; };
@@ -254,12 +254,12 @@ export const App = (() => {
       list.innerHTML = rows.map((r, i) => r.create
         ? `<div class="bd-row bd-create${i === idx ? ' on' : ''}" data-i="${i}">${icon('plus')}<span class="bd-name">Create board “${esc(r.create)}”</span></div>`
         : `<div class="bd-row${i === idx ? ' on' : ''}${r.b.id === d.ui.board && isBoardView() ? ' current' : ''}" data-i="${i}">` +
-          `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${ALT}P)">${icon('pin')}</button>` +
+          `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${kb('alt+p')})">${icon('pin')}</button>` +
           `<span class="bd-name">${r.m ? markPositions(r.b.name, r.m.p) : esc(r.b.name)}</span>` +
           `<span class="bd-meta">${r.b.items.length} ${r.b.items.length === 1 ? 'note' : 'notes'}</span>` +
           `<span class="bd-meta bd-when">${esc(ago(r.b.opened))}</span>` +
           `<span class="bd-acts"><button data-a="rename" tabindex="-1" title="Rename (F2)">${icon('edit')}</button>` +
-          `<button data-a="delete" tabindex="-1" title="Delete board (${MOD}⌫); its notes stay in All notes">${icon('x')}</button></span></div>`).join('') ||
+          `<button data-a="delete" tabindex="-1" title="Delete board (${kb('mod+shift+backspace')}); its notes stay in All notes">${icon('x')}</button></span></div>`).join('') ||
         '<div class="pal-empty">No boards.</div>';
       const on = list.children[idx]; if (on) on.scrollIntoView({ block: 'nearest' });
     }
@@ -302,7 +302,7 @@ export const App = (() => {
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
       else if (e.altKey && e.code === 'KeyP') { e.preventDefault(); pin(r); }
       else if (e.key === 'F2') { e.preventDefault(); rename(r); }
-      else if (modKey(e) && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); remove(r); }
+      else if (modKey(e) && e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); remove(r); }
       else if (e.altKey && e.code === 'KeyJ') { e.preventDefault(); close(); }
     });
     list.addEventListener('mousedown', (e) => {
@@ -325,7 +325,7 @@ export const App = (() => {
     const items = [
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ id: 'accent', accent: k, label: `${label} accent`, icon: document.documentElement.dataset.accent === k ? 'tick' : 'dot' })),
-      Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: `${MOD}S` } : { id: 'download', label: 'Download a copy', icon: 'down' },
+      Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: kb('mod+s') } : { id: 'download', label: 'Download a copy', icon: 'down' },
       { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
@@ -496,21 +496,21 @@ export const App = (() => {
       { title: 'Rename board', key: 'F2', when: isBoard, run: () => renameBoard(Store.S.data.ui.board) },
       { title: 'Delete board', when: isBoard, run: () => deleteBoard(Store.S.data.ui.board) },
       { title: 'Arrange notes', when: isBoard, run: () => Board.arrange() },
-      { title: 'Fit all notes on screen', key: '⇧1', when: isBoard, run: () => Board.fit() },
+      { title: 'Fit all notes on screen', key: kb('shift+1'), when: isBoard, run: () => Board.fit() },
       { title: 'Reset zoom to 100%', key: '0', when: isBoard, run: () => Board.zoomAt(1) },
-      { title: 'Open the board', key: ALT + 'B', run: () => showView('board') },
-      { title: 'List all notes', key: ALT + 'L', run: () => showView('notes') },
-      { title: 'Open secrets', key: ALT + 'S', run: () => showView('secrets') },
+      { title: 'Open the board', key: kb('alt+b'), run: () => showView('board') },
+      { title: 'List all notes', key: kb('alt+l'), run: () => showView('notes') },
+      { title: 'Open secrets', key: kb('alt+s'), run: () => showView('secrets') },
       { title: 'Add an existing note to this board', key: 'A', when: isBoardView, run: () => Board.addExisting() },
       { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
-      { title: 'Boards: find, pin, rename, delete…', key: ALT + 'J', run: boardPicker },
-      { title: 'Next board', key: ALT + ']', run: () => cycleBoard(1) },
-      { title: 'Previous board', key: ALT + '[', run: () => cycleBoard(-1) },
+      { title: 'Boards: find, pin, rename, delete…', key: kb('alt+j'), run: boardPicker },
+      { title: 'Next board', key: kb('alt+]'), run: () => cycleBoard(1) },
+      { title: 'Previous board', key: kb('alt+['), run: () => cycleBoard(-1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
       { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ title: `Accent colour: ${label}`, run: () => setAccent(k) })),
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
-      { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
+      { title: 'Save now', key: kb('mod+s'), when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
       { title: 'Download a copy of the vault', run: downloadVault },
       { title: 'Close vault', run: closeVault },
@@ -520,11 +520,11 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[`${MOD}K`, 'Search notes, boards, secrets'], [`${MOD}⇧P`, 'Commands'], [`${MOD}S`, 'Save now'], [`${ALT}B ${ALT}L ${ALT}S`, 'Board, all notes, secrets'], [`${ALT}J`, 'Boards panel: find, pin, rename, delete, create'], [`${ALT}1–9`, 'Board pills 1 to 9'], [`${ALT}[  ${ALT}]`, 'Previous / next board'], [`${MOD}Z`, 'Undo a delete'], ['?', 'This list']]],
-      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click, ↵', 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', 'Nudge note (⇧ for more)'], ['1–6', 'Note colour'], [`${MOD}D`, 'Duplicate note'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], ['⇧Del', 'Delete everywhere (asks first)'], ['= − 0 ⇧1', 'Zoom in, out, 100%, fit'], ['Space+drag, wheel', 'Pan'], [`${MOD}+wheel, pinch`, 'Zoom'], ['Drag an edge', 'Resize'], [`${ALT}drag`, 'Move a note while editing']]],
-      ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [`${MOD}B ${MOD}I ${MOD}U`, 'Bold, italic, underline'], [`${MOD}E`, 'Inline code'], [`${MOD}⇧X`, 'Strikethrough'], [`${MOD}${ALT}1–3`, 'Heading level'], [`${MOD}↵`, 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
-      ['All notes', [['j k  ↑↓', 'Move'], ['↵', 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s  ⇧S', 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
-      ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], ['⇧C', 'Copy key name'], ['Space', 'Reveal value'], ['↵  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
+      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('mod+z'), 'Undo a delete'], ['?', 'This list']]],
+      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge note (${kb('shift')} for more)`], ['1–6', 'Note colour'], [kb('mod+d'), 'Duplicate note'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
+      ['Note editor', [['/', 'Block menu'], ['@', 'Link a note or file'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], [kb('mod+enter'), 'Leave code block'], ['Wheel on image', 'Zoom that image']]],
+      ['All notes', [['j k  ↑↓', 'Move'], [kb('enter'), 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s / ' + kb('shift+s'), 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
+      ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], [kb('shift+c'), 'Copy key name'], ['Space', 'Reveal value'], [kb('enter') + '  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],
     ];
     Modal.open({
       title: 'Keyboard', wide: true, cls: 'keys',
@@ -541,7 +541,8 @@ export const App = (() => {
       if (/^[1-6]$/.test(e.key)) { const b = welcome.querySelectorAll('.recent')[+e.key - 1]; if (b) b.click(); }
       return;
     }
-    // an open menu without its own text field still takes ↑ ↓ ↵ Esc
+    if (isAltGr(e)) return;
+    // an open menu without its own text field still takes arrow keys, Enter and Esc
     if (Popup.isOpen() && Popup.key(e)) { e.preventDefault(); e.stopPropagation(); return; }
     const k = e.key, mod = modKey(e);
     const lower = k.length === 1 ? k.toLowerCase() : k;
@@ -577,9 +578,9 @@ export const App = (() => {
     menuBtn = h('button', { class: 'hud-menu', title: 'Theme, export, shortcuts', 'aria-label': 'App menu', html: icon('down'), onclick: appMenu });
     boardsEl = h('div', { class: 'hud-pill hud-boards', role: 'tablist', 'aria-label': 'Boards' });
     switchEl = h('div', { class: 'hud-pill hud-switch', role: 'group', 'aria-label': 'Notes or secrets' },
-      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
-      h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${ALT}L)`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),
-      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (viewOf() !== 'secrets') showView('secrets'); } }));
+      h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${kb('alt+b')})`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
+      h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${kb('alt+l')})`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),
+      h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${kb('alt+s')})`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (viewOf() !== 'secrets') showView('secrets'); } }));
     syncEl = h('button', { class: 'hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
@@ -589,7 +590,7 @@ export const App = (() => {
           h('span', { class: 'hud-logo', title: 'frogmouth' }, Bird.make('word')), menuBtn),
         switchEl, boardsEl),
       h('div', { class: 'hud-group' },
-        h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
+        h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${kb('mod+k')}</kbd>`, onclick: () => Palette.show() }),
         h('div', { class: 'hud-pill hud-sync-pill' }, syncEl)));
     shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
