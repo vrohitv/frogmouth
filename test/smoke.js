@@ -3,6 +3,7 @@ import { Bird } from '../src/js/01-bird.js';
 import { Store } from '../src/js/03-store.js';
 import { HL } from '../src/js/04-highlight.js';
 import { Popup } from '../src/js/05-ui.js';
+import { Peek } from '../src/js/07b-peek.js';
 import { Editor } from '../src/js/06-editor.js';
 import { Board } from '../src/js/07-board.js';
 import { Secrets } from '../src/js/08-secrets.js';
@@ -118,6 +119,11 @@ import { App } from '../src/js/10-app.js';
       }
     }
     if (mode === 'shot-recent') Palette.show('');
+    if (mode === 'shot-peek') {
+      const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Retry with backoff').note;
+      Peek.open(t.id);
+    }
+    if (mode === 'shot-add') { await wait(300); document.querySelector('.nav-add').click(); }
     if (mode === 'shot-trail') {
       const d = Store.S.data, q3 = { id: uid(), name: 'Q3 Launch', created: now(), items: [] }, infra = { id: uid(), name: 'Infra', created: now(), items: [] };
       d.boards.push(q3, infra); Store.index(); Store.change('boards');
@@ -379,13 +385,54 @@ import { App } from '../src/js/10-app.js';
       await wait(350);
       const onHere = () => here.items.map((m) => m.note).filter((id) => id !== host.id).join();
       ok('linking notes does not put them on this board', onHere() === before && !here.items.some((m) => m.note === away.id || m.note === loose.id) && !$(`.note[data-id="${away.id}"]`) && !$(`.note[data-id="${loose.id}"]`));
-      $(`.note[data-id="${host.id}"] a.mention[data-note="${away.id}"]`).click(); await wait(80);
-      ok('clicking a link to a note on another board opens that board, and adds nothing', Board.current() === other && !here.items.some((m) => m.note === away.id) && other.items.length === 1);
+      // + Note on the board: a new note, or an existing one
+      $('.nav-add').click(); await wait(20);
+      ok('+ Note offers a new note or an existing one', Popup.isOpen() && /New note/.test($('.pop').textContent) && /Add an existing note/.test($('.pop').textContent));
+      [...$$('.pop .pop-item')].find((x) => /existing/.test(x.textContent)).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); await wait(20);
+      ok('...and "existing" opens the note picker for this board', Popup.isOpen() && /Add a note to/.test($('.pop').textContent) && /Lives elsewhere/.test($('.pop').textContent));
+      Popup.close();
+      // the note view: a link opens the note right here, full size; you stay on this board
+      const pk = () => $('.peek'), btns = () => [...$$('.peek .pk-foot .btn')].map((b) => b.textContent.replace(/\s+/g, ' ').trim());
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${away.id}"]`).click(); await wait(60);
+      ok('clicking a note link opens the note in the note view, on this board', Peek.isOpen() && Peek.current() === away.id && Board.current() === here && /Lives elsewhere/.test(pk().querySelector('.note-body').textContent));
+      ok('the view says where the note lives and offers add / open', /Elsewhere/.test(pk().querySelector('.pk-where').textContent) && btns().some((b) => /^Add to /.test(b)) && btns().some((b) => /^Open on Elsewhere/.test(b)), JSON.stringify(btns()));
+      ok('it opens for reading, not editing', !pk().querySelector('.note-body').isContentEditable && document.activeElement === pk());
+      ok('the board underneath gets no keys', (keydown(pk(), 'n'), here.items.length === before.split(',').filter(Boolean).length + 1));
+      keydown(pk(), 'Escape'); await wait(30);
+      ok('Esc closes it, nothing added', !Peek.isOpen() && onHere() === before);
+      // Enter opens it where it lives
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${away.id}"]`).click(); await wait(40);
+      keydown(pk(), 'Enter'); await wait(80);
+      ok('Enter opens it on its board', !Peek.isOpen() && Board.current() === other && other.items.length === 1);
       App.openTab('b:' + here.id); await wait(60);
-      $(`.note[data-id="${host.id}"] a.mention[data-note="${loose.id}"]`).click(); await wait(80);
-      ok('clicking a link to a note on no board opens All notes, and adds it nowhere', Store.S.data.ui.active === 'notes' && Store.noteRef(loose.id).boards.length === 0);
-      App.openTab('b:' + here.id); await wait(60);
-      ok('the board is exactly as it was', onHere() === before);
+      // A adds it here
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${loose.id}"]`).click(); await wait(40);
+      ok('a note on no board says so, and can only be added here', /on no board/.test(pk().querySelector('.pk-where').textContent) && !btns().some((b) => /^Open on/.test(b)));
+      keydown(pk(), 'a'); await wait(80);
+      ok('A adds it to this board and closes the view', !Peek.isOpen() && here.items.some((m) => m.note === loose.id) && !!$(`.note[data-id="${loose.id}"]`));
+      // already here: A shows it instead
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${loose.id}"]`).click(); await wait(40);
+      ok('a note already on this board offers Show instead of Add', btns().some((b) => /^Show on this board/.test(b)) && !btns().some((b) => /^Add to/.test(b)));
+      keydown(pk(), 'a'); await wait(80);
+      ok('Show closes the view and brings the note forward', !Peek.isOpen() && Board.selected() === loose.id);
+      // links inside the view open in the same view; back returns
+      const chain = Board.addNote({ x: 400, y: 3400 }, false, `<p>Chain</p><p>to <a class="mention" contenteditable="false" data-note="${away.id}">@x</a></p>`);
+      $(`.note[data-id="${host.id}"] a.mention[data-note="${loose.id}"]`).click(); await wait(40);
+      Peek.open(chain.id, true); await wait(30);
+      pk().querySelector(`a.mention[data-note="${away.id}"]`).click(); await wait(40);
+      ok('a link inside the view opens in the same view, with a way back', Peek.current() === away.id && !!pk().querySelector('.pk-back'));
+      pk().querySelector('.pk-back').click(); await wait(30);
+      ok('back returns to the note before', Peek.current() === chain.id);
+      // editing in the view shows on the board when it closes
+      const pb = pk().querySelector('.note-body');
+      pb.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); pb.focus();
+      const s0 = getSelection(); s0.selectAllChildren(pb.lastElementChild); s0.collapseToEnd();
+      await type(' edited');
+      pb.blur(); await wait(350);
+      keydown(pk(), 'Escape'); await wait(40);
+      ok('edits in the view are saved and the board shows them', /to @?\S* ?edited|edited/.test(chain.text) && /edited/.test($(`.note[data-id="${chain.id}"] .note-body`).textContent), chain.text);
+      Board.removeEverywhere(chain.id, true);
+      ok('the board only changed by what you added', onHere() === [before, loose.id].filter(Boolean).join(','), onHere());
       for (const id of [host.id, away.id, loose.id]) Board.removeEverywhere(id, true);
       d.boards.splice(d.boards.indexOf(other), 1); Store.index(); Store.change('boards');
     }
@@ -993,7 +1040,8 @@ import { App } from '../src/js/10-app.js';
       const orphanRow = $$('.nrow').find((r) => r.querySelector('.n-title b').textContent === 'Only on Side');
       ok('notes page shows notes on no board', orphanRow && /on no board/.test(orphanRow.textContent));
       App.gotoNote(onlySide.id);
-      ok('opening a boardless note stays on the notes page', Store.S.data.ui.active === 'notes');
+      ok('opening a boardless note shows it in the note view, on the notes page', Store.S.data.ui.active === 'notes' && Peek.isOpen() && Peek.current() === onlySide.id);
+      Peek.close();
       // put it back on a board from the notes page
       App.addToBoard(onlySide.id);
       keydown(document.body, 'Enter'); // menus without a text field still take the keyboard

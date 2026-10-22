@@ -687,6 +687,36 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .note-body td p, .note-body th p { margin: 0; }
 
 /* ── selecting several notes ── */
+/* ── the note view: a referenced note, full size, over the board ── */
+.peek-scrim { place-items: center; padding: 16px; }
+.peek {
+  width: min(780px, 100%); height: min(82vh, 900px); display: flex; flex-direction: column; outline: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden;
+  animation: tin .14s ease-out;
+}
+.pk-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); min-width: 0; }
+.pk-head .n-dot { margin-top: 0; }
+.pk-title { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.pk-where { flex: 1; min-width: 0; display: flex; gap: 6px; overflow: hidden; color: var(--muted); font-size: 12px; }
+.pk-board { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pk-board .ic { width: 12px; height: 12px; }
+.pk-board.none { font-style: italic; }
+.pk-back, .pk-x { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; flex: none; }
+.pk-back .ic { transform: rotate(90deg); }
+.pk-back:hover, .pk-x:hover { background: var(--panel-2); color: var(--text); }
+.note.pk-paper { position: relative; flex: 1; min-height: 0; margin: 14px; border-radius: 4px; box-shadow: none; }
+.note.pk-paper .note-body { padding: 16px 22px 18px; font-size: 14px; }
+.note.pk-paper .note-body > p:first-child { font-size: 17px; }
+.pk-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 14px 14px; }
+.pk-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.pk-hint { margin-right: auto; font-size: 12px; }
+.pk-foot .btn kbd { margin-left: 4px; }
+
+/* the + Note button beside the zoom control */
+.nav-row { display: flex; gap: 8px; align-items: center; }
+.nav-btn.nav-add { display: inline-flex; align-items: center; gap: 4px; padding: 0 9px 0 6px; color: var(--text); font-size: 12.5px; }
+.nav-add .ic { width: 14px; height: 14px; }
+
 /* ── the trail of board links followed (← Projects › Q3 Launch) ── */
 .hud-trail {
   position: absolute; z-index: 29; top: calc(var(--hud-bottom) + 10px); left: 12px; max-width: calc(100% - 24px);

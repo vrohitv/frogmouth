@@ -336,9 +336,10 @@ export const Editor = (() => {
     st.s = ns;
     applyPic(fig);
   }
-  const boardZ = () => (typeof Board !== 'undefined' ? Board.zoom() : 1);
+  // the board's zoom applies only to notes on the board (not, say, the note view)
+  const boardZ = (el) => (el && el.closest && el.closest('.plane') && typeof Board !== 'undefined' ? Board.zoom() : 1);
   function local(fig, e) {
-    const r = fig.getBoundingClientRect(), z = boardZ();
+    const r = fig.getBoundingClientRect(), z = boardZ(fig);
     return [(e.clientX - r.left) / z, (e.clientY - r.top) / z];
   }
   // global listeners so pictures in any note work
@@ -362,7 +363,7 @@ export const Editor = (() => {
     }
     e.preventDefault(); e.stopPropagation();
     const st = picState.get(fig); if (!st) return;
-    const sx = e.clientX, sy = e.clientY, z = boardZ();
+    const sx = e.clientX, sy = e.clientY, z = boardZ(fig);
     if (e.target.classList.contains('pic-grip')) {
       const h0 = fig.clientHeight;
       const mv = (ev) => { fig.style.height = clamp(h0 + (ev.clientY - sy) / z, 60, 3000) + 'px'; };
@@ -1050,7 +1051,8 @@ export const Editor = (() => {
 
     body.addEventListener('click', (e) => {
       const m = e.target.closest('a.mention');
-      if (m) { e.preventDefault(); if (Store.noteRef(m.dataset.note)) bus.emit('goto-note', m.dataset.note); else toast('That note was deleted'); return; }
+      // a note link opens the note in the note view, right here
+      if (m) { e.preventDefault(); if (Store.noteRef(m.dataset.note)) bus.emit('open-note', m.dataset.note); else toast('That note was deleted'); return; }
       const br = e.target.closest('a.bref');
       if (br) { e.preventDefault(); if (Store.board(br.dataset.board)) bus.emit('goto-board', br.dataset.board); else toast('That board was deleted'); return; }
       const sr = e.target.closest('span.sref');
@@ -1062,7 +1064,7 @@ export const Editor = (() => {
       const li = e.target.closest('li');
       if (li && li === e.target && li.parentNode.getAttribute('data-type') === 'todo') {
         const lr = li.getBoundingClientRect();
-        if (e.clientX - lr.left < 22 * Board.zoom()) {
+        if (e.clientX - lr.left < 22 * boardZ(li)) {
           e.preventDefault();
           li.setAttribute('data-checked', li.getAttribute('data-checked') === 'true' ? 'false' : 'true');
           commit();
@@ -1070,7 +1072,7 @@ export const Editor = (() => {
       }
       const pre = e.target === e.target.closest('pre.code') ? e.target : null;
       if (pre) {
-        const pr = pre.getBoundingClientRect(), z = Board.zoom();
+        const pr = pre.getBoundingClientRect(), z = boardZ(pre);
         if (e.clientY - pr.top < 22 * z && pr.right - e.clientX < 90 * z) codeMenu(pre, commit);
       }
     });

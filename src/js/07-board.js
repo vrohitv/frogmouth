@@ -470,9 +470,22 @@ export const Board = (() => {
     };
     pct = btn('100%', 'Zoom to 100% (0)', () => zoomAt(1), 'nav-pct');
     map = h('canvas', { class: 'minimap', role: 'img', 'aria-label': 'Minimap: click or drag to move around the board' });
-    nav = h('div', { class: 'board-nav' }, map, h('div', { class: 'hud-pill nav-zoom' },
-      btn('−', 'Zoom out (−)', () => zoomAt(view.z / 1.2)), pct, btn('+', 'Zoom in (=)', () => zoomAt(view.z * 1.2)),
-      btn(icon('fit'), `Fit everything (${kb('shift+1')})`, fit), btn(icon('map'), 'Minimap (M)', toggleMap, 'nav-map')));
+    // + Note: a new note, or one that already exists (from the library or another board)
+    const addBtn = btn(`${icon('plus')}<span>Note</span>`, 'Add a note: new (N) or existing (A)', () => {
+      const r = addBtn.getBoundingClientRect();
+      Popup.open({
+        x: r.left, y: r.top - 92, above: r.top, items: [
+          { id: 'new', label: 'New note', icon: 'note', hint: 'N' },
+          { id: 'existing', label: 'Add an existing note…', icon: 'plus', hint: 'A' },
+        ],
+        onPick: (it) => (it.id === 'new' ? addNote(null, true) : addExisting()),
+      });
+    }, 'nav-add');
+    nav = h('div', { class: 'board-nav' }, map, h('div', { class: 'nav-row' },
+      h('div', { class: 'hud-pill nav-zoom' }, addBtn),
+      h('div', { class: 'hud-pill nav-zoom' },
+        btn('−', 'Zoom out (−)', () => zoomAt(view.z / 1.2)), pct, btn('+', 'Zoom in (=)', () => zoomAt(view.z * 1.2)),
+        btn(icon('fit'), `Fit everything (${kb('shift+1')})`, fit), btn(icon('map'), 'Minimap (M)', toggleMap, 'nav-map'))));
     // the control is its own island: no panning, deselecting or new notes from clicks on it
     for (const t of ['pointerdown', 'dblclick', 'wheel']) nav.addEventListener(t, (e) => e.stopPropagation());
     map.addEventListener('pointerdown', (e) => {
@@ -668,6 +681,17 @@ export const Board = (() => {
     vp.classList.remove('finding');
     for (const el of els.values()) el.classList.remove('found');
     if (canPaint) { CSS.highlights.delete('fm-find'); CSS.highlights.delete('fm-find-on'); }
+  }
+
+  /* rebuild a note on this board from the library, after it was edited elsewhere (the note view) */
+  function reloadNote(id) {
+    const it = itemOf(id), old = els.get(id);
+    if (!it || !old) return;
+    const fresh = build(it);
+    if (!fresh) return;
+    if (group.has(id)) fresh.classList.add('sel');
+    old.replaceWith(fresh);
+    refreshFeet();
   }
 
   /* ── note operations ── */
@@ -926,7 +950,7 @@ export const Board = (() => {
     Popup.open({
       x: r.left, y: r.bottom, title: 'Linked from',
       items: (backMap.get(n.id) || []).map((id) => { const ref = Store.noteRef(id); return ref && { id, label: ref.note.title || 'Untitled', hint: ref.board ? ref.board.name : 'on no board', icon: 'note' }; }).filter(Boolean),
-      onPick: (it) => bus.emit('goto-note', it.id),
+      onPick: (it) => bus.emit('open-note', it.id),
     });
   }
   function boardsMenu(n, foot) {
@@ -963,7 +987,7 @@ export const Board = (() => {
   }
 
   return {
-    init, mount, unmount, addNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
+    init, mount, unmount, addNote, reloadNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
     zoom: () => view.z, view: () => ({ ...view }), zoomAt, toggleMap,
     // where a board point is drawn in the minimap, in client pixels (for tests)
     mapPoint: (x, y) => { const r = map.getBoundingClientRect(); return mapT && { x: r.left + mapT.ox + x * mapT.s, y: r.top + mapT.oy + y * mapT.s }; }, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,

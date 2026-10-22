@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The note view**: clicking a note link opens the note full size over your board instead of taking you away. Read it, click to edit, follow its links in the same view (`‹` back); `↵` opens it on its board, `A` adds it here (or shows it if it is already here), `Esc` closes. Also used for "N notes link here" and for notes on no board.
+- **+ Note** button beside the zoom control: a new note (`N`) or an existing one (`A`), so adding existing notes to a board is visible.
 - **Tag search**: tags autocomplete in the All notes and Secrets filters and in `⌘K` (with counts; a key goes on to its values). Commas mean either (`env:prod,staging`), `env:` means any value, and a parent value includes deeper ones (`team:platform` → `team:platform/infra`). The tag row is a pivot: grouped by key, with counts of the current results; click to narrow, `⇧`-click to add an alternative. `⌘K` treats tag tokens exactly.
 - **Board links**: `@@` (or the `@` menu, which now lists boards too) puts a link to a board in a note, so one note can be the map of all your boards. Following links shows a trail (`‹ Projects › Q3 Launch`); click a step or press `⌥←` to go back to the view you left. Links never place anything on a board, and a link to a deleted board is struck through.
 

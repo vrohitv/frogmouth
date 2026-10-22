@@ -4,6 +4,7 @@ import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
 import { Popup, Modal } from './05-ui.js';
 import { Board } from './07-board.js';
+import { Peek } from './07b-peek.js';
 import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
 import { Palette } from './09-palette.js';
@@ -149,6 +150,7 @@ export const App = (() => {
   function walk(id) { following = true; try { activate('b:' + id); } finally { following = false; } }
   function followBoard(id) {
     const ui = Store.S.data.ui;
+    Peek.close();
     if (!Store.board(id)) { toast('That board was deleted'); return; }
     if (id === ui.board && isBoardView()) return;
     const i = trail.indexOf(id);
@@ -473,7 +475,9 @@ export const App = (() => {
     const ref = Store.noteRef(id); if (!ref) return;
     const cur = Store.board(Store.S.data.ui.board);
     const b = (boardId && ref.boards.find((x) => x.id === boardId)) || (ref.boards.includes(cur) ? cur : ref.board);
-    if (!b) { activate('notes'); NotesList.reveal(id); toast('That note is not on any board. Add it to one with “a”.'); return; }
+    // a note on no board has nowhere to go: it opens in the note view, which can add it to this board
+    if (!b) { Peek.open(id); return; }
+    Peek.close();
     openTab('b:' + b.id);
     requestAnimationFrame(() => Board.center(id));
   }
@@ -660,6 +664,7 @@ export const App = (() => {
     });
     bus.on('goto-note', (id, boardId) => gotoNote(id, boardId));
     bus.on('goto-board', followBoard);
+    bus.on('open-note', (id) => Peek.open(id, true));
     bus.on('closed', () => { trail = []; });
     bus.on('reloaded', () => { if (Store.S.data && !shell.hidden) enter(); });
     bus.on('filter-notes', (tag) => { activate('notes'); NotesList.setFilter(tag + ' '); });
