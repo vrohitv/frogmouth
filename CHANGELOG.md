@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.2 (2026-10-22)
 
 - **Inline fields confirm when you leave them.** Note tags (on the board and in All notes) and board names (on the pill and in the Boards panel) now share one behaviour: `↵` saves and closes the field, `Esc` cancels, and a click anywhere else saves, including on the board, another note or the floating bar.
 - Fixed: pressing `↵` in a board note's tag field saved the tags but left the field on screen, so the chips never came back; each further edit stacked another field.
@@ -8,7 +8,7 @@
 - Fixed: two renames at once in the Boards panel could lose one; clicking another row now keeps the rename in progress.
 - **Deleting a secret** now has a visible bin on every row (as well as `Del` and the bin in the editor), and takes three confirmations: a warning, the key name typed out, and a last check. Each step has the safe choice focused. Undo still works until the tab closes.
 - **No stray click or key saves or deletes anything:**
-  - Dialogs that delete something focus Cancel, so `↵` or `Space` cancels; the destructive button takes a click or `⌘↵` / `Ctrl+Enter` (shown on it).
+  - Dialogs that delete something focus Cancel, so `↵` or `Space` cancels; the destructive button takes a click or `⌘↵` / `Ctrl+Enter` (named in its tooltip).
   - Menus, `⌘K` results, the Boards panel and the colour picker act on a full click, so pressing the wrong item and sliding off it does nothing.
   - Double-clicking a note's × no longer arms and confirms the removal in one go.
   - The secret editor no longer saves on a click outside it: with changes it stays open and says `⌘↵` saves, `Esc` discards; without changes it closes.
