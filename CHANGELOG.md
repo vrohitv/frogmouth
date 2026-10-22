@@ -25,5 +25,6 @@ First production release.
 - "Keep mine" could switch off disk watching for good if its save failed.
 - Typing and closing the tab within a fraction of a second could lose the last keystrokes; pending note edits are now pushed before the tab closes or hides.
 - A stray "null" appeared in the board pills when every board fitted.
+- The keyboard shortcuts dialog listed "[object HTMLElement]" instead of the shortcuts (an element helper flattened nested children only one level); it now shows every shortcut, opens at the top, and lays out in three columns.
 - Files tagged in notes open as themselves (HTML renders, SVG and PDFs show).
 - Removed unused code left over from earlier layouts.

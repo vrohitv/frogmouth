@@ -129,7 +129,7 @@ export const Modal = (() => {
       document.body.append(scrim);
       stack.push(scrim);
       const f = card.querySelector('input,textarea,select,.btn.primary');
-      if (f) f.focus();
+      if (f) f.focus({ preventScroll: true }); // open at the top, even when the focused button is at the bottom
     });
   }
 

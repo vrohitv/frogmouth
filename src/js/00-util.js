@@ -23,7 +23,7 @@ export function h(tag, attrs, ...kids) {
       else el.setAttribute(k, v === true ? '' : v);
     }
   }
-  for (const k of kids.flat()) if (k != null && k !== false) el.append(k);
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) el.append(k);
   return el;
 }
 

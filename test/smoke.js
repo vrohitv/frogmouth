@@ -66,6 +66,7 @@ import { App } from '../src/js/10-app.js';
       document.body.append(pre);
     }
     if (mode === 'shot-many') { for (let i = 1; i <= 30; i++) Store.S.data.boards.push({ id: uid(), name: ['Infra', 'Reading list', 'Sprint ' + i, 'Client ' + i, 'Ideas'][i % 5] + (i % 5 > 1 ? '' : ' ' + i), created: now(), items: [] }); Store.S.data.boards.forEach((b, i) => { b.opened = now() - i * 3.7e6; if (i === 3 || i === 9) b.pinned = true; }); Store.change('boards'); await wait(100); document.querySelector('.bp-more').click(); }
+    if (mode === 'shot-keys') { await wait(300); document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', shiftKey: true, code: 'Slash', bubbles: true, cancelable: true })); }
     if (mode === 'shot-welcome') { App.showWelcome(); await wait(1200); }
     if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
@@ -424,6 +425,28 @@ import { App } from '../src/js/10-app.js';
 
     ok('no stray "null" in the board pills', !/null|undefined/.test($('.hud-boards').textContent), $('.hud-boards').textContent);
     ok('the boards button is always there', !!$('.bp-more'));
+    {
+      window.__errs = [];
+      const onErr = (e) => window.__errs.push(String(e.error || e.reason || e.message));
+      addEventListener('error', onErr); addEventListener('unhandledrejection', onErr);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', shiftKey: true, code: 'Slash', bubbles: true, cancelable: true }));
+      await wait(30);
+      ok('? opens the keyboard shortcuts', !!$('.modal.keys') && $$('.keys-grid section').length >= 4, JSON.stringify(window.__errs) + ' modal:' + !!$('.modal'));
+      ok('the shortcuts list shows keys and descriptions, not object text', $$('.keys-grid dt kbd').length > 30 && $$('.keys-grid dd').length === $$('.keys-grid dt').length && !/\[object/.test($('.keys-grid').textContent), $('.keys-grid').textContent.slice(0, 120));
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      await wait(20);
+      $('.hud-menu').click();
+      const keysItem = $$('.pop-item').find((x) => /Keyboard shortcuts/.test(x.textContent));
+      keysItem && keysItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await wait(30);
+      ok('the menu opens the keyboard shortcuts', !!$('.modal.keys'), JSON.stringify(window.__errs));
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      removeEventListener('error', onErr); removeEventListener('unhandledrejection', onErr);
+    }
+    for (const v of ['b:' + Store.S.data.boards[0].id, 'notes', 'secrets']) {
+      App.openTab(v); await wait(30);
+      ok(`no "[object …]" text in the ${v.startsWith('b:') ? 'board' : v} view`, !/\[object /.test(document.body.innerText));
+    }
 
     // many boards: only recent ones get pills; the rest are one search away
     {
