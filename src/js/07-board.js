@@ -83,7 +83,7 @@ export const Board = (() => {
     const body = Editor.mount(n, (out) => commit(n, out));
     const grip = h('div', { class: 'note-grip', title: 'Drag to move' },
       h('div', { class: 'note-swatches' }, COLORS.map((c, i) => h('button', { class: 'sw paper-' + c, title: `${c} (${i + 1})`, 'data-color': c, tabindex: '-1' }))),
-      h('button', { class: 'note-x', title: 'Remove from this board (Del). The note stays in All notes. ⇧-click deletes it everywhere.', html: icon('x'), tabindex: '-1' }));
+      h('button', { class: 'note-x', title: 'Remove from this board (Del, then confirm). The note stays in All notes. ⇧-click deletes it everywhere.', html: icon('x'), tabindex: '-1' }));
     const foot = h('div', { class: 'note-foot' });
     const edges = ['e', 's', 'se'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d, title: d === 's' ? 'Drag to resize. Double-click for auto height.' : 'Drag to resize' }));
     const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, ...edges);
@@ -122,7 +122,7 @@ export const Board = (() => {
     grip.addEventListener('pointerdown', (e) => {
       const sw = e.target.closest('.sw');
       if (sw) { e.preventDefault(); e.stopPropagation(); setColor(n, sw.dataset.color); return; }
-      if (e.target.closest('.note-x')) { e.preventDefault(); e.stopPropagation(); if (e.shiftKey) removeEverywhere(n.id); else remove(n.id); }
+      if (e.target.closest('.note-x')) { e.preventDefault(); e.stopPropagation(); if (e.shiftKey) confirmDeleteEverywhere(n.id); else askRemove(n.id); }
     });
     body.addEventListener('focus', () => { el.classList.add('editing'); select(n.id); });
     // leave edit mode once focus has really gone elsewhere (not to a / menu or picker)
@@ -332,11 +332,13 @@ export const Board = (() => {
       if (pan) { view.x += pan[0]; view.y += pan[1]; applyView(); return true; }
       return false;
     }
+    if (armed === n.id && (k === 'Enter' || k === 'Delete' || k === 'Backspace')) { disarm(); remove(n.id); return true; }
+    if (armed && k === 'Escape') { disarm(); return true; }
     if (k === 'Enter') { focusBody(n.id); return true; }
     if (k === 't' || k === 'T') { tagNote(n); return true; }
     if (k === 'Escape') { select(null); return true; }
-    if ((k === 'Delete' || k === 'Backspace') && (e.shiftKey || modKey(e))) { removeEverywhere(n.id); return true; }
-    if (k === 'Delete' || k === 'Backspace') { remove(n.id); return true; }
+    if ((k === 'Delete' || k === 'Backspace') && (e.shiftKey || modKey(e))) { confirmDeleteEverywhere(n.id); return true; }
+    if (k === 'Delete' || k === 'Backspace') { askRemove(n.id); return true; }
     if (/^[1-6]$/.test(k) && !modKey(e)) { setColor(n, COLORS[+k - 1]); return true; }
     if (modKey(e) && k.toLowerCase() === 'd') { duplicate(it); return true; }
     const d = e.shiftKey ? GRID * 5 : GRID;
@@ -408,6 +410,38 @@ export const Board = (() => {
       onQuery: (q) => Popup.update(list(q)),
       onPick: (x) => placeExisting(x.id),
     });
+  }
+
+  /* removing asks for a second, confirming action: the × turns into "Remove?" */
+  let armed = null, armTimer = 0;
+  function disarm() {
+    clearTimeout(armTimer);
+    const el = armed && els.get(armed);
+    if (el) { el.classList.remove('arming'); const x = el.querySelector('.note-x'); x.classList.remove('armed'); x.innerHTML = icon('x'); }
+    armed = null;
+  }
+  function askRemove(id) {
+    if (armed === id) { disarm(); remove(id); return; }
+    disarm();
+    const el = els.get(id); if (!el) return;
+    armed = id;
+    select(id);
+    el.classList.add('arming');
+    const x = el.querySelector('.note-x');
+    x.classList.add('armed');
+    x.innerHTML = `Remove? <kbd>Del</kbd>`;
+    x.title = 'Click again (or press Del or Enter) to remove it from this board';
+    armTimer = setTimeout(disarm, 3000);
+  }
+  addEventListener('pointerdown', (e) => { if (armed && !(e.target.closest && e.target.closest('.note-x.armed'))) disarm(); }, true);
+
+  /* deleting the note itself always asks first */
+  async function confirmDeleteEverywhere(id) {
+    disarm();
+    const ref = Store.noteRef(id); if (!ref) return;
+    const t = ref.note.title ? `“${ref.note.title.slice(0, 40)}”` : 'This note';
+    const where = ref.boards.length > 1 ? ` from all ${ref.boards.length} boards and` : ' from';
+    if (await Modal.confirm('Delete this note everywhere?', `${t} will be removed${where} All notes. You can undo right after.`, 'Delete note')) removeEverywhere(id);
   }
 
   /* take a note off this board; it stays in the library (All notes) */
@@ -563,7 +597,7 @@ export const Board = (() => {
   }
 
   return {
-    init, mount, unmount, addNote, remove, removeEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
+    init, mount, unmount, addNote, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
     zoom: () => view.z, zoomAt, current: () => board, selected: () => sel, COLORS,
     tagNote: (id) => { const n = noteOf(id); if (n) tagNote(n); },
     refreshChips: () => { for (const el of els.values()) Editor.refreshChips(el.querySelector('.note-body')); },

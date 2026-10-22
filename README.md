@@ -24,7 +24,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board. `⌥1`–`⌥9` and `⌘K` then `#` work too.
 - **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
 - **Deleting a board never deletes notes.** They stay in All notes (marked *on no board* if that was their only board) and on any other boards.
-- On a board, `Del` or × **removes the note from that board** only. `⇧Del` (or ⇧-click ×) deletes the note everywhere. Both can be undone.
+- On a board, `Del` or × **removes the note from that board** only, after a confirming second press or click (the × turns into **Remove?**). `⇧Del` (or ⇧-click ×) deletes the note everywhere after a confirmation dialog. Both can be undone.
 - `A` on a board pulls in an existing note; on the All notes page, **+** next to the boards (or `a`) puts a note on another board.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
 - Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
@@ -103,7 +103,7 @@ Press `?` in the app for the full list.
 | `⌘D` | Duplicate |
 | `T` | Tag the note |
 | `A` | Add an existing note to this board |
-| `Del` / `⇧Del` | Remove from this board / delete everywhere |
+| `Del` `Del` / `⇧Del` | Remove from this board (confirm with a second `Del`) / delete everywhere (asks first) |
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
 
 | Secrets | |

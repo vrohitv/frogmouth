@@ -53,6 +53,7 @@ import { App } from '../src/js/10-app.js';
     }
     if (mode === 'shot-day') document.documentElement.dataset.theme = 'day';
     if (mode === 'shot-secret-edit') { App.openTab('secrets'); await wait(50); Secrets.edit(Store.S.data.secrets[1]); }
+    if (mode === 'shot-arm') { await wait(300); const t = [...Store.S.notes.values()].find(({ note }) => note.title === 'Today').note; Board.select(t.id); keydown(document.body, 'Delete'); }
     if (mode === 'shot-gape') { App.showWelcome(); await wait(700); document.querySelector('.w-mark svg').classList.add('gaping'); }
     if (mode === 'shot-notes' || mode === 'shot-tags') {
       const infra = { id: uid(), name: 'Infra', created: now(), items: [] };
@@ -262,6 +263,12 @@ import { App } from '../src/js/10-app.js';
     const count = Board.current().items.length;
     Board.select(n.id);
     keydown(document.body, 'Delete');
+    ok('first Del only asks', Board.current().items.length === count && /Remove\?/.test($(`.note[data-id="${n.id}"] .note-x`).textContent));
+    keydown(document.body, 'Escape');
+    ok('Esc cancels the removal', !$(`.note[data-id="${n.id}"] .note-x.armed`) && Board.current().items.length === count);
+    Board.select(n.id);
+    keydown(document.body, 'Delete');
+    $(`.note[data-id="${n.id}"] .note-x`).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
     ok('Del removes the note from the board only', Board.current().items.length === count - 1 && !!Store.noteRef(n.id));
     keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
     ok('undo puts it back on the board', Board.current().items.length === count && !!$(`.note[data-id="${n.id}"]`));
@@ -428,6 +435,10 @@ import { App } from '../src/js/10-app.js';
       // Del removes from this board only; shift+Del deletes everywhere
       Board.select(onlySide.id);
       keydown(document.body, 'Delete', { shiftKey: true });
+      await wait(30);
+      ok('shift+Del asks before deleting everywhere', !!$('.modal') && /everywhere/.test($('.modal').textContent) && !!Store.noteRef(onlySide.id));
+      $('.modal .btn.primary').click();
+      await wait(30);
       ok('shift+Del deletes the note everywhere', !Store.noteRef(onlySide.id) && d.notes.length === total);
       keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
       ok('undo restores a deleted note', !!Store.noteRef(onlySide.id) && Store.noteRef(onlySide.id).boards.length === 1);

@@ -297,6 +297,9 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note-x .ic { width: 11px; height: 11px; }
 .note:hover .note-x, .note.sel .note-x { opacity: .5; }
 .note-x:hover { opacity: 1 !important; background: var(--rule); }
+.note-x.armed { width: auto; height: 18px; padding: 0 4px 0 7px; gap: 5px; display: inline-flex; align-items: center; opacity: 1 !important; background: var(--danger); color: #fff; font: 600 10.5px var(--sans); animation: tin .12s ease-out; }
+.note-x.armed kbd { background: rgba(255, 255, 255, .2); color: #fff; border-color: rgba(255, 255, 255, .35); padding: 1px 3px; font-size: 9.5px; }
+.note.arming { outline-color: var(--danger) !important; }
 .note-body {
   flex: 1; min-height: 0; overflow: auto; padding: 0 14px 10px; outline: none;
   font: 13px/1.55 var(--sans); cursor: text; overflow-wrap: anywhere;

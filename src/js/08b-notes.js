@@ -145,7 +145,7 @@ export const NotesList = (() => {
     if (k === 't') { tag(r); return true; }
     if (k === 'b') { if (r.boards[0]) App.openTab('b:' + r.boards[0].id); return true; }
     if (k === 'a' || k === 'A') { App.addToBoard(r.note.id, list.querySelector('.nrow.on .nf-add[data-a="place"]')); return true; }
-    if (k === 'Delete' || k === 'Backspace') { Board.removeEverywhere(r.note.id); render(); return true; }
+    if (k === 'Delete' || k === 'Backspace') { Board.confirmDeleteEverywhere(r.note.id).then(() => render()); return true; }
     return false;
   }
 
