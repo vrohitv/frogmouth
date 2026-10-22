@@ -425,15 +425,21 @@ figure.pic.missing::after { content: attr(title); position: absolute; inset: 0; 
 .backlinks:hover { opacity: 1; text-decoration: underline; }
 /* resize from the right edge, bottom edge or corner; the hit areas reach past the paper */
 .rz { position: absolute; z-index: 2; }
-.rz-e { top: 18px; bottom: 16px; right: -6px; width: 12px; cursor: ew-resize; }
-.rz-s { left: 0; right: 16px; bottom: -6px; height: 12px; cursor: ns-resize; }
+.rz-n { left: 12px; right: 12px; top: -6px; height: 10px; cursor: ns-resize; }
+.rz-e { top: 12px; bottom: 16px; right: -6px; width: 12px; cursor: ew-resize; }
+.rz-s { left: 12px; right: 16px; bottom: -6px; height: 12px; cursor: ns-resize; }
+.rz-w { top: 12px; bottom: 12px; left: -6px; width: 12px; cursor: ew-resize; }
+.rz-nw { left: -6px; top: -6px; width: 14px; height: 14px; cursor: nwse-resize; }
+.rz-ne { right: -6px; top: -6px; width: 12px; height: 12px; cursor: nesw-resize; }
+.rz-sw { left: -6px; bottom: -6px; width: 14px; height: 14px; cursor: nesw-resize; }
 .rz-se { right: -7px; bottom: -7px; width: 22px; height: 22px; cursor: nwse-resize; }
 .rz-se::after { content: ""; position: absolute; right: 10px; bottom: 10px; width: 7px; height: 7px; border: solid var(--ink); border-width: 0 2px 2px 0; opacity: 0; transition: opacity .12s; }
 .note:hover .rz-se::after, .note.sel .rz-se::after { opacity: .35; }
-.rz-e::after, .rz-s::after { content: ""; position: absolute; background: var(--accent); opacity: 0; transition: opacity .12s; border-radius: 2px; }
-.rz-e::after { top: 0; bottom: 0; left: 5px; width: 2px; }
+.rz-n::after, .rz-e::after, .rz-s::after, .rz-w::after { content: ""; position: absolute; background: var(--accent); opacity: 0; transition: opacity .12s; border-radius: 2px; }
+.rz-e::after, .rz-w::after { top: 0; bottom: 0; left: 5px; width: 2px; }
+.rz-n::after { left: 0; right: 0; top: 5px; height: 2px; }
 .rz-s::after { left: 0; right: 0; top: 5px; height: 2px; }
-.rz-e:hover::after, .rz-s:hover::after, .note.resizing .rz::after { opacity: .7; }
+.rz-n:hover::after, .rz-e:hover::after, .rz-s:hover::after, .rz-w:hover::after, .note.resizing .rz::after { opacity: .7; }
 .note.resizing .rz-se::after { opacity: 0; }
 
 /* view mode vs edit mode */

@@ -107,7 +107,8 @@ export const Board = (() => {
       h('div', { class: 'note-swatches' }, COLORS.map((c, i) => h('button', { class: 'sw paper-' + c, title: `${c} (${i + 1})`, 'data-color': c, tabindex: '-1' }))),
       h('button', { class: 'note-x', title: xTitle(), html: icon('x'), tabindex: '-1' }));
     const foot = h('div', { class: 'note-foot' });
-    const edges = ['e', 's', 'se'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d, title: d === 's' ? 'Drag to resize. Double-click for auto height.' : 'Drag to resize' }));
+    // every edge and corner resizes; double-click a bottom one for automatic height
+    const edges = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d, title: d[0] === 's' ? 'Drag to resize. Double-click for auto height.' : 'Drag to resize' }));
     const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, ...edges);
     place(it, el);
     els.set(n.id, el);
@@ -141,7 +142,7 @@ export const Board = (() => {
     // a drag must not also count as a click on a link or checkbox
     el.addEventListener('click', (e) => { if (el._dragged) { el._dragged = false; e.preventDefault(); e.stopPropagation(); } }, true);
     el.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.rz-s, .rz-se')) { it.h = null; place(it, el); Editor.refit(el); Store.change('notes'); return; }
+      if (e.target.closest('.rz-s, .rz-se, .rz-sw')) { it.h = null; place(it, el); Editor.refit(el); Store.change('notes'); return; }
       if (e.target.closest('figure.pic, .note-grip button, .rz') || el.classList.contains('editing')) return;
       e.preventDefault();
       editAt(n.id, e.clientX, e.clientY);
@@ -220,13 +221,21 @@ export const Board = (() => {
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
-  /* dir: 'e' width, 's' height, 'se' both */
+  /* dir: the edges being dragged, any of n e s w (or a corner, like 'nw'). Dragging the
+     left or top edge moves the note too, so the opposite edge stays exactly where it was;
+     the dragged edge snaps to the grid. */
   function resize(e, it, el, dir) {
-    const sx = e.clientX, sy = e.clientY, ow = it.w, oh = el.offsetHeight;
+    // the exact height: a note sized to its content can be a fraction of a pixel tall,
+    // and rounding it would shift the bottom edge when the top edge is dragged
+    const sx = e.clientX, sy = e.clientY, ox = it.x, oy = it.y, ow = it.w, oh = it.h || el.getBoundingClientRect().height / view.z;
+    const right = ox + ow, bottom = oy + oh, snap = (v) => Math.round(v / GRID) * GRID;
     el.classList.add('resizing');
     const mv = (ev) => {
-      if (dir !== 's') it.w = clamp(Math.round((ow + (ev.clientX - sx) / view.z) / GRID) * GRID, 160, 2000);
-      if (dir !== 'e') it.h = clamp(Math.round((oh + (ev.clientY - sy) / view.z) / GRID) * GRID, 80, 3000);
+      const dx = (ev.clientX - sx) / view.z, dy = (ev.clientY - sy) / view.z;
+      if (dir.includes('e')) it.w = clamp(snap(ow + dx), 160, 2000);
+      if (dir.includes('w')) { it.w = clamp(right - snap(ox + dx), 160, 2000); it.x = right - it.w; }
+      if (dir.includes('s')) it.h = clamp(snap(oh + dy), 80, 3000);
+      if (dir.includes('n')) { it.h = clamp(bottom - snap(oy + dy), 80, 3000); it.y = bottom - it.h; }
       place(it, el);
     };
     const up = () => {

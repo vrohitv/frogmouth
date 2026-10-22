@@ -29,7 +29,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - On a board, `Del` or × **removes the note from that board** only, after a confirming second press or click (the × turns into **Remove?**). `⇧Del` (or ⇧-click ×) deletes the note everywhere after a confirmation dialog. Both can be undone.
 - `A` on a board pulls in an existing note; on the All notes page, **+** next to the boards (or `a`) puts a note on another board.
 - Click a note to select it and drag it from anywhere to move it. Double-click (or `↵`) to edit, with the caret where you clicked. `Esc` stops editing.
-- Resize from the right edge, bottom edge or corner (double-click the bottom edge for automatic height). Pick from six paper colours.
+- Resize from any edge or corner; dragging the left or top edge keeps the opposite edge exactly where it is. Double-click a bottom edge for automatic height. Pick from six paper colours.
 - **Work on several notes at once.** `⇧`-click adds a note to the selection, `⇧`-drag on empty board draws a box around notes, and `⌘A` selects them all. Drag any selected note to move the group; arrows nudge, `1`–`6` colour, `⌘D` duplicates and `Del` `Del` removes them all, with one undo.
 - **Find on a board** with `⌘F`: every match in every note, counted ("2 of 9 in 4 notes"). Notes without a match fade back, `↵` / `⇧↵` step through the matches, and long notes and wide code blocks scroll to each one. The notes themselves are never changed. On the All notes and Secrets pages `⌘F` jumps to their filter.
 - Pan with the wheel, space-drag or a drag on empty board. Zoom with `⌘`+wheel or a pinch.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Resize notes from every edge and corner**, not only the right and bottom. Dragging the left or top edge moves the note so the opposite edge stays exactly in place (measured with the note's exact height, so even a note sized to its content keeps its bottom edge to the pixel); the dragged edge snaps to the grid.
+
 ## 1.0.0 (2026-10-22)
 
 First release.

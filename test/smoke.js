@@ -180,6 +180,28 @@ import { App } from '../src/js/10-app.js';
     ptr('pointermove', window, edge.left - 37, edge.top + 60);
     ptr('pointerup', window, edge.left - 37, edge.top + 60);
     ok('right edge resizes width only', first.offsetWidth < w1 - 24 && first.offsetHeight === h1, `${w1}x${h1} -> ${first.offsetWidth}x${first.offsetHeight}`);
+    {
+      // the left and top edges resize too, keeping the opposite edges exactly in place
+      const it = Board.item(first.dataset.id), z = Board.zoom();
+      const dragEdge = (d, dx, dy) => {
+        const r = first.querySelector('.rz-' + d).getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+        ptr('pointerdown', first.querySelector('.rz-' + d), x, y); ptr('pointermove', window, x + dx * z, y + dy * z); ptr('pointerup', window, x + dx * z, y + dy * z);
+      };
+      it.h = null; first.style.height = ''; // start from automatic height (often a fraction of a pixel)
+      const rect = () => first.getBoundingClientRect();
+      const B0 = rect().bottom;
+      const R = it.x + it.w, B = it.y + first.getBoundingClientRect().height / z, H = first.offsetHeight;
+      dragEdge('w', -48, 30);
+      ok('left edge grows the note leftwards, right edge fixed', it.x + it.w === R && it.w >= 160 && it.x % 8 === 0 && first.offsetHeight === H, JSON.stringify(it));
+      dragEdge('n', 25, -40);
+      ok('top edge grows the note upwards, bottom edge fixed', Math.abs(it.y + it.h - B) < 1e-9 && Math.abs(rect().bottom - B0) < 0.01 && it.y % 8 === 0 && it.x + it.w === R, JSON.stringify(it) + ' ' + B0 + ' ' + rect().bottom);
+      const W2 = it.w, H2 = it.h;
+      dragEdge('nw', 64, 48);
+      ok('top-left corner resizes both ways, bottom-right corner fixed', it.x + it.w === R && Math.abs(it.y + it.h - B) < 1e-9 && it.w === W2 - 64 && Math.abs(it.h - (H2 - 48)) < 1e-9, JSON.stringify(it));
+      dragEdge('ne', 40, 0); dragEdge('sw', 0, 40);
+      ok('the other corners resize too', it.w === W2 - 64 + 40 && Math.abs(it.y + it.h - (B + 40)) <= 4, JSON.stringify(it)); // the bottom edge snaps to the grid
+      ok('left and top edges have handles', ['n', 'w', 'nw', 'ne', 'sw'].every((d) => first.querySelector('.rz-' + d)));
+    }
     const t0 = first.style.transform, br = first.querySelector('.note-body').getBoundingClientRect();
     ptr('pointerdown', first.querySelector('.note-body p'), br.left + 40, br.top + 30);
     ptr('pointermove', window, br.left + 140, br.top + 90);
