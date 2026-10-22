@@ -1,0 +1,5 @@
+test/frogmouth.test.html
+*.frogmouth
+.frogmouth-backups/
+.DS_Store
+__pycache__/

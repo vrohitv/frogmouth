@@ -1,0 +1,198 @@
+'use strict';
+/* ── tiny helpers ─────────────────────────────────────────────── */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const MOD = isMac ? '⌘' : 'Ctrl+';
+const ALT = isMac ? '⌥' : 'Alt+';
+const modKey = (e) => (isMac ? e.metaKey : e.ctrlKey);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const now = () => Date.now();
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    for (const k in attrs) {
+      const v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k === 'html') el.innerHTML = v;
+      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'data') Object.assign(el.dataset, v);
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k);
+  return el;
+}
+
+function uid() {
+  const a = new Uint8Array(6);
+  crypto.getRandomValues(a);
+  return now().toString(36) + Array.from(a, (b) => (b % 36).toString(36)).join('');
+}
+
+function debounce(fn, ms) {
+  let t = 0;
+  const d = (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  d.flush = (...a) => { clearTimeout(t); fn(...a); };
+  d.cancel = () => clearTimeout(t);
+  return d;
+}
+
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
+
+function relTime(ts) {
+  if (!ts) return '';
+  const s = (now() - ts) / 1000;
+  if (s < 45) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  if (s < 86400) return Math.round(s / 3600) + 'h ago';
+  if (s < 86400 * 7) return Math.round(s / 86400) + 'd ago';
+  return new Date(ts).toLocaleDateString();
+}
+
+function isTypingTarget(t) {
+  if (!t || t.nodeType !== 1) return false;
+  return t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
+}
+
+/* ── event bus ────────────────────────────────────────────────── */
+const bus = (() => {
+  const m = new Map();
+  return {
+    on(n, f) { (m.get(n) || m.set(n, []).get(n)).push(f); },
+    emit(n, ...a) { (m.get(n) || []).forEach((f) => f(...a)); },
+  };
+})();
+
+/* ── fuzzy matching ───────────────────────────────────────────────
+   Returns {s: score, p: [positions]} or null. q and t are lowercase. */
+const WORD_EDGE = /[\s_\-./:@$#()[\]]/;
+function fuzzy(q, t) {
+  if (!q) return { s: 0, p: [] };
+  const i = t.indexOf(q);
+  if (i >= 0) {
+    const p = [];
+    for (let k = 0; k < q.length; k++) p.push(i + k);
+    const edge = i === 0 || WORD_EDGE.test(t[i - 1]);
+    return { s: 100 + (edge ? 40 : 0) - i * 0.3 - t.length * 0.02, p };
+  }
+  let ti = 0, last = -1, s = 0;
+  const p = [];
+  for (let k = 0; k < q.length; k++) {
+    const ch = q[k];
+    if (ch === ' ') continue;
+    ti = t.indexOf(ch, ti);
+    if (ti < 0) return null;
+    if (ti === last + 1) s += 6;
+    else if (ti === 0 || WORD_EDGE.test(t[ti - 1])) s += 4;
+    else s -= Math.min(ti - last, 12) * 0.6;
+    p.push(ti);
+    last = ti++;
+  }
+  return { s: s - t.length * 0.02, p };
+}
+
+function markPositions(text, positions) {
+  if (!positions || !positions.length) return esc(text);
+  const set = new Set(positions);
+  let out = '', open = false;
+  for (let i = 0; i < text.length; i++) {
+    const on = set.has(i);
+    if (on && !open) { out += '<mark>'; open = true; }
+    if (!on && open) { out += '</mark>'; open = false; }
+    out += esc(text[i]);
+  }
+  return out + (open ? '</mark>' : '');
+}
+
+/* ── toasts ───────────────────────────────────────────────────── */
+function toast(msg, opts = {}) {
+  const host = $('#toasts');
+  if (!host) return;
+  const el = h('div', { class: 'toast' + (opts.kind ? ' toast-' + opts.kind : ''), role: 'status' }, h('span', { text: msg }));
+  let timer;
+  const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 180); };
+  if (opts.action) {
+    el.append(h('button', { class: 'toast-act', text: opts.label || 'Undo', onclick: () => { close(); opts.action(); } }));
+  }
+  host.append(el);
+  while (host.children.length > 4) host.firstChild.remove();
+  timer = setTimeout(close, opts.timeout || (opts.action ? 6000 : 2600));
+  return close;
+}
+
+/* ── clipboard ────────────────────────────────────────────────── */
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const ta = h('textarea', { style: { position: 'fixed', opacity: '0' } });
+    ta.value = text; document.body.append(ta); ta.select();
+    const ok = document.execCommand('copy'); ta.remove(); return ok;
+  }
+}
+
+function download(name, text, type = 'application/json') {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/* ── minimal IndexedDB key/value (for remembering folder handles) ─ */
+const idb = (() => {
+  let p;
+  const db = () => p || (p = new Promise((res, rej) => {
+    const r = indexedDB.open('frogmouth', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const run = (mode, fn) => db().then((d) => new Promise((res, rej) => {
+    const tx = d.transaction('kv', mode);
+    const req = fn(tx.objectStore('kv'));
+    tx.oncomplete = () => res(req && req.result);
+    tx.onerror = () => rej(tx.error);
+  }));
+  return {
+    get: (k) => run('readonly', (s) => s.get(k)).catch(() => undefined),
+    set: (k, v) => run('readwrite', (s) => s.put(v, k)).catch(() => undefined),
+  };
+})();
+
+const ls = {
+  get(k, d) { try { const v = localStorage.getItem('fm:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('fm:' + k, JSON.stringify(v)); } catch {} },
+};
+
+/* ── icons (inline SVG, stroke-based, 16px grid) ─────────────── */
+const ICONS = {
+  board: '<rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M6 2.5v11M6 7h7.5"/>',
+  key: '<circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4 13.5 2.5M11.5 4.5l2 2M10 6l1.5 1.5"/>',
+  note: '<path d="M3 2.5h10v7l-4 4H3z"/><path d="M13 9.5H9v4"/>',
+  plus: '<path d="M8 3v10M3 8h10"/>',
+  x: '<path d="M4 4l8 8M12 4l-8 8"/>',
+  search: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
+  eye: '<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>',
+  eyeoff: '<path d="M2 2l12 12M6.5 4C7 3.7 7.5 3.5 8 3.5c4 0 6.5 4.5 6.5 4.5s-.7 1.3-2 2.5M4 5.3C2.4 6.5 1.5 8 1.5 8S4 12.5 8 12.5c1.3 0 2.4-.4 3.3-1"/>',
+  copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 5.5V3a.5.5 0 0 0-.5-.5H3a.5.5 0 0 0-.5.5v7a.5.5 0 0 0 .5.5h2.5"/>',
+  trash: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"/>',
+  edit: '<path d="M10.5 2.5l3 3-8 8h-3v-3z"/>',
+  folder: '<path d="M2 4.5V12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5H3a1 1 0 0 0-1 1z"/>',
+  lock: '<rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/>',
+  unlock: '<rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 0 1 5.8-1"/>',
+  tag: '<path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r="1"/>',
+  cmd: '<path d="M5 7.5l3-3 3 3M5 11.5h6"/>',
+  sun: '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/>',
+  grid: '<rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/>',
+  image: '<rect x="2" y="3" width="12" height="10" rx="1"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l4-4 3 3 2-2 2.5 2.5"/>',
+  link: '<path d="M7 9a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9 7a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.8-.8"/>',
+  sync: '<path d="M13 5.5A5.5 5.5 0 0 0 3 6M3 10.5A5.5 5.5 0 0 0 13 10M13 2.5v3h-3M3 13.5v-3h3"/>',
+  dice: '<rect x="2.5" y="2.5" width="11" height="11" rx="2"/><circle cx="5.5" cy="5.5" r=".8"/><circle cx="10.5" cy="10.5" r=".8"/><circle cx="8" cy="8" r=".8"/>',
+  down: '<path d="M4 6l4 4 4-4"/>',
+};
+const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[n] || ''}</svg>`;

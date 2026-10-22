@@ -1,0 +1,308 @@
+/* ── secrets: key/value pairs with plain and key:value tags ────────── */
+const Secrets = (() => {
+  let root, list, filterInp, countEl, drawer;
+  let rows = [], cur = 0, editingId = null;
+  const revealed = new Set();
+  const MASK = '••••••••••••';
+
+  const parseTag = (t) => { const i = t.indexOf(':'); return i > 0 ? { k: t.slice(0, i), v: t.slice(i + 1) } : { k: t, v: null }; };
+  const chip = (t, on) => {
+    const { k, v } = parseTag(t);
+    return `<button class="chip${v != null ? ' kv' : ''}${on ? ' on' : ''}" data-tag="${esc(t)}" tabindex="-1">${v != null ? `<b>${esc(k)}</b><span>${esc(v)}</span>` : esc(k)}</button>`;
+  };
+  const tagsOf = (s) => s.split(/[\s,]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
+
+  function init(el) {
+    root = el;
+    filterInp = h('input', { class: 'field s-filter', placeholder: 'Filter by key or tag, e.g. env:prod aws -legacy', spellcheck: 'false', autocomplete: 'off' });
+    countEl = h('span', { class: 's-count muted' });
+    list = h('div', { class: 's-list', role: 'listbox', tabindex: '0' });
+    drawer = h('aside', { class: 's-drawer', hidden: true });
+    root.append(
+      h('div', { class: 's-bar' },
+        h('div', { class: 's-search', html: icon('search') }, filterInp),
+        countEl,
+        h('button', { class: 'btn', html: `${icon('plus')}New secret <kbd>N</kbd>`, onclick: () => edit(null) }),
+        h('button', { class: 'btn ghost', text: 'Import .env', onclick: importEnv }),
+        h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv })),
+      h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
+      list, drawer);
+
+    filterInp.addEventListener('input', () => { cur = 0; render(); });
+    filterInp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter' && modKey(e)) { e.preventDefault(); if (rows[cur]) edit(rows[cur]); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (rows[cur]) copy(rows[cur]); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (filterInp.value) { filterInp.value = ''; render(); } else list.focus(); }
+    });
+    list.addEventListener('click', (e) => {
+      const tagB = e.target.closest('.chip');
+      if (tagB) { toggleFilter(tagB.dataset.tag); return; }
+      const row = e.target.closest('.srow'); if (!row) return;
+      const x = Store.secret(row.dataset.id); if (!x) return;
+      cur = rows.indexOf(x);
+      const a = e.target.closest('[data-a]');
+      if (a && a.dataset.a === 'copy') copy(x);
+      else if (a && a.dataset.a === 'reveal') reveal(x);
+      else if (a && a.dataset.a === 'key') copyKey(x);
+      else { mark(); }
+    });
+    list.addEventListener('dblclick', (e) => { const row = e.target.closest('.srow'); if (row && !e.target.closest('button')) edit(Store.secret(row.dataset.id)); });
+  }
+
+  /* ── filtering ── */
+  function matches(x, toks) {
+    for (const t of toks) {
+      let neg = false, q = t;
+      if (q[0] === '-' && q.length > 1) { neg = true; q = q.slice(1); }
+      let hit;
+      const ci = q.indexOf(':');
+      if (ci > 0) {
+        const k = q.slice(0, ci), v = q.slice(ci + 1);
+        hit = x.tags.some((tg) => { const p = parseTag(tg); return p.v != null && p.k.toLowerCase() === k && p.v.toLowerCase().startsWith(v); });
+      } else {
+        hit = x.key.toLowerCase().includes(q) || x.desc.toLowerCase().includes(q) ||
+          x.tags.some((tg) => { const p = parseTag(tg); return p.k.toLowerCase().startsWith(q) || (p.v != null && p.v.toLowerCase().startsWith(q)); });
+      }
+      if (hit === neg) return false;
+    }
+    return true;
+  }
+  function toggleFilter(tag) {
+    const toks = filterInp.value.split(/\s+/).filter(Boolean);
+    const i = toks.findIndex((t) => t.toLowerCase() === tag.toLowerCase());
+    if (i >= 0) toks.splice(i, 1); else toks.push(tag);
+    filterInp.value = toks.join(' ') + (toks.length ? ' ' : '');
+    cur = 0; render();
+  }
+  function setFilter(q) { filterInp.value = q; cur = 0; render(); }
+
+  /* ── rendering ── */
+  function render() {
+    if (!root || !Store.S.data) return;
+    const toks = filterInp.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const active = new Set(toks);
+    const all = Store.S.data.secrets;
+    rows = all.filter((x) => matches(x, toks)).sort((a, b) => a.key.localeCompare(b.key) || (b.updated || 0) - (a.updated || 0));
+    cur = clamp(cur, 0, Math.max(0, rows.length - 1));
+    countEl.textContent = toks.length ? `${rows.length} of ${all.length}` : `${all.length} ${all.length === 1 ? 'secret' : 'secrets'}`;
+    if (!all.length) {
+      list.innerHTML = `<div class="s-empty"><p>No secrets yet.</p><p class="muted">Press <kbd>N</kbd> to add one, or paste a <code>.env</code> file with Import .env. Tags like <code>env:prod</code> group them.</p></div>`;
+      return;
+    }
+    if (!rows.length) { list.innerHTML = `<div class="s-empty"><p>Nothing matches “${esc(filterInp.value.trim())}”.</p><p class="muted">Press <kbd>Esc</kbd> to clear the filter.</p></div>`; return; }
+    let out = '';
+    rows.forEach((x, i) => {
+      const show = revealed.has(x.id);
+      const v = show ? esc(x.value.length > 400 ? x.value.slice(0, 400) + '…' : x.value) : MASK;
+      out += `<div class="srow${i === cur ? ' on' : ''}" data-id="${esc(x.id)}" role="option">` +
+        `<div class="s-key"><button class="s-keyname" data-a="key" tabindex="-1" title="Copy key">${esc(x.key)}</button>${x.desc ? `<div class="s-desc">${esc(x.desc)}</div>` : ''}</div>` +
+        `<div class="s-val${show ? ' shown' : ''}">${v}</div>` +
+        `<div class="s-tags">${x.tags.map((t) => chip(t, active.has(t.toLowerCase()))).join('')}</div>` +
+        `<div class="s-act"><button data-a="reveal" title="Reveal (Space)" tabindex="-1">${icon(show ? 'eyeoff' : 'eye')}</button>` +
+        `<button data-a="copy" title="Copy value (C)" tabindex="-1">${icon('copy')}</button></div></div>`;
+    });
+    list.innerHTML = out;
+    scrollCur();
+  }
+  function mark() {
+    $$('.srow.on', list).forEach((r) => r.classList.remove('on'));
+    const x = rows[cur]; if (!x) return;
+    const el = list.querySelector(`.srow[data-id="${CSS.escape(x.id)}"]`);
+    if (el) el.classList.add('on');
+    scrollCur();
+  }
+  function scrollCur() { const el = list.querySelector('.srow.on'); if (el) el.scrollIntoView({ block: 'nearest' }); }
+  function move(d) { if (!rows.length) return; cur = clamp(cur + d, 0, rows.length - 1); mark(); }
+
+  /* ── actions ── */
+  async function copy(x) {
+    if (await copyText(x.value)) { toast(`Copied ${x.key}`); flash(x); }
+  }
+  async function copyKey(x) { if (await copyText(x.key)) toast(`Copied the name ${x.key}`); }
+  function flash(x) {
+    const el = list.querySelector(`.srow[data-id="${CSS.escape(x.id)}"]`);
+    if (el) { el.classList.remove('copied'); void el.offsetWidth; el.classList.add('copied'); }
+  }
+  function reveal(x) {
+    if (revealed.has(x.id)) revealed.delete(x.id); else revealed.add(x.id);
+    render();
+  }
+  function remove(x) {
+    const all = Store.S.data.secrets;
+    const i = all.indexOf(x); if (i < 0) return;
+    all.splice(i, 1);
+    Store.change('secrets');
+    render();
+    App.pushUndo(`Deleted ${x.key}`, () => { all.splice(Math.min(i, all.length), 0, x); Store.change('secrets'); render(); });
+  }
+
+  function generate(len = 32) {
+    const a = new Uint8Array(len);
+    crypto.getRandomValues(a);
+    const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    return Array.from(a, (b) => abc[b & 63]).join('');
+  }
+
+  /* ── edit drawer ── */
+  function edit(x) {
+    const isNew = !x;
+    editingId = x ? x.id : null;
+    const keyI = h('input', { class: 'field mono', value: x ? x.key : '', placeholder: 'STRIPE_SECRET_KEY', spellcheck: 'false', autocomplete: 'off' });
+    const valI = h('textarea', { class: 'field mono masked', rows: '3', placeholder: 'value', spellcheck: 'false', autocomplete: 'off', 'data-shy': '' });
+    valI.value = x ? x.value : '';
+    const tagI = h('input', { class: 'field mono', value: x ? x.tags.join(' ') : (filterInp.value.split(/\s+/).filter((t) => t && t[0] !== '-' && /:|^[a-z]/i.test(t) && Store.S.data.secrets.some((s) => s.tags.includes(t))).join(' ')), placeholder: 'env:prod aws billing', spellcheck: 'false', autocomplete: 'off' });
+    const descI = h('input', { class: 'field', value: x ? x.desc : '', placeholder: 'Where it is used, who owns it', spellcheck: 'false' });
+    const preview = h('div', { class: 'tag-preview' });
+    const sugg = h('div', { class: 'tag-sugg' });
+    const eyeB = h('button', { class: 'icon-btn', type: 'button', title: 'Show value', html: icon('eye') });
+    const genB = h('button', { class: 'icon-btn', type: 'button', title: 'Generate a random value', html: icon('dice') });
+    eyeB.onclick = () => { valI.classList.toggle('masked'); eyeB.innerHTML = icon(valI.classList.contains('masked') ? 'eye' : 'eyeoff'); };
+    genB.onclick = () => { valI.value = generate(); valI.classList.remove('masked'); eyeB.innerHTML = icon('eyeoff'); };
+    const upd = () => {
+      preview.innerHTML = tagsOf(tagI.value).map((t) => chip(t)).join('');
+      const have = new Set(tagsOf(tagI.value));
+      const freq = new Map();
+      for (const s of Store.S.data.secrets) for (const t of s.tags) if (!have.has(t)) freq.set(t, (freq.get(t) || 0) + 1);
+      sugg.innerHTML = [...freq].sort((a, b) => b[1] - a[1]).slice(0, 14).map(([t]) => chip(t)).join('');
+    };
+    sugg.addEventListener('mousedown', (e) => { const c = e.target.closest('.chip'); if (!c) return; e.preventDefault(); tagI.value = (tagI.value.trim() + ' ' + c.dataset.tag).trim() + ' '; upd(); tagI.focus(); });
+    tagI.addEventListener('input', upd);
+    upd();
+
+    const save = () => {
+      const key = keyI.value.trim();
+      if (!key) { keyI.focus(); keyI.classList.add('bad'); return; }
+      const tags = [...new Set(tagsOf(tagI.value))];
+      const t = now();
+      if (isNew) {
+        const nx = { id: uid(), key, value: valI.value, tags, desc: descI.value.trim(), created: t, updated: t };
+        Store.S.data.secrets.push(nx);
+        toast(`Added ${key}`);
+      } else {
+        Object.assign(x, { key, value: valI.value, tags, desc: descI.value.trim(), updated: t });
+        toast(`Saved ${key}`);
+      }
+      Store.change('secrets');
+      close();
+      render();
+      const target = isNew ? Store.S.data.secrets[Store.S.data.secrets.length - 1] : x;
+      cur = Math.max(0, rows.indexOf(target)); mark();
+      list.focus();
+    };
+    const close = () => { drawer.hidden = true; drawer.replaceChildren(); editingId = null; root.classList.remove('drawer-open'); };
+
+    drawer.replaceChildren(...[
+      h('div', { class: 'd-head' }, h('h3', { text: isNew ? 'New secret' : x.key }), h('button', { class: 'icon-btn', title: 'Close (Esc)', html: icon('x'), onclick: () => { close(); list.focus(); } })),
+      h('label', null, h('span', { text: 'Key' }), keyI),
+      h('label', null, h('span', { text: 'Value' }), h('div', { class: 'val-wrap' }, valI, h('div', { class: 'val-tools' }, eyeB, genB))),
+      h('label', null, h('span', { html: 'Tags <em>space separated; <code>key:value</code> for grouped tags</em>' }), tagI, preview),
+      sugg,
+      h('label', null, h('span', { text: 'Note' }), descI),
+      x ? h('p', { class: 'muted small', text: `Created ${relTime(x.created)}. Updated ${relTime(x.updated)}.` }) : null,
+      h('div', { class: 'd-actions' },
+        x ? h('button', { class: 'btn danger ghost', text: 'Delete', onclick: () => { close(); remove(x); } }) : h('span'),
+        h('span', { class: 'grow' }),
+        h('button', { class: 'btn ghost', text: 'Cancel', onclick: () => { close(); list.focus(); } }),
+        h('button', { class: 'btn primary', html: `${isNew ? 'Add secret' : 'Save'} <kbd>${MOD}↵</kbd>`, onclick: save }))].filter(Boolean));
+    drawer.onkeydown = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); list.focus(); }
+      if (e.key === 'Enter' && (modKey(e) || (e.target.tagName === 'INPUT'))) { e.preventDefault(); save(); }
+    };
+    drawer.hidden = false;
+    root.classList.add('drawer-open');
+    (isNew ? keyI : valI).focus();
+  }
+
+  /* ── .env import / export ── */
+  function parseEnv(text) {
+    const out = [];
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      let l = lines[i].trim();
+      if (!l || l[0] === '#') continue;
+      l = l.replace(/^export\s+/, '');
+      const m = /^([A-Za-z_][\w.-]*)\s*[=:]\s*(.*)$/.exec(l);
+      if (!m) continue;
+      let v = m[2];
+      if (v[0] === '"') {
+        let s = v.slice(1);
+        while (!/(^|[^\\])"\s*(#.*)?$/.test(s) && i + 1 < lines.length) s += '\n' + lines[++i];
+        v = s.replace(/"\s*(#.*)?$/, '').replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      } else if (v[0] === "'") v = v.slice(1).replace(/'\s*(#.*)?$/, '');
+      else v = v.replace(/\s+#.*$/, '').trim();
+      out.push({ key: m[1], value: v });
+    }
+    return out;
+  }
+  function importEnv() {
+    const ta = h('textarea', { class: 'field mono', rows: '10', placeholder: 'DATABASE_URL=postgres://…\nexport API_KEY="…"', spellcheck: 'false', 'data-shy': '' });
+    const tags = h('input', { class: 'field mono', placeholder: 'Tags for all of them, e.g. env:staging api', spellcheck: 'false' });
+    const info = h('p', { class: 'muted small', text: 'Paste the contents of a .env file. Existing keys with the same tags are updated.' });
+    ta.addEventListener('input', () => { const n = parseEnv(ta.value).length; info.textContent = n ? `${n} ${n === 1 ? 'secret' : 'secrets'} found.` : 'Paste the contents of a .env file.'; });
+    Modal.open({
+      title: 'Import .env', wide: true,
+      body: h('div', { class: 'stack' }, ta, tags, info),
+      actions: [{ label: 'Cancel', value: null }, { label: 'Import', primary: true, run: () => {
+        const items = parseEnv(ta.value);
+        if (!items.length) { info.textContent = 'No KEY=value lines found.'; return false; }
+        const tg = [...new Set(tagsOf(tags.value))];
+        const sig = (t) => t.slice().sort().join(' ');
+        let added = 0, updated = 0;
+        for (const it of items) {
+          const ex = Store.S.data.secrets.find((s) => s.key === it.key && sig(s.tags) === sig(tg));
+          if (ex) { if (ex.value !== it.value) { ex.value = it.value; ex.updated = now(); updated++; } }
+          else { Store.S.data.secrets.push({ id: uid(), key: it.key, value: it.value, tags: tg.slice(), desc: '', created: now(), updated: now() }); added++; }
+        }
+        Store.change('secrets'); render();
+        toast(`Imported: ${added} added, ${updated} updated`);
+        return true;
+      } }],
+    });
+  }
+  async function exportEnv() {
+    if (!rows.length) { toast('Nothing to copy'); return; }
+    const q = (v) => (/^[\w@%+=:,./-]*$/.test(v) ? v : '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"');
+    const text = rows.map((x) => `${x.key}=${q(x.value)}`).join('\n') + '\n';
+    if (await copyText(text)) toast(`Copied ${rows.length} ${rows.length === 1 ? 'line' : 'lines'} as .env`);
+  }
+
+  /* ── sidebar data ── */
+  function tagStats() {
+    const m = new Map();
+    for (const s of Store.S.data.secrets) for (const t of s.tags) {
+      const { k, v } = parseTag(t);
+      const e = m.get(k) || m.set(k, { n: 0, vals: new Map() }).get(k);
+      e.n++;
+      if (v != null) e.vals.set(v, (e.vals.get(v) || 0) + 1);
+    }
+    return [...m].sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  /* ── keyboard (view focused, not typing) ── */
+  function key(e) {
+    if (!drawer.hidden) return false;
+    const x = rows[cur];
+    const k = e.key;
+    if (k === 'j' || k === 'ArrowDown') { move(1); return true; }
+    if (k === 'k' || k === 'ArrowUp') { move(-1); return true; }
+    if (k === 'g') { cur = 0; mark(); return true; }
+    if (k === 'G') { cur = rows.length - 1; mark(); return true; }
+    if (k === '/') { filterInp.focus(); filterInp.select(); return true; }
+    if (k === 'n' || k === 'N') { edit(null); return true; }
+    if (k === 'Escape' && filterInp.value) { setFilter(''); return true; }
+    if (!x) return false;
+    if (k === 'Enter' || k === 'e') { edit(x); return true; }
+    if (k === 'c' || k === 'y') { copy(x); return true; }
+    if (k === 'C' || k === 'Y') { copyKey(x); return true; }
+    if (k === ' ') { reveal(x); return true; }
+    if (k === 'Delete' || k === 'Backspace') { remove(x); return true; }
+    return false;
+  }
+
+  function focus() { if (drawer.hidden) list.focus({ preventScroll: true }); }
+  function select(id) { const x = Store.secret(id); if (!x) return; if (!matches(x, filterInp.value.toLowerCase().split(/\s+/).filter(Boolean))) setFilter(''); cur = rows.indexOf(x); mark(); flash(x); }
+
+  return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
+})();
