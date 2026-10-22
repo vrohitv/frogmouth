@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build frogmouth.html
+        run: npm run build
+      - name: Committed frogmouth.html matches the source
+        run: git diff --exit-code -- frogmouth.html
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+      - name: Smoke tests in headless Chrome
+        run: npm test
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
