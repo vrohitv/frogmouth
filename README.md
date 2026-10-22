@@ -51,11 +51,12 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
 - Import a pasted `.env` file. Copy the listed secrets back out as `.env`.
+- **Export JSON** downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
 - Generate random values.
 
 **Search everything** with `⌘K`. Prefixes: `>` commands, `@` notes, `$` secrets, `#` boards.
 
-**Sync icon** (top right):
+**Sync icon** (top right), next to the name of the folder your vault lives in (or *Browser storage* / *No folder*). Hover it for the full path.
 - A file with a tick: everything is saved to the vault file.
 - A file with a dot: unsaved changes, saving shortly.
 - A file with `!`: the save failed (click to retry), or the file changed on disk (click to choose a version).

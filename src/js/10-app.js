@@ -223,12 +223,13 @@ const App = (() => {
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       Store.S.crypt ? { id: 'lock', label: 'Lock vault', icon: 'lock', hint: `${MOD}⇧L` } : { id: 'encrypt', label: 'Encrypt with a passphrase…', icon: 'lock' },
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: `${MOD}S` } : { id: 'download', label: 'Download a copy', icon: 'down' },
+      { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -246,8 +247,9 @@ const App = (() => {
       saved: `Saved to ${where}`, saving: `Saving to ${where}…`, unsaved: `Unsaved changes, saving to ${where} shortly`,
       error: `${Store.S.statusText || 'Save failed'}. Click to retry.`, conflict: `${v.file} changed on disk. Click to choose a version.`,
     }[st] || (v.kind === 'memory' ? 'Not saved to any file. Click to download the vault.' : '');
-    syncEl.className = 'hud-btn hud-sync sync-' + cls;
-    syncEl.innerHTML = icon(ic) + (Store.S.crypt ? `<span class="sync-lock">${icon('lock')}</span>` : '');
+    syncEl.className = 'hud-sync sync-' + cls;
+    const label = v.kind === 'dir' ? v.name : v.kind === 'opfs' ? 'Browser storage' : 'No folder';
+    syncEl.innerHTML = `<span class="sync-ic">${icon(ic)}${Store.S.crypt ? `<span class="sync-lock">${icon('lock')}</span>` : ''}</span><span class="sync-where">${esc(label)}</span>`;
     syncEl.title = tip + (Store.S.crypt ? ' Encrypted.' : '');
     syncEl.setAttribute('aria-label', syncEl.title);
     const act = Store.S.data && Store.S.data.ui.active;
@@ -411,6 +413,7 @@ const App = (() => {
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
       { title: 'Import secrets from .env', run: () => { openTab('secrets'); Secrets.importEnv(); } },
       { title: 'Copy listed secrets as .env', run: () => { openTab('secrets'); Secrets.exportEnv(); } },
+      { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); enter(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
@@ -485,7 +488,7 @@ const App = (() => {
       h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
       h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${ALT}L)`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),
       h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (viewOf() !== 'secrets') showView('secrets'); } }));
-    syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
+    syncEl = h('button', { class: 'hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
       h('div', { class: 'hud-group hud-left' },
@@ -495,7 +498,7 @@ const App = (() => {
         switchEl, boardsEl),
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
-        h('div', { class: 'hud-pill' }, syncEl)));
+        h('div', { class: 'hud-pill hud-sync-pill' }, syncEl)));
     shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
     Board.init(boardVp);

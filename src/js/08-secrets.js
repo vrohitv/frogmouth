@@ -21,7 +21,8 @@ const Secrets = (() => {
         countEl,
         h('button', { class: 'btn', html: `${icon('plus')}New secret <kbd>N</kbd>`, onclick: () => edit(null) }),
         h('button', { class: 'btn ghost', text: 'Import .env', onclick: importEnv }),
-        h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv })),
+        h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv }),
+        h('button', { class: 'btn ghost', text: 'Export JSON', title: 'Download every secret as a JSON file', onclick: () => exportJson() })),
       tagsRow,
       h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
       list, drawer);
@@ -240,6 +241,28 @@ const Secrets = (() => {
       } }],
     });
   }
+  /* every secret (not the notes) as a JSON download */
+  async function exportJson() {
+    const all = Store.S.data.secrets;
+    if (!all.length) { toast('There are no secrets to export'); return; }
+    const ok = await Modal.confirm('Export all secrets as JSON?',
+      `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text, even if this vault is encrypted. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false);
+    if (!ok) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const out = {
+      frogmouth: 1,
+      kind: 'secrets',
+      exported: new Date().toISOString(),
+      secrets: all.slice().sort((a, b) => a.key.localeCompare(b.key)).map((x) => ({
+        key: x.key, value: x.value, tags: x.tags.slice(), note: x.desc || '',
+        created: x.created ? new Date(x.created).toISOString() : null,
+        updated: x.updated ? new Date(x.updated).toISOString() : null,
+      })),
+    };
+    download(`frogmouth-secrets-${day}.json`, JSON.stringify(out, null, 2) + '\n');
+    toast(`Exported ${all.length} ${all.length === 1 ? 'secret' : 'secrets'} to frogmouth-secrets-${day}.json`);
+  }
+
   async function exportEnv() {
     if (!rows.length) { toast('Nothing to copy'); return; }
     const q = (v) => (/^[\w@%+=:,./-]*$/.test(v) ? v : '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"');
@@ -283,5 +306,5 @@ const Secrets = (() => {
   function focus() { if (drawer.hidden) list.focus({ preventScroll: true }); }
   function select(id) { const x = Store.secret(id); if (!x) return; if (!matches(x, filterInp.value.toLowerCase().split(/\s+/).filter(Boolean))) setFilter(''); cur = rows.indexOf(x); mark(); flash(x); }
 
-  return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
+  return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, exportJson, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
 })();

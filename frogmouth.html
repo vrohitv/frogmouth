@@ -294,12 +294,21 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .hud-search { gap: 8px; padding: 0 8px 0 12px; width: 260px; color: var(--muted); cursor: text; font: inherit; }
 .hud-search span { flex: 1; text-align: left; }
 .hud-search:hover { color: var(--text); border-color: var(--faint); }
+.hud-sync {
+  display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px 0 7px; max-width: 26ch;
+  border: 0; border-radius: 7px; background: none; color: var(--muted); font: inherit; cursor: pointer;
+}
+.hud-sync:hover { background: var(--panel-2); }
+.sync-ic { position: relative; display: grid; place-items: center; width: 20px; height: 20px; flex: none; }
+.sync-ic > .ic { width: 17px; height: 17px; }
+.sync-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.hud-sync.sync-none .sync-where { color: var(--muted); }
 .hud-sync.sync-ok { color: var(--moss); }
 .hud-sync.sync-pending, .hud-sync.sync-busy { color: var(--iris); }
-.hud-sync.sync-busy .ic { animation: pulse .8s infinite alternate; }
+.hud-sync.sync-busy .sync-ic > .ic { animation: pulse .8s infinite alternate; }
 .hud-sync.sync-bad { color: var(--danger); }
 .hud-sync.sync-none { color: var(--faint); }
-.sync-lock { position: absolute; right: 3px; bottom: 2px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); color: var(--muted); }
+.sync-lock { position: absolute; right: -3px; bottom: -2px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); color: var(--muted); }
 .sync-lock .ic { width: 9px; height: 9px; stroke-width: 2; }
 @keyframes pulse { to { opacity: .35; } }
 
@@ -642,6 +651,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
   .hud { top: 8px; left: 8px; right: 8px; }
   .hud-search { width: auto; padding: 0 10px; }
   .hud-search span, .hud-search kbd { display: none; }
+  .sync-where { display: none; }
   .bp-name { max-width: 10ch; }
   .hud-logo { display: none; }
   .s-head { display: none; }
@@ -3418,7 +3428,8 @@ const Secrets = (() => {
         countEl,
         h('button', { class: 'btn', html: `${icon('plus')}New secret <kbd>N</kbd>`, onclick: () => edit(null) }),
         h('button', { class: 'btn ghost', text: 'Import .env', onclick: importEnv }),
-        h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv })),
+        h('button', { class: 'btn ghost', text: 'Copy as .env', onclick: exportEnv }),
+        h('button', { class: 'btn ghost', text: 'Export JSON', title: 'Download every secret as a JSON file', onclick: () => exportJson() })),
       tagsRow,
       h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
       list, drawer);
@@ -3637,6 +3648,28 @@ const Secrets = (() => {
       } }],
     });
   }
+  /* every secret (not the notes) as a JSON download */
+  async function exportJson() {
+    const all = Store.S.data.secrets;
+    if (!all.length) { toast('There are no secrets to export'); return; }
+    const ok = await Modal.confirm('Export all secrets as JSON?',
+      `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text, even if this vault is encrypted. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false);
+    if (!ok) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const out = {
+      frogmouth: 1,
+      kind: 'secrets',
+      exported: new Date().toISOString(),
+      secrets: all.slice().sort((a, b) => a.key.localeCompare(b.key)).map((x) => ({
+        key: x.key, value: x.value, tags: x.tags.slice(), note: x.desc || '',
+        created: x.created ? new Date(x.created).toISOString() : null,
+        updated: x.updated ? new Date(x.updated).toISOString() : null,
+      })),
+    };
+    download(`frogmouth-secrets-${day}.json`, JSON.stringify(out, null, 2) + '\n');
+    toast(`Exported ${all.length} ${all.length === 1 ? 'secret' : 'secrets'} to frogmouth-secrets-${day}.json`);
+  }
+
   async function exportEnv() {
     if (!rows.length) { toast('Nothing to copy'); return; }
     const q = (v) => (/^[\w@%+=:,./-]*$/.test(v) ? v : '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"');
@@ -3680,7 +3713,7 @@ const Secrets = (() => {
   function focus() { if (drawer.hidden) list.focus({ preventScroll: true }); }
   function select(id) { const x = Store.secret(id); if (!x) return; if (!matches(x, filterInp.value.toLowerCase().split(/\s+/).filter(Boolean))) setFilter(''); cur = rows.indexOf(x); mark(); flash(x); }
 
-  return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
+  return { init, render, key, focus, edit, select, setFilter, importEnv, exportEnv, exportJson, tagStats, parseEnv, closeDrawer: () => { drawer.hidden = true; root && root.classList.remove('drawer-open'); } };
 })();
 
 /* ── 08b-notes.js ── */
@@ -4193,12 +4226,13 @@ const App = (() => {
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       Store.S.crypt ? { id: 'lock', label: 'Lock vault', icon: 'lock', hint: `${MOD}⇧L` } : { id: 'encrypt', label: 'Encrypt with a passphrase…', icon: 'lock' },
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: `${MOD}S` } : { id: 'download', label: 'Download a copy', icon: 'down' },
+      { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), lock, encrypt: () => setPass(false), download: downloadVault, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -4216,8 +4250,9 @@ const App = (() => {
       saved: `Saved to ${where}`, saving: `Saving to ${where}…`, unsaved: `Unsaved changes, saving to ${where} shortly`,
       error: `${Store.S.statusText || 'Save failed'}. Click to retry.`, conflict: `${v.file} changed on disk. Click to choose a version.`,
     }[st] || (v.kind === 'memory' ? 'Not saved to any file. Click to download the vault.' : '');
-    syncEl.className = 'hud-btn hud-sync sync-' + cls;
-    syncEl.innerHTML = icon(ic) + (Store.S.crypt ? `<span class="sync-lock">${icon('lock')}</span>` : '');
+    syncEl.className = 'hud-sync sync-' + cls;
+    const label = v.kind === 'dir' ? v.name : v.kind === 'opfs' ? 'Browser storage' : 'No folder';
+    syncEl.innerHTML = `<span class="sync-ic">${icon(ic)}${Store.S.crypt ? `<span class="sync-lock">${icon('lock')}</span>` : ''}</span><span class="sync-where">${esc(label)}</span>`;
     syncEl.title = tip + (Store.S.crypt ? ' Encrypted.' : '');
     syncEl.setAttribute('aria-label', syncEl.title);
     const act = Store.S.data && Store.S.data.ui.active;
@@ -4381,6 +4416,7 @@ const App = (() => {
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
       { title: 'Import secrets from .env', run: () => { openTab('secrets'); Secrets.importEnv(); } },
       { title: 'Copy listed secrets as .env', run: () => { openTab('secrets'); Secrets.exportEnv(); } },
+      { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: MOD + 'S', when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); enter(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
@@ -4455,7 +4491,7 @@ const App = (() => {
       h('button', { class: 'hud-btn', 'data-view': 'board', title: `Board (${ALT}B)`, 'aria-label': 'Board', html: icon('board'), onclick: () => showView('board') }),
       h('button', { class: 'hud-btn', 'data-view': 'notes', title: `All notes, sortable (${ALT}L)`, 'aria-label': 'All notes', html: icon('list'), onclick: () => { if (viewOf() !== 'notes') showView('notes'); } }),
       h('button', { class: 'hud-btn', 'data-view': 'secrets', title: `Secrets (${ALT}S)`, 'aria-label': 'Secrets', html: icon('key'), onclick: () => { if (viewOf() !== 'secrets') showView('secrets'); } }));
-    syncEl = h('button', { class: 'hud-btn hud-sync', onclick: onSyncClick });
+    syncEl = h('button', { class: 'hud-sync', onclick: onSyncClick });
     // everything floats over the canvas; the notes get the whole screen
     const hud = h('div', { class: 'hud' },
       h('div', { class: 'hud-group hud-left' },
@@ -4465,7 +4501,7 @@ const App = (() => {
         switchEl, boardsEl),
       h('div', { class: 'hud-group' },
         h('button', { class: 'hud-pill hud-search', html: `${icon('search')}<span>Search</span><kbd>${MOD}K</kbd>`, onclick: () => Palette.show() }),
-        h('div', { class: 'hud-pill' }, syncEl)));
+        h('div', { class: 'hud-pill hud-sync-pill' }, syncEl)));
     shell = h('div', { class: 'shell', hidden: true }, boardVp, notesEl, secretsEl, hud);
     app.append(welcome, shell, h('div', { id: 'toasts', 'aria-live': 'polite' }));
     Board.init(boardVp);

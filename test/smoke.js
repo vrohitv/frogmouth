@@ -304,6 +304,29 @@
     ok('palette finds notes by tag', Palette.search('retry').some((x) => x.title === 'Retry with backoff' && x.type === 'note'));
     App.openTab('secrets');
 
+    // folder label on the sync pill, and the secrets JSON export
+    ok('sync pill says no folder in memory mode', $('.sync-where').textContent === 'No folder');
+    {
+      let grabbed = null, blob = null;
+      const realClick = HTMLAnchorElement.prototype.click, realURL = URL.createObjectURL;
+      URL.createObjectURL = (b) => { blob = b; return realURL.call(URL, b); };
+      HTMLAnchorElement.prototype.click = function () { if (this.download) grabbed = { name: this.download, href: this.href }; else realClick.call(this); };
+      const pending = Secrets.exportJson();
+      await wait(20);
+      const primary = $('.modal .btn.primary');
+      ok('export asks before writing plaintext', !!primary && /plain text/.test($('.modal').textContent));
+      primary.click();
+      await pending; await wait(20);
+      HTMLAnchorElement.prototype.click = realClick; URL.createObjectURL = realURL;
+      ok('export downloads a dated json file', grabbed && /^frogmouth-secrets-\d{4}-\d{2}-\d{2}\.json$/.test(grabbed.name), grabbed && grabbed.name);
+      if (grabbed) {
+        const j = JSON.parse(await blob.text()); // fetch() is blocked by the page's CSP, as it should be
+        ok('export holds every secret and no notes', j.kind === 'secrets' && j.secrets.length === Store.S.data.secrets.length && !('boards' in j) && !JSON.stringify(j).includes('Retry with backoff'));
+        const db = j.secrets.find((x) => x.key === 'DATABASE_URL');
+        ok('export keeps values and tags', db && db.value === 'postgres://app:pw@db:5432/app' && db.tags.includes('env:staging'), JSON.stringify(db));
+      }
+    }
+
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
@@ -319,6 +342,7 @@
         const res = await Store.openDir(dir, 'opfs');
         ok('opfs creates vault', res.ok && res.fresh);
         App.enter();
+        ok('sync pill names the storage', $('.sync-where').textContent === 'Browser storage');
         Store.S.data.secrets.push({ id: uid(), key: 'OPFS_KEY', value: 'v', tags: [], desc: '' });
         Store.change('secrets');
         await wait(900);

@@ -263,12 +263,21 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .hud-search { gap: 8px; padding: 0 8px 0 12px; width: 260px; color: var(--muted); cursor: text; font: inherit; }
 .hud-search span { flex: 1; text-align: left; }
 .hud-search:hover { color: var(--text); border-color: var(--faint); }
+.hud-sync {
+  display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px 0 7px; max-width: 26ch;
+  border: 0; border-radius: 7px; background: none; color: var(--muted); font: inherit; cursor: pointer;
+}
+.hud-sync:hover { background: var(--panel-2); }
+.sync-ic { position: relative; display: grid; place-items: center; width: 20px; height: 20px; flex: none; }
+.sync-ic > .ic { width: 17px; height: 17px; }
+.sync-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.hud-sync.sync-none .sync-where { color: var(--muted); }
 .hud-sync.sync-ok { color: var(--moss); }
 .hud-sync.sync-pending, .hud-sync.sync-busy { color: var(--iris); }
-.hud-sync.sync-busy .ic { animation: pulse .8s infinite alternate; }
+.hud-sync.sync-busy .sync-ic > .ic { animation: pulse .8s infinite alternate; }
 .hud-sync.sync-bad { color: var(--danger); }
 .hud-sync.sync-none { color: var(--faint); }
-.sync-lock { position: absolute; right: 3px; bottom: 2px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); color: var(--muted); }
+.sync-lock { position: absolute; right: -3px; bottom: -2px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); color: var(--muted); }
 .sync-lock .ic { width: 9px; height: 9px; stroke-width: 2; }
 @keyframes pulse { to { opacity: .35; } }
 
@@ -611,6 +620,7 @@ mark { background: none; color: var(--iris); font-weight: 700; }
   .hud { top: 8px; left: 8px; right: 8px; }
   .hud-search { width: auto; padding: 0 10px; }
   .hud-search span, .hud-search kbd { display: none; }
+  .sync-where { display: none; }
   .bp-name { max-width: 10ch; }
   .hud-logo { display: none; }
   .s-head { display: none; }
