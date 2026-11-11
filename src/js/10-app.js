@@ -512,7 +512,7 @@ export const App = (() => {
     Store.change('boards');
     renderChrome();
     pushUndo(`Deleted board ${b.name}. It is in Recently deleted.`, () => {
-      Store.dropTrash(kept.id);
+      if (!Store.dropTrash(kept.id)) return false; // deleted forever since
       d.boards.splice(Math.min(i, d.boards.length), 0, b);
       Store.index();
       Store.change('boards');

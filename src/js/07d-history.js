@@ -63,7 +63,7 @@ export const History = (() => {
     if (undos.length > LIMIT) undos.shift();
     redos.length = 0;
     const b = Board.current(); if (b) last.set(b.id, state(b));
-    toast(label, { action: () => { const i = undos.lastIndexOf(entry); if (i >= 0) { undos.splice(i, 1); run(() => fn()); } }, label: 'Undo' });
+    toast(label, { action: () => { const i = undos.lastIndexOf(entry); if (i >= 0) { undos.splice(i, 1); if (run(() => fn()) === false) toast('It was deleted forever since'); } }, label: 'Undo' });
   }
 
   /* several changes made as one action (a paste, a cut, align) are one step */
@@ -72,10 +72,13 @@ export const History = (() => {
     try { return fn(); } finally { quiet--; record('notes'); }
   }
 
+  // returns what fn returns: a deletion's closure returns false when there was nothing left to bring back
   function run(fn) {
+    let out;
     quiet++;
-    try { fn(); } finally { quiet--; }
+    try { out = fn(); } finally { quiet--; }
     const b = Board.current(); if (b) last.set(b.id, state(b));
+    return out;
   }
 
   /* put a board back the way a state has it, keeping the objects (other steps hold them) */
@@ -111,7 +114,7 @@ export const History = (() => {
   // a step on a board deleted since is passed over
   function undo() {
     for (let e; (e = undos.pop());) {
-      if (e.fn) { run(() => e.fn()); redos.length = 0; toast('Restored'); return; }
+      if (e.fn) { if (run(() => e.fn()) === false) continue; redos.length = 0; toast('Restored'); return; } // deleted forever since: pass it over
       if (restore(e.before)) { redos.push(e); return; }
     }
     toast('Nothing to undo');

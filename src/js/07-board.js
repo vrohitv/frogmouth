@@ -1092,7 +1092,7 @@ export const Board = (() => {
     if (quiet) { History.forget(id); return; }
     const where = saved.placed.length > 1 ? ` from ${saved.placed.length} boards` : '';
     App.pushUndo(`Deleted ${n.title ? `“${n.title.slice(0, 28)}”` : 'note'}${where}. It is in Recently deleted.`, () => {
-      Store.dropTrash(kept.id);
+      if (!Store.dropTrash(kept.id)) return false; // deleted forever since
       Store.restoreNote(saved);
       const mine = board && saved.placed.find((p) => p.board === board);
       if (mine) { plane.append(build(mine.it)); updateEmpty(); select(id); refreshFeet(); Draw.redraw(); }
@@ -1111,10 +1111,12 @@ export const Board = (() => {
     const kept = saved.map(keep);
     Store.change('notes');
     App.pushUndo(`Deleted ${saved.length} notes. They are in Recently deleted.`, () => {
-      for (const k of kept) Store.dropTrash(k.id);
-      for (const s of saved.slice().reverse()) Store.restoreNote(s);
+      // only what is still in Recently deleted comes back; anything deleted forever since stays gone
+      const back = saved.filter((s, i) => Store.dropTrash(kept[i].id));
+      if (!back.length) return false;
+      for (const s of back.slice().reverse()) Store.restoreNote(s);
       if (board) {
-        const mine = saved.map((s) => s.placed.find((p) => p.board === board)).filter(Boolean);
+        const mine = back.map((s) => s.placed.find((p) => p.board === board)).filter(Boolean);
         for (const p of mine) plane.append(build(p.it));
         updateEmpty(); setGroup(mine.map((p) => p.it.note)); refreshFeet(); Draw.redraw();
       }

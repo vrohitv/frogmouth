@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 (2026-11-11)
+
+- **Removed the optional passphrase for secret values.** frogmouth is a notepad, not a password manager: values are plain text in the vault file again, as before 1.4, and every vault is format 1. If you gave your secrets a passphrase in 1.4.0, remove it there first (the padlock on the Secrets page, then *Remove the passphrase*): 1.4.1 does not open a vault saved with one.
+- Fixed: undoing a delete could bring back a note or board you had since deleted forever in Recently deleted. It now stays gone, and undo moves on to the step before.
+
 ## 1.4.0 (2026-11-11)
 
 - **Two tabs can no longer overwrite each other.** With the vault in browser storage, a second tab's save silently replaced the first tab's changes. Browser storage is now watched and checked before every save like a folder, so a save that would overwrite another tab's work stops and asks. Opening browser storage also asks Chrome to keep it, so it is not cleared when the disk runs low.

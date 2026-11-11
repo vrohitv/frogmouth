@@ -1082,7 +1082,7 @@ export const Editor = (() => {
       const br = e.target.closest('a.bref');
       if (br) { e.preventDefault(); if (Store.board(br.dataset.board)) bus.emit('goto-board', br.dataset.board); else toast('That board was deleted'); return; }
       const sr = e.target.closest('span.sref');
-      if (sr) { e.preventDefault(); bus.emit('copy-secret', sr.dataset.secret); return; }
+      if (sr) { e.preventDefault(); const x = Store.secret(sr.dataset.secret); if (x) copyText(x.value).then(() => toast(`Copied ${x.key}`)); return; }
       const fr = e.target.closest('span.fref');
       if (fr) { e.preventDefault(); fileMenu(fr); return; }
       const a = e.target.closest('a[href]');

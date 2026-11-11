@@ -79,7 +79,6 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
 - **Export** (the download icon) downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
-- **A passphrase, if you want one** (the padlock): each value is then encrypted in the vault file. Keys, tags and notes stay readable, so search keeps working. Revealing, copying or editing a value asks for the passphrase; it locks again when the vault closes and after 15 idle minutes. Without the passphrase the values cannot be recovered.
 - Generate random values.
 
 **Tags and filters** (All notes, Secrets and `⌘K` search alike)
@@ -193,13 +192,13 @@ my-vault/
  "ui":{"board":"…","active":"b:…"}}}
 ```
 
-The format is specified in [docs/format.md](docs/format.md). It is versioned (`"frogmouth": 1`, or `2` once secret values have a passphrase, so older releases refuse a file they would misread): later releases may add fields, and every release keeps fields it does not know, so nothing is lost when versions mix. A release never opens a file from a newer, incompatible format, so it can never write over it.
+The format is specified in [docs/format.md](docs/format.md). It is versioned (`"frogmouth": 1`): later releases may add fields, and every release keeps fields it does not know, so nothing is lost when versions mix. A release never opens a file from a newer, incompatible format, so it can never write over it.
 
 ## Privacy and security
 
 - A Content-Security-Policy in the page forbids every network request (`connect-src 'none'`, no external scripts, styles, fonts or images). Nothing leaves your machine.
 - Note HTML is sanitized on load and paste. Scripts, event handlers, `javascript:` links, remote images and paths with `..` are removed.
-- The vault is a plain JSON file: notes and secrets are as private as the folder they sit in, like any other file on your disk. Give the secret values a passphrase to encrypt them in the file (AES-GCM, with a key derived from the passphrase by PBKDF2-SHA256, 600,000 rounds, all by the browser's own WebCrypto).
+- The vault is a plain JSON file: notes and secrets are as private as the folder they sit in, like any other file on your disk.
 
 ## Development
 
@@ -225,7 +224,6 @@ src/fonts/            JetBrains Mono woff2 files + OFL license
 src/js/00-util.js     helpers, tags, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
 src/js/03-store.js    state, the .fm file, autosave, disk watching, backups, Recently deleted, images, files
-src/js/03b-crypt.js   the optional passphrase for secret values
 src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor
 src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images

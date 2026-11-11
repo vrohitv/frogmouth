@@ -13,7 +13,6 @@ import { Palette } from '../src/js/09-palette.js';
 import { App } from '../src/js/10-app.js';
 import { History } from '../src/js/07d-history.js';
 import { Export } from '../src/js/07e-export.js';
-import { Crypt } from '../src/js/03b-crypt.js';
 
 /* Smoke tests. Only included by `python3 build.py --test`.
    Open test/frogmouth.html#smoke (served over http for OPFS),
@@ -1174,7 +1173,7 @@ import { Crypt } from '../src/js/03b-crypt.js';
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === 1 && Store.FORMAT === 2 && !('version' in parsed.data) && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === Store.FORMAT && Store.FORMAT === 1 && !('version' in parsed.data) && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
     ok('normalize round trip', re.boards[0].items.length === Store.S.data.boards[0].items.length && re.notes.length === Store.S.data.notes.length);
     {
@@ -1183,7 +1182,7 @@ import { Crypt } from '../src/js/03b-crypt.js';
       const back = JSON.parse(JSON.stringify(fut));
       ok('unknown fields from a newer release are kept when saving', back.later.a === 1 && back.notes[0].later === 1 && back.boards[0].later === 2 && back.boards[0].items[0].later === 3 && back.secrets[0].later === 4 && back.ui.later === 5);
       const err = (text) => { try { Store.parse(text, 'x.fm'); return ''; } catch (e) { return e.message; } };
-      ok('a file from a newer frogmouth is refused, with what to do', /newer frogmouth \(format 3\).*latest frogmouth\.html.*Nothing was changed/.test(err(JSON.stringify({ frogmouth: 3, data: {} }))));
+      ok('a file from a newer frogmouth is refused, with what to do', /newer frogmouth \(format 2\).*latest frogmouth\.html.*Nothing was changed/.test(err(JSON.stringify({ frogmouth: 2, data: {} }))));
       ok('JSON that is not a vault is refused', /not a frogmouth vault/.test(err(JSON.stringify([{ key: 'A', value: 'b' }]))) && /not a frogmouth vault/.test(err(JSON.stringify({ notes: [], boards: [] }))) && /not valid JSON/.test(err('{oops')));
       ok('a version 1 vault is read', err(Store.serialize()) === '' && Array.isArray(Store.parse(Store.serialize()).notes));
     }
@@ -1740,6 +1739,16 @@ import { Crypt } from '../src/js/03b-crypt.js';
       ok('and then it is gone for good', !Store.trash().some((e) => e.note && e.note.id === n.id));
       if ($('.modal')) keydown($('.modal'), 'Escape');
       await wait(20);
+      {
+        const gone = Board.addNote({ x: 900, y: 900 }, false, '<p>Gone for good</p>'); await wait(20);
+        Board.removeEverywhere(gone.id); await wait(20);
+        const e2 = Store.trash().find((e) => e.note && e.note.id === gone.id);
+        Store.dropTrash(e2.id); Store.change('trash'); // what Delete forever does
+        undoK(); await wait(30);
+        ok('deleted forever stays gone, even with undo', !Store.noteRef(gone.id), 'came back');
+      }
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      await wait(20);
       // old entries go after 30 days; kinds this release does not know are kept
       const d = Store.normalize({ notes: [], boards: [], trash: [
         { kind: 'note', id: 't1', at: Date.now() - 31 * 864e5, note: { id: 'old', html: '<p>old</p>' }, places: [] },
@@ -1858,45 +1867,6 @@ import { Crypt } from '../src/js/03b-crypt.js';
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 
-    /* ── 1.4: a passphrase for secret values ── */
-    {
-      const d0 = Store.blankData();
-      d0.secrets = [{ id: 'k1', key: 'DB_URL', value: 'postgres://app:pw@db/app', tags: ['env:prod'], desc: 'main' }, { id: 'k2', key: 'TOKEN', value: 'tok-123', tags: [], desc: '' }];
-      Store.openMemory(d0, 'crypt'); App.enter(); App.openTab('secrets'); await wait(40);
-      ok('an unprotected vault offers a passphrase on the Secrets page', /passphrase/i.test(($('.s-lock') || {}).title || ''), ($('.s-lock') || {}).title);
-      ok('and is still written as format 1', Store.serialize().startsWith('{"frogmouth":1'));
-      await Crypt.protect('correct horse battery');
-      const file = Store.serialize();
-      ok('protecting encrypts every value in the file', !file.includes('postgres://app:pw') && !file.includes('tok-123') && Store.S.data.secrets.every((x) => x.enc && x.value === ''), file.slice(0, 120));
-      ok('keys, tags and notes stay readable, so search works', file.includes('DB_URL') && file.includes('env:prod') && file.includes('"main"'));
-      ok('a protected vault is written as format 2, so older versions refuse it', file.startsWith('{"frogmouth":2') && Store.S.data.crypt.iter === 600000);
-      ok('while unlocked the values work as before', Crypt.value(Store.secret('k1')) === 'postgres://app:pw@db/app');
-      // locked: values need the passphrase
-      Crypt.lock(); Secrets.render(); await wait(20);
-      ok('locked, a value cannot be read', Crypt.value(Store.secret('k1')) === null && Crypt.locked());
-      [...$$('.srow')].find((r) => /TOKEN/.test(r.textContent)).querySelector('[data-a="reveal"]').click(); await wait(40);
-      const pass = $('.modal input[type="password"]');
-      ok('revealing asks for the passphrase (and the bird looks away)', !!pass && pass.hasAttribute('data-shy'));
-      pass.value = 'wrong one'; $('.modal .btn.primary').click(); await wait(1500);
-      ok('a wrong passphrase is refused', !!$('.modal') && /not right/i.test($('.modal').textContent) && Crypt.locked());
-      $('.modal input[type="password"]').value = 'correct horse battery'; $('.modal .btn.primary').click(); await wait(1500);
-      ok('the right one unlocks and shows the value', !Crypt.locked() && !$('.modal') && /tok-123/.test(($('.srow .s-val.shown') || {}).textContent || ''), ($('.srow .s-val.shown') || {}).textContent);
-      // a new secret is encrypted when saved
-      Secrets.edit(null); await wait(20);
-      const [keyI, valI] = [$('.s-drawer input'), $('.s-drawer textarea')];
-      keyI.value = 'NEW_ONE'; valI.value = 'fresh-value'; $('.s-drawer .btn.primary').click(); await wait(300);
-      const nx = Store.S.data.secrets.find((x) => x.key === 'NEW_ONE');
-      ok('a secret added while protected is saved encrypted', nx && nx.enc && nx.value === '' && Crypt.value(nx) === 'fresh-value' && !Store.serialize().includes('fresh-value'));
-      // the file opens again with the passphrase
-      const text = Store.serialize();
-      Store.openMemory(Store.parse(text), 'again'); App.enter(); App.openTab('secrets'); await wait(30);
-      ok('reopened, the vault starts locked', Crypt.locked());
-      ok('and the passphrase unlocks it', (await Crypt.unlock('correct horse battery')) && Crypt.value(Store.secret('k1')) === 'postgres://app:pw@db/app');
-      await Crypt.unprotect();
-      ok('removing the passphrase writes the values in plain text again, as format 1', !Store.S.data.crypt && Store.serialize().startsWith('{"frogmouth":1') && Store.secret('k2').value === 'tok-123' && !Store.secret('k2').enc);
-      Store.openMemory(demoData(), 'test'); App.enter(); await wait(30);
-    }
-
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
@@ -2013,7 +1983,7 @@ import { Crypt } from '../src/js/03b-crypt.js';
         ok('external changes re-render the board', !!$('.note[data-id="ext1"]') && Board.current() === Store.S.data.boards[0], $$('.note').length);
         // a vault saved by a newer frogmouth is never opened, so it can never be written over
         const nd = await root.getDirectoryHandle('fm-newer-' + Date.now(), { create: true });
-        const newer = JSON.stringify({ frogmouth: 3, data: { shape: 'unknown to this version' } });
+        const newer = JSON.stringify({ frogmouth: 2, data: { shape: 'unknown to this version' } });
         const nw = await (await nd.getFileHandle('vault.fm', { create: true })).createWritable(); await nw.write(newer); await nw.close();
         const openBefore = Store.S.vault;
         let refusal = ''; try { await Store.openDir(nd, 'opfs'); } catch (e) { refusal = e.message; }
