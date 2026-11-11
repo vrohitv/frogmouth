@@ -1302,8 +1302,8 @@ export const Board = (() => {
   }
 
   return {
-    init, mount, unmount, refresh, copy, cut, paste, duplicate, addNote, reloadNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
-    zoom: () => view.z, view: () => ({ ...view }), zoomAt, toggleMap,
+    init, mount, unmount, refresh, duplicate, addNote, reloadNote, find, closeFind, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
+    zoom: () => view.z, view: () => ({ ...view }), zoomAt,
     // where a board point is drawn in the minimap, in client pixels (for tests)
     mapPoint: (x, y) => { const r = map.getBoundingClientRect(); return mapT && { x: r.left + mapT.ox + x * mapT.s, y: r.top + mapT.oy + y * mapT.s }; }, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,
     tagNote: (id) => { const n = noteOf(id); if (n) tagNote(n); },

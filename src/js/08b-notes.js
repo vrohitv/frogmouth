@@ -150,14 +150,5 @@ export const NotesList = (() => {
     return false;
   }
 
-  /* select a note's row (clearing a filter that hides it) */
-  function reveal(id) {
-    if (!rows.some((r) => r.note.id === id)) setFilter('');
-    cur = Math.max(0, rows.findIndex((r) => r.note.id === id));
-    mark();
-    const el = list.querySelector('.nrow.on');
-    if (el) { el.classList.remove('copied'); void el.offsetWidth; el.classList.add('copied'); }
-  }
-
-  return { init, render, key, setFilter, reveal, focus: () => list && list.focus({ preventScroll: true }) };
+  return { init, render, key, setFilter, focus: () => list && list.focus({ preventScroll: true }) };
 })();

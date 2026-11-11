@@ -144,5 +144,5 @@ export const History = (() => {
   bus.on('loaded', clear);
   bus.on('closed', clear);
 
-  return { undo, redo, push, forget, top, undoStep, batch, size: () => undos.length, redoSize: () => redos.length, nudge: () => { nudge = true; } };
+  return { undo, redo, push, forget, top, undoStep, batch, size: () => undos.length, nudge: () => { nudge = true; } };
 })();
