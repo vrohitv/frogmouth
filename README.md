@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-<p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
+<p align="center">Sticky notes, diagrams and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
 The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its sage-green eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
 
@@ -21,8 +21,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Boards of sticky notes**
 - The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, export and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
-- Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board.
-- **The Boards panel** (the board-count button next to the pills, or `⌥J`) lists every board with its note count and when you last opened it. Type to find one, `↵` to open it, or type a new name to create it. `⌥P` pins, `F2` renames, `⌘⇧⌫` deletes (its notes stay in All notes).
+- Boards are floating pills. Click one to open it, double-click it (or the pencil on the open one) to rename it in place, drag to reorder, right-click for rename, pin and delete (undoable). **+** adds a board.
+- **The Boards panel** (the board-count button next to the pills, or `⌥J`) lists every board with its note count, when you last opened it, and the titles of its first notes, so you can tell boards apart at a glance. Pinned boards come first. Type to find one, `↵` to open it, or type a new name to create it. `⌥P` pins, `F2` renames, `⌘⇧⌫` deletes (its notes stay in All notes).
 - With many boards, **pinned boards always keep a pill**; your most recently used boards fill the rest (six in all). `⌥1`–`⌥9` jump to the pills, and `⌘K` then `#` searches boards too.
 - **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
 - **Deleting a board never deletes notes.** They stay in All notes (marked *on no board* if that was their only board) and on any other boards.
@@ -38,12 +38,20 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - **Arrange notes** tidies a board into columns. **Fit** shows everything at once.
 - The first line of a note is its title. Nothing else is needed.
 
+**Diagrams** (on any board, beside your notes)
+- A small tool bar at the bottom of the board: **rectangle** `R`, **ellipse** `O`, **diamond** `D`, **text** `X`, **line** `L`, **arrow** `C` and **frame** `F`; `V` or `Esc` goes back to selecting. Drag to draw, or click for a default size; then type its text.
+- **Lines and arrows stick.** Each end attaches to the note or box under it and follows it when it moves, resizes, or grows while you type. With one note or box selected, drag one of the dots at its sides to draw an arrow from it. A selected line shows a handle at each end: drag it onto something else to re-attach it. Double-click a line (or `↵`) to give it a label.
+- **Frames** are named regions. Drag a frame by its edge or name and everything centred inside it comes along; the inside of a frame stays clickable board.
+- Shapes work like notes: click, `⇧`-click, `⇧`-drag a box, `⌘A`, drag, arrows, `1`–`9` for colour, `⌘D`, Fit, the minimap and `⌘F` (it finds text in shapes and labels too). `Del` deletes a shape at once, and `⌘Z` brings it back. `[` and `]` send a box to the back or bring it to the front.
+- With shapes or lines selected, a style bar at the top offers the nine colours, fill, dashed, order, and for lines straight or elbow and their arrowheads.
+- Shapes are drawn with the same nine paper colours as notes, so they switch with the theme. There is deliberately no pen or freehand tool.
+
 **The editor**
 - `/` opens the block menu: headings, lists, todos, code, quote, divider, image, file tag, note link, secret reference and date.
 - Markdown shortcuts: `# `, `## `, `- `, `1. `, `[] `, `> `, `---`, ```` ```lang ````, and `` `inline code` ``.
 - **Tables**: `/table` (or `/table 4x3` for 4 columns, 3 rows). `Tab` goes to the next cell and adds a row at the end, `↵` goes to the cell below, `⇧↵` breaks a line inside a cell and `⌘↵` leaves the table. Type `/` in a cell to add or delete rows and columns. Tables pasted from a spreadsheet or a web page come in as plain grids, and table text is searchable.
 - `@` links another note, **a board** (`@@` lists boards only) **or tags any file in the vault folder**, such as `diagram.excalidraw`. Clicking a file tag opens the file, saves a copy, or copies its path.
-- Notes that link to a note are listed at its foot: a link icon with the count (`L` opens the list).
+- Notes that link to a note are listed at its foot: a link icon with the count (`B` opens the list).
 - **Clicking a note link opens that note right where you are**, full size over the board (the note view); you never leave your board unless you ask to. It opens for reading: click the text to edit, and links inside open in the same view (`‹` goes back). `↵` opens it on its board, `A` adds it to this board (or shows it, if it is already here), `Esc` closes. Picking a note from the links at a note's foot does the same, and so does opening a note that is on no board.
 - **Board links** make a note a map of your boards: a "Projects" note with `@@Q3 Launch`, `@@Infra` and so on. Clicking one opens that board and shows a trail of where you came from (`‹ Projects › Q3 Launch`); click a step or press `⌥←` to go back to exactly the view you left. Links only point at boards, they never put anything on one.
 - Code blocks are syntax-highlighted as you type: JS/TS, Python, Go, Rust, C-family, shell, SQL, JSON, YAML, CSS, HTML, Ruby, PHP and diff. They auto-indent, take `Tab`, and have their own undo. The language label is a menu.
@@ -64,6 +72,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 **Secrets**
 - Key/value pairs with plain tags (`aws`) and key:value tags (`env:prod`). Every tag is listed as a chip under the filter; click one to filter by it.
 - Filter syntax: `env:prod aws -legacy`.
+- Every row has a pencil to edit it (or `↵`, `e`, double-click), an eye to reveal and a copy button.
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
 - **Export** (the download icon) downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
@@ -118,13 +127,23 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `1`–`9` | Colour |
 | `⌘D` | Duplicate |
 | `T` | Tag the note |
-| `L` | Notes that link here |
+| `B` | Notes that link here |
 | `A` | Add an existing note to this board |
 | `⇧`-click, `⇧`-drag, `⌘A` | Select several notes |
 | `⌘F` | Find in every note on the board |
 | `Del` `Del` / `⇧Del` | Remove from this board (confirm with a second `Del`) / delete everywhere (asks first) |
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
 | `M` | Show or hide the minimap |
+
+| Drawing | |
+|---|---|
+| `V` / `Esc` | Select |
+| `R` `O` `D` `X` | Rectangle, ellipse, diamond, text |
+| `L` / `C` | Line / arrow |
+| `F` | Frame |
+| double-click, `↵` | Edit a shape's text or a line's label |
+| `[` `]` | Send to back, bring to front |
+| `1`–`9`, `Del` | Colour, delete (`⌘Z` undoes) |
 
 | Secrets | |
 |---|---|
@@ -155,7 +174,9 @@ my-vault/
 ```json
 {"frogmouth":1,"saved":"…","data":{
  "notes":[{"id":"n1","color":"straw","tags":["docs"],"html":"<p>Title</p>…","title":"Title","text":"…"}],
- "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}]}],
+ "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}],
+   "shapes":[{"id":"s1","type":"rect","x":440,"y":80,"w":160,"h":96,"z":2,"color":"sea","text":"API"},
+             {"id":"s2","type":"line","a":{"note":"n1"},"b":{"shape":"s1"},"head":"end","color":"moth","text":""}]}],
  "secrets":[{"id":"…","key":"DATABASE_URL","value":"…","tags":["env:prod","db"],"desc":""}],
  "ui":{"board":"…","active":"b:…"}}}
 ```
@@ -196,6 +217,7 @@ src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor
 src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images
 src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange, note tags
+src/js/07c-draw.js    diagrams: boxes, frames, lines and arrows on a board
 src/js/08-secrets.js  secrets list, JSON export
 src/js/08b-notes.js   all-notes page: sort, filter, tags, links
 src/js/09-palette.js  search and commands

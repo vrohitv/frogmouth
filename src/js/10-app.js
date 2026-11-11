@@ -4,6 +4,7 @@ import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
 import { Popup, Modal, inlineField } from './05-ui.js';
 import { Board } from './07-board.js';
+import { Draw } from './07c-draw.js';
 import { Peek } from './07b-peek.js';
 import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
@@ -41,7 +42,7 @@ export const App = (() => {
 
 
     const actions = h('div', { class: 'w-actions' });
-    card.append(h('p', { class: 'w-lead', text: 'Sticky notes and secrets, kept in one file in a folder you choose.' }), actions);
+    card.append(h('p', { class: 'w-lead', text: 'Sticky notes, diagrams and secrets, kept in one file in a folder you choose.' }), actions);
     if (Store.canPickDir()) {
       actions.append(h('button', { class: 'btn primary big', html: `${icon('folder')} Open a folder <kbd>${kb('enter')}</kbd>`, onclick: pickFolder }));
       const ul = h('div', { class: 'w-recents' });
@@ -218,21 +219,23 @@ export const App = (() => {
   }
   function renderBoards() {
     const d = Store.S.data;
-    const many = d.boards.length > 1;
     const shown = pillBoards();
     const hidden = d.boards.length - shown.length;
     const pills = shown.map((b, i) => {
       const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
-        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename (F2), drag to reorder (${kb('alt+shift+[ / ]')}).` },
+        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename (F2), drag to reorder (${kb('alt+shift+[ / ]')}). Right-click for more.` },
+        b.pinned ? h('span', { class: 'bp-pin', html: icon('pin'), 'aria-label': 'Pinned' }) : null,
         h('span', { class: 'bp-name', text: b.name }),
-        many ? h('button', { class: 'bp-x', title: 'Delete board', 'aria-label': `Delete ${b.name}`, html: icon('x'), tabindex: '-1' }) : null);
+        on ? h('button', { class: 'bp-edit', title: 'Rename (F2)', 'aria-label': `Rename ${b.name}`, html: icon('edit'), tabindex: '-1' }) : null);
       pill.addEventListener('click', (e) => {
-        if (e.target.closest('.bp-x')) { e.stopPropagation(); deleteBoard(b.id); return; }
+        if (e.target.closest('.bp-edit')) { e.stopPropagation(); renameBoard(b.id); return; }
         if (pill.querySelector('input')) return;
         activate('b:' + b.id);
       });
-      pill.addEventListener('dblclick', (e) => { if (!e.target.closest('.bp-x')) renameBoard(b.id); });
+      pill.addEventListener('dblclick', (e) => { if (!e.target.closest('.bp-edit')) renameBoard(b.id); });
+      // delete lives in a menu, not on a small hover target next to the name
+      pill.addEventListener('contextmenu', (e) => { if (pill.querySelector('input')) return; e.preventDefault(); boardMenu(b, e.clientX, e.clientY); });
       pill.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-board', b.id); e.dataTransfer.effectAllowed = 'move'; pill.classList.add('dragging'); });
       pill.addEventListener('dragend', () => pill.classList.remove('dragging'));
       pill.addEventListener('dragover', (e) => {
@@ -266,6 +269,17 @@ export const App = (() => {
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
+  function togglePin(b) { if (b.pinned) delete b.pinned; else b.pinned = true; Store.change('boards'); }
+  /* a pill's right-click menu */
+  function boardMenu(b, x, y) {
+    const items = [
+      { id: 'rename', label: 'Rename', icon: 'edit', hint: 'F2' },
+      { id: 'pin', label: b.pinned ? 'Unpin' : 'Pin: always keep a pill', icon: 'pin', hint: kb('alt+p') },
+    ];
+    if (Store.S.data.boards.length > 1) items.push({ id: 'delete', label: 'Delete board…', icon: 'x' });
+    Popup.open({ x, y, title: b.name, items, onPick: (it) => ({ rename: () => renameBoard(b.id), pin: () => togglePin(b), delete: () => deleteBoard(b.id) })[it.id]() });
+  }
+
   /* ── the Boards panel: every board, searchable, with pin / rename / delete ──
      ↑↓ move, Enter open (or create the typed name), Alt+P pin, F2 rename, Mod+Shift+Backspace delete, Esc close */
   let panel = null;
@@ -294,29 +308,44 @@ export const App = (() => {
       count.textContent = q ? `${scored.length} of ${d.boards.length}` : `${d.boards.length} ${d.boards.length === 1 ? 'board' : 'boards'}`;
       paint();
     }
+    // what is on a board, so it can be told apart by more than its name
+    function preview(b) {
+      if (!b.items.length) return 'Empty';
+      const t = b.items.slice(0, 3).map((it) => { const ref = Store.noteRef(it.note); return (ref && ref.note.title) || 'Untitled'; }).join(', ');
+      return t + (b.items.length > 3 ? ` +${b.items.length - 3}` : '');
+    }
+    const rowEl = (i) => list.querySelector(`.bd-row[data-i="${i}"]`);
     function paint() {
-      list.innerHTML = rows.map((r, i) => r.create
-        ? `<div class="bd-row bd-create${i === idx ? ' on' : ''}" data-i="${i}">${icon('plus')}<span class="bd-name">Create board “${esc(r.create)}”</span></div>`
-        : `<div class="bd-row${i === idx ? ' on' : ''}${r.b.id === d.ui.board && isBoardView() ? ' current' : ''}" data-i="${i}">` +
-          `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${kb('alt+p')})">${icon('pin')}</button>` +
-          `<span class="bd-name">${r.m ? markPositions(r.b.name, r.m.p) : esc(r.b.name)}</span>` +
-          `<span class="bd-meta">${r.b.items.length} ${r.b.items.length === 1 ? 'note' : 'notes'}</span>` +
-          `<span class="bd-meta bd-when">${esc(ago(r.b.opened))}</span>` +
-          `<span class="bd-acts"><button data-a="rename" tabindex="-1" title="Rename (F2)">${icon('edit')}</button>` +
-          `<button data-a="delete" tabindex="-1" title="Delete board (${kb('mod+shift+backspace')}); its notes stay in All notes">${icon('x')}</button></span></div>`).join('') ||
-        '<div class="pal-empty">No boards.</div>';
-      const on = list.children[idx]; if (on) on.scrollIntoView({ block: 'nearest' });
+      const grouped = !inp.value.trim();
+      let out = '', head = null;
+      rows.forEach((r, i) => {
+        // with nothing typed: pinned boards first, then the rest by when they were last opened
+        const sec = r.create ? null : r.b.pinned ? 'Pinned' : 'Boards';
+        if (grouped && sec && sec !== head && (sec === 'Pinned' || rows.some((x) => x.b && x.b.pinned))) out += `<div class="bd-head">${sec}</div>`;
+        if (sec) head = sec;
+        out += r.create
+          ? `<div class="bd-row bd-create${i === idx ? ' on' : ''}" data-i="${i}">${icon('plus')}<span class="bd-name">Create board “${esc(r.create)}”</span></div>`
+          : `<div class="bd-row${i === idx ? ' on' : ''}${r.b.id === d.ui.board && isBoardView() ? ' current' : ''}" data-i="${i}">` +
+            `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${kb('alt+p')})">${icon('pin')}</button>` +
+            `<span class="bd-text"><span class="bd-name">${r.m ? markPositions(r.b.name, r.m.p) : esc(r.b.name)}</span><span class="bd-sub">${esc(preview(r.b))}</span></span>` +
+            `<span class="bd-meta">${r.b.items.length} ${r.b.items.length === 1 ? 'note' : 'notes'}</span>` +
+            `<span class="bd-meta bd-when">${esc(ago(r.b.opened))}</span>` +
+            `<span class="bd-acts"><button data-a="rename" tabindex="-1" title="Rename (F2)">${icon('edit')}</button>` +
+            `<button data-a="delete" tabindex="-1" title="Delete board (${kb('mod+shift+backspace')}); its notes stay in All notes">${icon('x')}</button></span></div>`;
+      });
+      list.innerHTML = out || '<div class="pal-empty">No boards.</div>';
+      const on = rowEl(idx); if (on) on.scrollIntoView({ block: 'nearest' });
     }
     function open(r) {
       close();
       if (r.create) { const b = { id: uid(), name: r.create, created: now(), items: [] }; d.boards.push(b); Store.change('boards'); activate('b:' + b.id); }
       else activate('b:' + r.b.id);
     }
-    function pin(r) { if (!r || r.create) return; r.b.pinned = !r.b.pinned; if (!r.b.pinned) delete r.b.pinned; Store.change('boards'); paint(); }
+    function pin(r) { if (!r || r.create) return; togglePin(r.b); paint(); }
     function rename(r) {
       if (!r || r.create) return;
       if (renaming) renaming(true); // one rename at a time: the one in progress is kept
-      const row = list.children[rows.findIndex((x) => x.b === r.b)]; if (!row) return;
+      const row = rowEl(rows.findIndex((x) => x.b === r.b)); if (!row) return;
       const name = row.querySelector('.bd-name');
       const ri = h('input', { class: 'bp-input bd-rename', value: r.b.name, spellcheck: 'false', 'aria-label': 'Board name' });
       name.replaceChildren(ri);
@@ -454,8 +483,10 @@ export const App = (() => {
     const d = Store.S.data;
     const b = Store.board(id); if (!b) return;
     if (d.boards.length === 1) { toast('A vault keeps at least one board'); return; }
-    const n = b.items.length;
-    if (n && !(await Modal.confirm(`Delete the board “${b.name}”?`, `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards. You can undo right after.`, 'Delete board'))) return;
+    const n = b.items.length, k = Store.shapes(b).length;
+    // notes live on in the library; shapes belong to this board alone and go with it
+    const says = [n ? `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards.` : '', k ? `Its ${k} ${k === 1 ? 'shape is' : 'shapes are'} deleted with it.` : ''].filter(Boolean).join(' ');
+    if ((n || k) && !(await Modal.confirm(`Delete the board “${b.name}”?`, `${says} You can undo right after.`, 'Delete board'))) return;
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
     Store.index();
@@ -544,6 +575,8 @@ export const App = (() => {
       { title: 'List all notes', key: kb('alt+l'), run: () => showView('notes') },
       { title: 'Open secrets', key: kb('alt+s'), run: () => showView('secrets') },
       { title: 'Add an existing note to this board', key: 'A', when: isBoardView, run: () => Board.addExisting() },
+      ...[['Draw a rectangle', 'R', 'rect'], ['Draw an ellipse', 'O', 'ellipse'], ['Draw a diamond', 'D', 'diamond'], ['Add text', 'X', 'text'],
+        ['Draw a line', 'L', 'line'], ['Draw an arrow', 'C', 'arrow'], ['Draw a frame', 'F', 'frame']].map(([title, key, t]) => ({ title, key, when: isBoardView, run: () => Draw.setTool(t) })),
       { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
       { title: 'Boards: find, pin, rename, delete…', key: kb('alt+j'), run: boardPicker },
       { title: 'Next board', key: kb('alt+]'), run: () => cycleBoard(1) },
@@ -565,7 +598,8 @@ export const App = (() => {
   function shortcuts() {
     const rows = [
       ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('alt+shift+[ / ]'), 'Move this board left / right'], ['F2', 'Rename this board'], [kb('mod+z'), 'Undo a delete or arrange'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
-      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], [kb('alt+shift') + ' arrows', 'Resize'], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['L', 'Notes that link here'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
+      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], [kb('alt+shift') + ' arrows', 'Resize'], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['B', 'Notes that link here'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
+      ['Drawing', [['V / Esc', 'Select'], ['R O D', 'Rectangle, ellipse, diamond'], ['X', 'Text'], ['L / C', 'Line / arrow'], ['F', 'Frame'], ['Drag / click', 'Draw / default size'], ['Double-click, ' + kb('enter'), 'Edit the text or label'], ['Drag a side dot', 'Connect with an arrow'], ['Drag a line end', 'Attach it elsewhere'], ['[ ]', 'Send to back / bring to front'], ['1–9', 'Colour'], ['Del', 'Delete (undo with ' + kb('mod+z') + ')']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], [kb('mod+enter'), 'Tick a todo item'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], [kb('enter'), 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s / ' + kb('shift+s'), 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], [kb('shift+c'), 'Copy key name'], ['Space', 'Reveal value'], [kb('enter') + '  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete (confirmed three times)']]],

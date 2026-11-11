@@ -6,6 +6,7 @@ import { Popup } from '../src/js/05-ui.js';
 import { Peek } from '../src/js/07b-peek.js';
 import { Editor } from '../src/js/06-editor.js';
 import { Board } from '../src/js/07-board.js';
+import { Draw } from '../src/js/07c-draw.js';
 import { Secrets } from '../src/js/08-secrets.js';
 import { NotesList } from '../src/js/08b-notes.js';
 import { Palette } from '../src/js/09-palette.js';
@@ -877,6 +878,16 @@ import { App } from '../src/js/10-app.js';
       keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
       ok('and undo brings it back', Store.S.data.secrets.includes(victim) && Store.S.data.secrets.length === 5);
     }
+    {
+      // editing is visible: every row has a pencil that opens the editor
+      const row = $$('.srow').find((r) => r.querySelector('.s-keyname').textContent === 'DATABASE_URL');
+      const pen = row.querySelector('.s-act [data-a="edit"]');
+      ok('every secret row has a visible edit button', $$('.srow').every((r) => r.querySelector('.s-act [data-a="edit"]')) && !!pen && pen.getBoundingClientRect().width > 0);
+      if (pen) pen.click();
+      await wait(40);
+      ok('the edit button opens the editor on that secret', !$('.s-drawer').hidden && $('.s-drawer .d-head h3').textContent === 'DATABASE_URL');
+      keydown($('.s-drawer'), 'Escape'); await wait(20);
+    }
     ok('tag row is a pivot: plain tags, then each key with its values', $$('.secrets .s-tagrow > .chip').map((c) => c.dataset.tag).join() === 'aws,billing,db,example' && $$('.secrets .tp-group .tp-k').length === 1 && $$('.secrets .tp-group .tp-v').map((c) => c.dataset.tag).join() === 'env:dev,env:prod,env:staging', $$('.secrets .s-tagrow .chip').map((c) => c.dataset.tag).join());
     {
       // tags: AND with spaces, OR with commas, any value with key:, deeper levels by prefix
@@ -944,8 +955,35 @@ import { App } from '../src/js/10-app.js';
     ok('Esc cancels a rename', infra.name === 'Infra ops' && !$('.bp-input'));
     $$('.board-pill')[0].click();
     ok('clicking a pill switches board', Store.S.data.ui.active === 'b:' + Store.S.data.boards[0].id);
-    $(`.board-pill[data-id="${infra.id}"] .bp-x`).click();
-    ok('x deletes an empty board', !Store.board(infra.id) && $$('.board-pill').length === nBoards);
+    {
+      // the open board's pill has a pencil that renames in place
+      const b0 = Store.S.data.boards[0], was = b0.name;
+      const pen = $('.board-pill.on .bp-edit');
+      ok('the open board pill shows a rename button', !!pen && getComputedStyle(pen).opacity !== '0');
+      if (pen) pen.click();
+      await wait(20);
+      const ri = $('.board-pill input.bp-input');
+      ok('it renames in place', !!ri);
+      if (ri) { ri.value = 'Renamed by pencil'; keydown(ri, 'Enter'); }
+      await wait(20);
+      ok('and saves the name', b0.name === 'Renamed by pencil');
+      b0.name = was; Store.change('boards');
+    }
+    {
+      // right-click a pill: rename, pin, delete (no hover cross to mis-hit)
+      ok('pills have no delete cross', !$('.board-pill .bp-x'));
+      const menu = async () => { $(`.board-pill[data-id="${infra.id}"]`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 30 })); await wait(30); };
+      const pickItem = (w) => { const it = $$('.pop .pop-item').find((e) => e.textContent.includes(w)); if (it) it.click(); }; // menus act on a full click (1.2.2)
+      await menu();
+      const labels = $$('.pop .pop-item').map((e) => e.textContent);
+      ok('right-click on a pill offers rename, pin and delete', ['Rename', 'Pin', 'Delete board'].every((w) => labels.some((l) => l.includes(w))), labels.join('|'));
+      pickItem('Pin'); await wait(20);
+      ok('pinning from the menu marks the pill', Store.board(infra.id).pinned === true && !!$(`.board-pill[data-id="${infra.id}"] .bp-pin`));
+      await menu(); pickItem('Unpin'); await wait(20);
+      ok('and unpinning removes the mark and the field', !('pinned' in Store.board(infra.id)) && !$(`.board-pill[data-id="${infra.id}"] .bp-pin`));
+      await menu(); pickItem('Delete board'); await wait(30);
+    }
+    ok('the menu deletes an empty board', !Store.board(infra.id) && $$('.board-pill').length === nBoards);
     keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
     ok('undo restores the board', !!Store.board(infra.id));
     App.openTab('secrets');
@@ -1092,6 +1130,22 @@ import { App } from '../src/js/10-app.js';
       ok('alt+P pins a board', p3.pinned === true && !!$('.bd-row .bd-pin.pinned'));
       keydown(bin2, 'Escape');
       ok('Esc closes the panel', !$('.bd-panel'));
+      {
+        // the panel: pinned boards first, two-line rows that preview the board, actions always visible
+        keydown(document.body, 'j', { altKey: true, code: 'KeyJ' }); await wait(30);
+        const heads = $$('.bd-list .bd-head').map((e) => e.textContent);
+        ok('the panel groups pinned boards first', heads[0] === 'Pinned' && heads[1] === 'Boards' && $('.bd-list .bd-row .bd-name').textContent === 'Project 3', heads.join('|'));
+        const row = $$('.bd-row').find((r) => r.querySelector('.bd-name').textContent === d.boards[0].name);
+        const firstTitle = (Store.noteRef(d.boards[0].items[0].note).note.title || '').slice(0, 12);
+        ok('a row previews what is on the board', !!row && !!row.querySelector('.bd-sub') && row.querySelector('.bd-sub').textContent.includes(firstTitle), row && row.textContent);
+        ok('rows are comfortable to hit', row && row.getBoundingClientRect().height >= 44, row && row.getBoundingClientRect().height);
+        ok('row actions are visible without hovering', row && getComputedStyle(row.querySelector('.bd-acts')).opacity !== '0');
+        const bi = $('.bd-input'); bi.value = 'Proj'; bi.dispatchEvent(new Event('input')); await wait(20);
+        ok('typing gives one flat list', !$('.bd-list .bd-head') && $$('.bd-row').length >= 30);
+        keydown(bi, 'ArrowDown'); 
+        ok('arrow keys still walk the rows', $$('.bd-row')[1].classList.contains('on'));
+        keydown(bi, 'Escape'); await wait(20);
+      }
       for (let k = 20; k <= 26; k++) App.openTab('b:' + d.boards.find((b) => b.name === `Project ${k}`).id); // use lots of other boards
       ok('a pinned board keeps its pill', $$('.board-pill .bp-name').some((e) => e.textContent === 'Project 3'));
       // rename and delete from the panel
@@ -1130,6 +1184,54 @@ import { App } from '../src/js/10-app.js';
       ok('JSON that is not a vault is refused', /not a frogmouth vault/.test(err(JSON.stringify([{ key: 'A', value: 'b' }]))) && /not a frogmouth vault/.test(err(JSON.stringify({ notes: [], boards: [] }))) && /not valid JSON/.test(err('{oops')));
       ok('a version 1 vault is read', err(Store.serialize()) === '' && Array.isArray(Store.parse(Store.serialize()).notes));
     }
+    {
+      // shapes on boards (since 1.3): additive, validated, unknown types and fields kept
+      const raw = { notes: [{ id: 'n1', html: '<p>A</p>' }], boards: [{ id: 'b1', name: 'B', items: [{ note: 'n1', x: 0, y: 0, w: 200, h: 100 }], shapes: [
+        { id: 's1', type: 'rect', x: 10.4, y: 20, w: 5, h: 5, color: 'sea', text: 'API', extra: { keep: 1 } },
+        { id: 's2', type: 'cloud', puff: 3 },
+        { id: 's3', type: 'line', a: { shape: 's1' }, b: { note: 'n1' }, head: 'end' },
+        { id: 's4', type: 'line', a: { shape: 'gone' }, b: { x: 5, y: 5 } },
+        'junk', { id: 's1', type: 'rect' },
+      ] }, { id: 'b2', name: 'C', items: [] }] };
+      const d = Store.normalize(JSON.parse(JSON.stringify(raw)));
+      const sh = d.boards[0].shapes, by = (id) => sh.find((x) => x.id === id);
+      ok('a box keeps unknown fields and gets the minimum size', by('s1').extra.keep === 1 && by('s1').w === 24 && by('s1').h === 24 && by('s1').color === 'sea' && by('s1').text === 'API', JSON.stringify(by('s1')));
+      ok('a shape type from a newer release is kept as it is', JSON.stringify(by('s2')) === JSON.stringify(raw.boards[0].shapes[1]));
+      ok('a line to something not on the board is dropped; junk and duplicates are dropped', !by('s4') && sh.length === 3, JSON.stringify(sh));
+      ok('a board without shapes has no shapes field', !('shapes' in d.boards[1]) && Store.shapes(d.boards[1]).length === 0 && !('shapes' in d.boards[1]));
+      const out = Store.detach(d.boards[0], 'note', 'n1', { x: 100, y: 50 });
+      ok('detaching turns an attached end into a free point', out.length === 1 && out[0].end === 'b' && by('s3').b.x === 100 && by('s3').b.y === 50 && !('note' in by('s3').b));
+      Store.reattach(out);
+      ok('and undo attaches it again', by('s3').b.note === 'n1' && !('x' in by('s3').b));
+      const nb = d.boards[1];
+      const box = Store.addShape(nb, { id: 'q', type: 'rect', x: 0, y: 0, w: 40, h: 40, z: 1, color: 'moth', text: '' });
+      ok('adding a shape creates the field', nb.shapes.length === 1 && nb.shapes[0] === box);
+      const gone = Store.dropShape(nb, 'q');
+      ok('dropping the last shape removes the field', !('shapes' in nb) && gone.shape === box);
+      Store.putShape(nb, gone);
+      ok('putting it back restores it', nb.shapes[0] === box);
+      const sd = Store.dropShape(d.boards[0], 's1');
+      ok('dropping a box frees lines attached to it, at its centre', Math.abs(by('s3').a.x - 22.4) < 0.01 && by('s3').a.y === 32 && sd.detached.length === 1, JSON.stringify(by('s3').a));
+      Store.putShape(d.boards[0], sd);
+      ok('and putting it back re-attaches them', by('s3').a.shape === 's1');
+      const back = JSON.parse(JSON.stringify(d));
+      ok('shapes survive a save', back.boards[0].shapes.length === 3 && back.boards[0].shapes.find((x) => x.id === 's2').puff === 3);
+    }
+    {
+      // where a line meets an outline, and how it is routed
+      const R = { x: 0, y: 0, w: 100, h: 100 }, near = (p, x, y) => Math.abs(p.x - x) < 0.01 && Math.abs(p.y - y) < 0.01;
+      ok('a box is met on its edge', near(Draw.anchor(R, 'box', { x: 300, y: 50 }), 100, 50) && near(Draw.anchor(R, 'box', { x: 150, y: 250 }), 75, 100));
+      ok('an ellipse is met on its curve', near(Draw.anchor(R, 'ellipse', { x: 150, y: 150 }), 85.355, 85.355), JSON.stringify(Draw.anchor(R, 'ellipse', { x: 150, y: 150 })));
+      ok('a diamond is met on its side', near(Draw.anchor(R, 'diamond', { x: 150, y: 150 }), 75, 75));
+      ok('a thing asked for its own centre gives the centre', near(Draw.anchor(R, 'box', { x: 50, y: 50 }), 50, 50));
+      const B = { x: 300, y: 200, w: 100, h: 100 };
+      const st = Draw.route({ rect: R, kind: 'box' }, { x: 300, y: 50 }, 'straight');
+      ok('a straight line stops 6 units short of what it is attached to', st.length === 2 && near(st[0], 106, 50) && near(st[1], 300, 50), JSON.stringify(st));
+      const e = Draw.route({ rect: R, kind: 'box' }, { rect: B, kind: 'box' }, 'elbow');
+      ok('an elbow leaves the facing sides and turns half way', e.length === 4 && near(e[0], 106, 50) && near(e[1], 200, 50) && near(e[2], 200, 250) && near(e[3], 294, 250), JSON.stringify(e));
+      const v = Draw.route({ rect: R, kind: 'box' }, { rect: { x: 0, y: 400, w: 100, h: 100 }, kind: 'box' }, 'elbow');
+      ok('things stacked vertically connect top to bottom', near(v[0], 50, 106) && near(v[3], 50, 394), JSON.stringify(v));
+    }
 
     // notes are shared: one note on several boards; deleting a board keeps its notes
     {
@@ -1146,8 +1248,10 @@ import { App } from '../src/js/10-app.js';
       ok('placements keep their own geometry', Board.item(welcome.id) !== d.boards[0].items.find((it) => it.note === welcome.id));
       Board.addNote({ x: 600, y: 300 }, false, '<p>Only on Side</p>');
       const onlySide = [...Store.S.notes.values()].find(({ note }) => note.title === 'Only on Side').note;
-      // delete the board through the pill (confirm modal, since it has notes)
-      $(`.board-pill[data-id="${side.id}"] .bp-x`).click();
+      // delete the board through the pill's menu (confirm modal, since it has notes)
+      $(`.board-pill[data-id="${side.id}"]`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 30 }));
+      await wait(30);
+      $$('.pop .pop-item').find((e) => e.textContent.includes('Delete board')).click();
       await wait(30);
       const confirmBtn = $('.modal .btn.primary');
       ok('deleting a board says its notes stay', !!confirmBtn && /stay in All notes/.test($('.modal').textContent));
@@ -1179,6 +1283,309 @@ import { App } from '../src/js/10-app.js';
       keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
       ok('undo restores a deleted note', !!Store.noteRef(onlySide.id) && Store.noteRef(onlySide.id).boards.length === 1);
       App.openTab('secrets');
+    }
+
+    // diagrams: boxes, lines and frames on a board
+    const vpEl = () => $('.board-vp');
+    const atVp = (x, y) => { const r = vpEl().getBoundingClientRect(); return { clientX: r.left + x, clientY: r.top + y }; };
+    const dptr = (type, el, x, y, o = {}) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, ...atVp(x, y), ...o }));
+    const drawDrag = async (tool, x1, y1, x2, y2) => { keydown(document.body, tool); dptr('pointerdown', vpEl(), x1, y1); dptr('pointermove', window, x2, y2); dptr('pointerup', window, x2, y2); await wait(30); };
+    const undoKey = () => keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+    {
+      const b = { id: uid(), name: 'Diagram', created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.change('boards'); App.openTab('b:' + b.id); await wait(80);
+      ok('the board has a toolbar of drawing tools', $$('.draw-bar button').length >= 5 && $('.draw-bar').getBoundingClientRect().width > 0);
+      Board.zoomAt(1); await frame();
+      const c0 = atVp(300, 200), p0 = Board.toBoard(c0.clientX, c0.clientY);
+      await drawDrag('r', 300, 200, 460, 296);
+      const s = Store.shapes(b)[0];
+      ok('R then a drag draws a rectangle under the pointer, on the grid', s && s.type === 'rect' && Math.abs(s.x - p0.x) <= 8 && Math.abs(s.y - p0.y) <= 8 && s.w === 160 && s.h === 96 && s.x % 8 === 0, JSON.stringify([s, p0]));
+      ok('the tool goes back to Select and the new box is being typed in', Draw.tool() === 'select' && document.activeElement.classList.contains('shape-text'));
+      await type('rod xl cfv');
+      ok('letters typed into a box are text, not tools', Draw.tool() === 'select' && Store.shapes(b).length === 1);
+      keydown(document.activeElement, 'Escape'); await wait(20);
+      ok('a box only grows when its text does not fit', s.h === 96, s.h);
+      ok('the text is saved as plain text', s.text === 'rod xl cfv' && $('.shape .shape-text').textContent === 'rod xl cfv', s.text);
+
+      Board.zoomAt(0.2); await frame();
+      const c1 = atVp(400, 300), q = Board.toBoard(c1.clientX, c1.clientY);
+      keydown(document.body, 'o'); dptr('pointerdown', vpEl(), 400, 300); dptr('pointerup', window, 400, 300); await wait(30);
+      keydown(document.activeElement, 'Escape'); await wait(10);
+      const e = Store.shapes(b)[1];
+      ok('a click at 20% zoom drops a default ellipse centred under the pointer', e && e.type === 'ellipse' && e.w === 160 && e.h === 96 && Math.abs(e.x + 80 - q.x) <= 8 && Math.abs(e.y + 48 - q.y) <= 8, JSON.stringify([e, q]));
+      Board.zoomAt(2.5); await frame();
+      const c2 = atVp(500, 300), q2 = Board.toBoard(c2.clientX, c2.clientY);
+      keydown(document.body, 'd'); dptr('pointerdown', vpEl(), 500, 300); dptr('pointerup', window, 500, 300); await wait(30);
+      keydown(document.activeElement, 'Escape'); await wait(10);
+      const dm = Store.shapes(b)[2];
+      ok('and at 250%', dm && dm.type === 'diamond' && Math.abs(dm.x + 80 - q2.x) <= 8 && Math.abs(dm.y + 48 - q2.y) <= 8, JSON.stringify([dm, q2]));
+      Board.zoomAt(1); await frame();
+
+      const n = Board.addNote({ x: 600, y: 80 }, false, '<p>beside a box</p>');
+      Board.selectAll();
+      ok('select all takes notes and boxes together', Board.selection().length === 4, JSON.stringify(Board.selection()));
+      const x0 = s.x, nx0 = Board.item(n.id).x;
+      keydown(document.body, 'ArrowRight'); await wait(20);
+      ok('arrows nudge both', s.x === x0 + 8 && Board.item(n.id).x === nx0 + 8, JSON.stringify([s.x, x0, Board.item(n.id).x, nx0]));
+      Board.select(s.id); keydown(document.body, '7'); await wait(20);
+      ok('1-9 colours a box', s.color === 'sea' && $(`.shape[data-id="${s.id}"]`).classList.contains('paper-sea'));
+      const zBefore = s.z; Board.select(dm.id); keydown(document.body, '['); await wait(10);
+      ok('[ sends a box behind everything', dm.z < Math.min(...[...b.items, ...Store.shapes(b)].filter((m) => m !== dm && m.z != null).map((m) => m.z)), JSON.stringify([dm.z, zBefore]));
+      {
+        const alien = { id: uid(), type: 'cloud', z: 1, puff: 2 };
+        Store.addShape(b, alien); const before = JSON.stringify(alien);
+        Board.select(e.id); keydown(document.body, '['); await wait(10);
+        ok('shapes of a type from a newer release are never changed', JSON.stringify(alien) === before && !$(`[data-id="${alien.id}"]`), JSON.stringify(alien));
+        b.shapes.splice(b.shapes.indexOf(alien), 1);
+      }
+      Board.select(s.id);
+      keydown(document.body, 'Delete'); await wait(20);
+      ok('Del deletes a box at once, with undo', Store.shapes(b).length === 2 && !$(`.shape[data-id="${s.id}"]`));
+      undoKey(); await wait(30);
+      ok('undo brings it back', Store.shapes(b).length === 3 && !!$(`.shape[data-id="${s.id}"]`));
+      keydown(document.body, 'd', { metaKey: isMac, ctrlKey: !isMac }); await wait(20);
+      ok('duplicate copies a box beside it', Store.shapes(b).length === 4 && Store.shapes(b)[3].x === s.x + 24 && Store.shapes(b)[3].text === s.text);
+      keydown(document.body, 'Delete'); await wait(20);
+      ok('shapes count as the board not being empty', $('.board-empty').hidden);
+
+      keydown(document.body, 'r');
+      ok('a tool shows a crosshair board', vpEl().classList.contains('drawing'));
+      Board.unmount(); App.enter(); await wait(60); // what a reload from disk does: the board is mounted afresh
+      ok('a reload leaves the board in Select with nothing half-drawn', Draw.tool() === 'select' && !$('.shape-preview') && !vpEl().classList.contains('drawing'));
+      for (const th of ['night', 'day']) {
+        document.documentElement.dataset.theme = th; await frame();
+        const cs = getComputedStyle($('.shape .shape-bg').firstElementChild);
+        ok(`box outlines are visible in the ${th} theme`, cs.stroke !== cs.fill && cs.stroke !== 'none' && parseFloat(cs.strokeWidth) >= 1, cs.stroke + ' ' + cs.fill);
+      }
+      document.documentElement.dataset.theme = 'night';
+      const serial = JSON.parse(Store.serialize()).data.boards.find((x) => x.id === b.id);
+      {
+        const tx = Store.addShape(b, { id: uid(), type: 'text', x: 0, y: 900, w: 160, h: 40, z: 60, color: 'moth', text: 'a label' });
+        Board.unmount(); App.enter(); await wait(40);
+        const outer = $(`.shape[data-id="${tx.id}"]`), cs = getComputedStyle(outer);
+        ok('a text shape keeps its resize handles reachable (not clipped by its own text styles)', cs.overflow === 'visible' && cs.paddingLeft === '0px' && outer.querySelectorAll('.shape-text').length === 1);
+        Draw.remove([tx.id]); await wait(10);
+      }
+      ok('drawn shapes are saved with the board', serial.shapes.length === 3 && serial.shapes.every((x) => x.id && x.type && Number.isFinite(x.w)));
+    }
+
+    {
+      // lines and arrows that stick to notes and boxes
+      const b = Board.current();
+      const A = Store.addShape(b, { id: uid(), type: 'rect', x: 0, y: 0, w: 96, h: 96, z: 50, color: 'moth', text: 'A' });
+      const B = Store.addShape(b, { id: uid(), type: 'ellipse', x: 400, y: 0, w: 96, h: 96, z: 51, color: 'moth', text: 'B' });
+      const n = Board.addNote({ x: 0, y: 400 }, false, '<p>a note</p>');
+      Board.unmount(); App.enter(); await wait(60);
+      Board.fit(); await wait(450);
+      const mid = (id) => { const r = (Draw.el(id) || Board.el(id)).getBoundingClientRect(), v = vpEl().getBoundingClientRect(); return [r.left - v.left + r.width / 2, r.top - v.top + r.height / 2]; };
+      const connect = async (key, from, to) => { keydown(document.body, key); dptr('pointerdown', vpEl(), ...from); dptr('pointermove', window, ...to); dptr('pointerup', window, ...to); await wait(40); };
+      await connect('c', mid(A.id), mid(B.id));
+      const ln = Draw.lines()[0];
+      ok('C draws an arrow attached at both ends', ln && ln.a.shape === A.id && ln.b.shape === B.id && ln.head === 'end' && !('x' in ln.a), JSON.stringify(ln));
+      let pts = Draw.points(ln);
+      ok('it runs between the outlines, not the centres', pts[0].x >= 96 && pts[pts.length - 1].x <= 400, JSON.stringify(pts));
+      ok('an arrow has a head at its end only', $$(`.wire[data-id="${ln.id}"] .wire-head`).length === 1);
+      B.x = 400; B.y = 320; Draw.place(B); await frame(); await frame();
+      pts = Draw.points(ln);
+      ok('the arrow follows a moved box', pts[pts.length - 1].y > 300 && $(`.wire[data-id="${ln.id}"] .wire-hit`).getAttribute('d').includes(pts[pts.length - 1].y.toFixed(1)), JSON.stringify(pts));
+
+      await connect('c', mid(A.id), mid(n.id));
+      const l2 = Draw.lines()[1];
+      ok('an arrow can end on a note', l2 && l2.b.note === n.id, JSON.stringify(l2));
+      const before = JSON.stringify(Draw.points(l2));
+      const other = Store.S.data.boards[0]; Store.place(other.id, n.id, { x: 900, y: 900 });
+      other.items.find((it) => it.note === n.id).x = 5000;
+      Draw.redraw(); await frame(); await frame();
+      ok('a note moved on another board does not move the arrow here', JSON.stringify(Draw.points(l2)) === before);
+      Store.unplace(other.id, n.id);
+      const h0 = Draw.points(l2)[1].y;
+      Board.select(n.id); keydown(document.body, 'ArrowDown'); await frame(); await frame();
+      ok('an arrow follows a note that moves', Math.abs(Draw.points(l2)[1].y - (h0 + 8)) < 0.5, JSON.stringify([h0, Draw.points(l2)]));
+
+      Board.zoomAt(0.3); await frame();
+      await connect('l', [80, 140], [200, 200]);
+      const l3 = Draw.lines()[2];
+      ok('L draws a plain line between two free points', l3 && l3.head === 'none' && 'x' in l3.a && 'x' in l3.b && !$(`.wire[data-id="${l3.id}"] .wire-head`), JSON.stringify(l3));
+      await connect('l', [mid(n.id)[0], mid(n.id)[1]], [mid(n.id)[0] + 1, mid(n.id)[1] + 1]);
+      ok('a click with the line tool leaves no stub, even on a note', Draw.lines().length === 3 && Draw.tool() === 'select');
+      Board.zoomAt(1); Board.fit(); await wait(450);
+
+      Board.select(A.id); await frame();
+      ok('a selected box offers connector dots', $$('.cdot').length === 4);
+      const dot = $$('.cdot')[1], dr = dot.getBoundingClientRect();
+      dot.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: dr.left + 4, clientY: dr.top + 4 }));
+      const tb = mid(B.id), vr = vpEl().getBoundingClientRect();
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: vr.left + tb[0], clientY: vr.top + tb[1] }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: vr.left + tb[0], clientY: vr.top + tb[1] })); await wait(40);
+      const l4 = Draw.lines()[3];
+      ok('dragging from a connector dot draws an arrow from that box', l4 && l4.a.shape === A.id && l4.b.shape === B.id && l4.head === 'end', JSON.stringify(l4));
+      Draw.remove([l4.id]); await wait(20);
+
+      // select a line by clicking it; a free line moves when dragged
+      Board.select(null); await frame();
+      const hit = $(`.wire[data-id="${l3.id}"] .wire-hit`), hr = hit.getBoundingClientRect();
+      const hx = hr.left + hr.width / 2, hy = hr.top + hr.height / 2;
+      hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: hx, clientY: hy }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: hx, clientY: hy })); await frame();
+      ok('clicking a line selects it', Board.selected() === l3.id && $(`.wire[data-id="${l3.id}"]`).classList.contains('sel'));
+      ok('a selected line shows a handle at each end', $$('.wend').length === 2);
+      const ax = l3.a.x;
+      keydown(document.body, 'ArrowRight'); await frame();
+      ok('arrows move a free line', l3.a.x === ax + 8);
+      keydown(document.body, '4'); await frame();
+      ok('1-9 colour a line', l3.color === 'rose' && $(`.wire[data-id="${l3.id}"]`).classList.contains('paper-rose'));
+      keydown(document.body, 'Enter'); await wait(20);
+      ok('Enter edits a line label', document.activeElement && document.activeElement.classList.contains('wire-label'));
+      await type('calls');
+      keydown(document.activeElement, 'Escape'); await wait(20);
+      ok('the label is saved and shown on the line', l3.text === 'calls' && $$('.wire-label').some((e) => e.textContent === 'calls'), l3.text);
+
+      // drag a line's end handle onto a box to attach it
+      Board.select(l3.id); await frame();
+      const end = $$('.wend')[1], er = end.getBoundingClientRect();
+      end.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: er.left + 5, clientY: er.top + 5 }));
+      const ta = mid(B.id);
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: vr.left + ta[0], clientY: vr.top + ta[1] }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: vr.left + ta[0], clientY: vr.top + ta[1] })); await wait(30);
+      ok('dragging an end handle onto a box attaches it', l3.b.shape === B.id && 'x' in l3.a, JSON.stringify(l3));
+
+      Draw.remove([A.id]); await wait(30);
+      ok('deleting a box frees the ends attached to it', 'x' in ln.a && 'x' in l2.a && Draw.lines().length === 3);
+      undoKey(); await wait(30);
+      ok('undo attaches them again', ln.a.shape === A.id && l2.a.shape === A.id);
+      ok('lines are drawn above notes', +getComputedStyle($('.wires')).zIndex > Math.max(...$$('.note').map((e) => +e.style.zIndex || 0)));
+    }
+
+    {
+      // frames hold what is centred inside them; lines keep their place when a note leaves
+      const b = { id: uid(), name: 'Frames', created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.change('boards'); App.openTab('b:' + b.id); await wait(60);
+      Board.zoomAt(1); await frame();
+      const fr = Store.addShape(b, { id: uid(), type: 'frame', x: 0, y: 0, w: 480, h: 320, color: 'moth', text: 'Backend' });
+      const inBox = Store.addShape(b, { id: uid(), type: 'rect', x: 40, y: 40, w: 96, h: 96, z: 2, color: 'moth', text: '' });
+      const outBox = Store.addShape(b, { id: uid(), type: 'rect', x: 600, y: 40, w: 96, h: 96, z: 3, color: 'moth', text: '' });
+      const n = Board.addNote({ x: 200, y: 100 }, false, '<p>inside</p>');
+      const ln = Store.addShape(b, { id: uid(), type: 'line', a: { note: n.id }, b: { shape: outBox.id }, head: 'end' });
+      Board.unmount(); App.enter(); await wait(60);
+      Board.zoomAt(1); await frame();
+      ok('F is the frame tool', (keydown(document.body, 'f'), Draw.tool() === 'frame') && (keydown(document.body, 'Escape'), Draw.tool() === 'select'));
+      ok('a frame shows its name and sits under notes', $('.shape-frame .frame-name').textContent === 'Backend' && +getComputedStyle($('.shape-frame')).zIndex < +getComputedStyle(Board.el(n.id)).zIndex);
+      ok('a frame holds what is centred inside it', JSON.stringify(Draw.inside(fr.id).sort()) === JSON.stringify([inBox.id, n.id].sort()), JSON.stringify(Draw.inside(fr.id)));
+      const fc = Board.toBoard(0, 0), inner = $('.shape-frame'), ir = inner.getBoundingClientRect();
+      ok('the inside of a frame lets clicks through to the board', document.elementFromPoint(ir.left + 300, ir.top + 260) && !document.elementFromPoint(ir.left + 300, ir.top + 260).closest('.shape-frame'));
+      const name = $('.shape-frame .frame-name'), r = name.getBoundingClientRect();
+      name.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: r.left + 4, clientY: r.top + 4 }));
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r.left + 84, clientY: r.top + 4 }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 84, clientY: r.top + 4 })); await wait(30);
+      ok('dragging a frame moves its contents and nothing else', fr.x === 80 && inBox.x === 120 && Board.item(n.id).x === 280 && outBox.x === 600, JSON.stringify([fr.x, inBox.x, Board.item(n.id).x, outBox.x]));
+      const ny0 = Board.item(n.id).y;
+      {
+        // its edge moves it too (corners resize)
+        const fe = $(`.shape[data-id="${fr.id}"]`).getBoundingClientRect(), ex = fe.left + 1, ey = fe.top + fe.height / 2;
+        const hitEl = document.elementFromPoint(ex, ey), fx0 = fr.x, bx0 = inBox.x, w0 = fr.w;
+        hitEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: ex, clientY: ey }));
+        dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: ex + 40, clientY: ey }));
+        dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: ex + 40, clientY: ey })); await wait(30);
+        ok('dragging a frame by its edge moves it with its contents', fr.x === fx0 + 40 && fr.w === w0 && inBox.x === bx0 + 40, JSON.stringify([fr.x, fx0, fr.w, w0, inBox.x, bx0, hitEl.className.baseVal || hitEl.className]));
+        fr.x = fx0; inBox.x = bx0; Board.item(n.id).x -= 40; Draw.place(fr); Draw.place(inBox); Board.unmount(); App.enter(); await wait(40); Board.zoomAt(1); await frame();
+      }
+      Board.select(fr.id); keydown(document.body, 'ArrowDown'); await frame();
+      ok('nudging a frame nudges its contents', fr.y === 8 && inBox.y === 48 && Board.item(n.id).y === ny0 + 8, JSON.stringify([fr.y, inBox.y, Board.item(n.id).y, Board.selected() === fr.id, document.activeElement.className]));
+
+      App.openTab('notes'); await wait(60);
+      const saved = Store.deleteNote(n.id); Store.change('notes');
+      App.openTab('b:' + b.id); await wait(60);
+      ok('a note deleted from another page leaves its arrow with a free end, and the board still opens', 'x' in ln.a && Draw.lines().length === 1 && !!$(`.wire[data-id="${ln.id}"]`));
+      Store.restoreNote(saved); Store.change('notes'); Board.unmount(); App.enter(); await wait(60);
+      ok('restoring the note attaches the arrow again', ln.a.note === n.id);
+
+      const p = Draw.points(ln)[0];
+      Board.remove(n.id); await wait(30);
+      ok('removing a note from the board leaves the arrow end where it was', 'x' in ln.a && Math.abs(ln.a.x - p.x) < 1 && Math.abs(ln.a.y - p.y) < 1, JSON.stringify([ln.a, p]));
+      undoKey(); await wait(30);
+      ok('undo puts the note back with its arrow attached', ln.a.note === n.id && !!Board.el(n.id));
+      const q = Draw.points(ln)[1];
+      Draw.remove([outBox.id]); await wait(20);
+      ok('deleting a box leaves the arrow end where it was', 'x' in ln.b && Math.abs(ln.b.x - q.x) < 1 && Math.abs(ln.b.y - q.y) < 1, JSON.stringify([ln.b, q]));
+      undoKey(); await wait(20);
+      const pe = Draw.points(ln)[0];
+      Board.select(n.id); keydown(document.body, 'Delete', { shiftKey: true }); await wait(40);
+      $('.modal .btn.primary').click(); await wait(40);
+      ok('deleting a note everywhere also leaves the arrow end in place', 'x' in ln.a && Math.abs(ln.a.x - pe.x) < 1, JSON.stringify([ln.a, pe]));
+      undoKey(); await wait(40);
+      ok('and undo re-attaches it', ln.a.note === n.id);
+    }
+    {
+      // Fit keeps everything clear of the floating bars, frame names included
+      const big = Store.addShape(Board.current(), { id: uid(), type: 'frame', x: -1200, y: -500, w: 2400, h: 1200, color: 'moth', text: 'Everything' });
+      Board.unmount(); App.enter(); await wait(60);
+      Board.fit(); await wait(450);
+      const top = $('.hud').getBoundingClientRect().bottom, bot = $('.draw-bar').getBoundingClientRect().top;
+      const rs = [...$$('.note'), ...$$('.shape'), ...$$('.frame-name')].map((e) => e.getBoundingClientRect());
+      ok('Fit keeps everything between the top bar and the tool bar', rs.every((r) => r.top >= top - 1 && r.bottom <= bot + 1), JSON.stringify([top, bot, Math.min(...rs.map((r) => r.top)), Math.max(...rs.map((r) => r.bottom))]));
+      Draw.remove([big.id]);
+    }
+
+    {
+      // the style bar: colour, fill, dash, order; straight or elbow and arrowheads for lines; find sees shape text
+      const b = Board.current();
+      const box = Store.addShape(b, { id: uid(), type: 'rect', x: 0, y: 500, w: 160, h: 96, z: 9, color: 'moth', text: 'payments broker' });
+      const ln = Store.addShape(b, { id: uid(), type: 'line', a: { x: 0, y: 700 }, b: { x: 200, y: 700 }, head: 'end', color: 'moth', text: 'queue' });
+      Board.unmount(); App.enter(); await wait(60);
+      ok('no style bar with nothing selected', !$('.draw-style') || $('.draw-style').hidden);
+      Board.select(box.id); await frame();
+      const press = (title) => { const x = $$('.draw-style button').find((e) => e.title.startsWith(title)); if (x) x.click(); return !!x; };
+      ok('selecting a box shows its styles, without line controls', !$('.draw-style').hidden && $$('.draw-style .cp-sw').length === 9 && !$$('.draw-style button').some((x) => x.title.startsWith('Elbow')));
+      press('Fill'); press('Dashed'); await frame();
+      ok('fill and dash are stored only when set', box.fill === false && box.dash === true && $(`.shape[data-id="${box.id}"]`).classList.contains('nofill'));
+      press('Fill'); press('Dashed');
+      ok('and removed when unset', !('fill' in box) && !('dash' in box));
+      $$('.draw-style .cp-sw')[3].click();
+      ok('a swatch colours the selection', box.color === 'rose');
+      ok('the current colour is marked', $$('.draw-style .cp-sw')[3].classList.contains('on'));
+      press('To back');
+      ok('To back sends it behind', box.z === Math.min(...[...b.items, ...Store.shapes(b)].filter((m) => m.z != null).map((m) => m.z)));
+      Board.select(ln.id); await frame();
+      ok('selecting a line shows line controls, not fill', press('Elbow') && !$$('.draw-style button').some((x) => x.title.startsWith('Fill')));
+      press('Both');
+      ok('a line can be an elbow with two heads', ln.route === 'elbow' && ln.head === 'both');
+      await frame(); await frame();
+      ok('both heads are drawn', $$(`.wire[data-id="${ln.id}"] .wire-head`).length === 2);
+      press('Straight'); press('No heads'); await frame(); await frame();
+      ok('straight is the absence of a route; no heads draws none', !('route' in ln) && ln.head === 'none' && !$(`.wire[data-id="${ln.id}"] .wire-head`));
+      Board.setGroup([box.id, ln.id]); await frame();
+      $$('.draw-style .cp-sw')[6].click();
+      ok('a swatch colours a mixed selection', box.color === 'sea' && ln.color === 'sea');
+      Board.select(null);
+      Board.find('broker'); await wait(60);
+      ok('find sees text in boxes', /1 of 1/.test($('.find-count').textContent), $('.find-count').textContent);
+      Board.find('queue'); await wait(60);
+      ok('and line labels', /1 of 1/.test($('.find-count').textContent), $('.find-count').textContent);
+      Board.closeFind();
+    }
+
+    {
+      // a board's shapes live only on it: deleting the board says so and asks first
+      const b = { id: uid(), name: 'Sketch only', created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.addShape(b, { id: uid(), type: 'rect', x: 0, y: 0, w: 96, h: 96, z: 1, color: 'moth', text: '' });
+      Store.change('boards'); App.openTab('b:' + b.id); await wait(40);
+      App.commands().find((c) => c.title === 'Delete board').run(); await wait(40);
+      ok('deleting a board with shapes asks first and says they go with it', !!$('.modal') && /1 shape/.test($('.modal').textContent) && !!Store.board(b.id), $('.modal') && $('.modal').textContent);
+      if ($('.modal')) $('.modal .btn.primary').click();
+      await wait(40);
+      ok('and then deletes it', !Store.board(b.id));
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+    {
+      // drawing is in the command list and the shortcuts sheet
+      const titles = App.commands().map((c) => c.title);
+      ok('drawing tools are in the command list', ['Draw a rectangle', 'Draw an ellipse', 'Draw a diamond', 'Add text', 'Draw a line', 'Draw an arrow', 'Draw a frame'].every((t) => titles.includes(t)), titles.join('|'));
+      App.commands().find((c) => c.title === 'Draw a frame').run();
+      ok('a drawing command arms its tool', Draw.tool() === 'frame');
+      Draw.setTool('select');
+      keydown(document.body, '?'); await wait(40);
+      ok('the shortcuts list has a Drawing section', $$('.keys-grid h3').some((e) => e.textContent === 'Drawing'));
+      $('.modal .btn.primary').click(); await wait(20);
     }
 
     // OPFS: real file writes through the File System Access API

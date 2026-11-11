@@ -50,6 +50,7 @@ export const Secrets = (() => {
       else if (a && a.dataset.a === 'reveal') reveal(x);
       else if (a && a.dataset.a === 'key') copyKey(x);
       else if (a && a.dataset.a === 'delete') { mark(); askDelete(x); }
+      else if (a && a.dataset.a === 'edit') edit(x);
       else { mark(); }
     });
     // a click on the dimmed page outside the editor closes it, keeping any changes
@@ -87,7 +88,8 @@ export const Secrets = (() => {
         `<div class="s-key"><button class="s-keyname" data-a="key" tabindex="-1" title="Copy key">${esc(x.key)}</button>${x.desc ? `<div class="s-desc">${esc(x.desc)}</div>` : ''}</div>` +
         `<div class="s-val${show ? ' shown' : ''}">${v}</div>` +
         `<div class="s-tags">${x.tags.map((t) => chip(t, active.has(t.toLowerCase()))).join('')}</div>` +
-        `<div class="s-act"><button data-a="reveal" title="Reveal (Space)" tabindex="-1">${icon(show ? 'eyeoff' : 'eye')}</button>` +
+        `<div class="s-act"><button data-a="edit" title="Edit (${kb('enter')})" tabindex="-1">${icon('edit')}</button>` +
+        `<button data-a="reveal" title="Reveal (Space)" tabindex="-1">${icon(show ? 'eyeoff' : 'eye')}</button>` +
         `<button data-a="copy" title="Copy value (C)" tabindex="-1">${icon('copy')}</button>` +
         `<button data-a="delete" class="s-del" title="Delete (Del): asks three times" aria-label="Delete ${esc(x.key)}" tabindex="-1">${icon('trash')}</button></div></div>`;
     });

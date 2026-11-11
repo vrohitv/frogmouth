@@ -3,6 +3,7 @@ import { Store } from './03-store.js';
 import { Popup, Modal, editTags } from './05-ui.js';
 import { Editor } from './06-editor.js';
 import { App } from './10-app.js';
+import { Draw } from './07c-draw.js';
 
 /* ── board: an infinite canvas of draggable sticky notes ────────────
    A board shows placements ({note, x, y, w, h, z}) of notes from the
@@ -26,18 +27,29 @@ export const Board = (() => {
   let vw = 0, vh = 0, cam = { cx: 0, cy: 0, z: 1 };
   const saveView = debounce(() => board && ls.set('cam:' + board.id, cam), 300);
   const itemOf = (id) => board && board.items.find((it) => it.note === id);
+  // notes and boxes share selection, dragging and keys: anything with x, y, w, h on this board
+  const geomOf = (id) => itemOf(id) || Draw.geom(id);
+  const elOf = (id) => els.get(id) || Draw.el(id);
+  const idOf = (g) => g.note || g.id;
   const noteOf = (id) => { const r = Store.noteRef(id); return r && r.note; };
   const items = () => (board ? board.items : []);
 
   function init(viewport) {
     vp = viewport;
     plane = h('div', { class: 'plane' });
-    empty = h('div', { class: 'board-empty', html: `<p>An empty board.</p><p class="muted">Double-click anywhere or press <kbd>N</kbd> to add a note. Drop images or files here too.</p>` });
+    empty = h('div', { class: 'board-empty', html: `<p>An empty board.</p><p class="muted">Double-click anywhere or press <kbd>N</kbd> to add a note, or pick a shape below. Drop images or files here too.</p>` });
     vp.append(plane, empty);
+    vp.addEventListener('pointerdown', (e) => {
+      if (Draw.tool() === 'select' || e.button !== 0 || spaceDown || !board) return;
+      if (e.target.closest && e.target.closest('.board-nav, .draw-bar, .draw-style, .find-bar')) return;
+      e.preventDefault(); e.stopPropagation();
+      Draw.begin(e);
+    }, true);
     vp.addEventListener('pointerdown', onVpDown);
     vp.addEventListener('wheel', onWheel, { passive: false });
     vp.addEventListener('dblclick', (e) => {
       if (e.target !== vp && e.target !== plane && e.target !== empty && !empty.contains(e.target)) return;
+      if (Draw.tool() !== 'select') return;
       const p = toBoard(e.clientX, e.clientY);
       addNote({ x: p.x - 20, y: p.y - 14 }, true);
     });
@@ -55,6 +67,7 @@ export const Board = (() => {
     }).observe(vp);
     bus.on('change', (what) => { if (what === 'note' || what === 'notes') { refreshFeet(); if (finder) refind(); } navSoon(); });
     buildNav();
+    Draw.init(vp);
     bus.on('closed', () => { disarm(); closeFind(); unmount(); plane.replaceChildren(); els.clear(); backMap = new Map(); });
   }
 
@@ -90,10 +103,11 @@ export const Board = (() => {
     const saved = c && Number.isFinite(c.cx) && Number.isFinite(c.cy) && c.z > 0;
     if (saved) cam = { cx: c.cx, cy: c.cy, z: clamp(c.z, 0.2, 2.5) };
     view = saved ? { x: vw / 2 - cam.cx * cam.z, y: vh / 2 - cam.cy * cam.z, z: cam.z } : { x: 40, y: 40, z: 1 };
-    maxZ = b.items.reduce((m, it) => Math.max(m, it.z || 1), 1);
+    maxZ = [...b.items, ...Store.shapes(b)].reduce((m, it) => Math.max(m, +it.z || 1), 1);
     const frag = document.createDocumentFragment();
     for (const it of b.items) { const el = build(it); if (el) frag.append(el); }
     plane.append(frag);
+    Draw.mount(b);
     applyView(saved);
     updateEmpty();
     refreshFeet();
@@ -103,8 +117,9 @@ export const Board = (() => {
     const a = document.activeElement;
     if (a && a.closest && a.closest('.plane')) a.blur();
     sel = null; group.clear(); board = null;
+    Draw.unmount();
   }
-  function updateEmpty() { empty.hidden = !!(board && board.items.length); }
+  function updateEmpty() { empty.hidden = !!(board && (board.items.length || Store.shapes(board).length)); }
 
   /* ── a note element ── */
   function build(it) {
@@ -136,7 +151,7 @@ export const Board = (() => {
       bringFront(it);
       if (e.button !== 0) return;
       const rz = t.closest('.rz');
-      if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, it, el, rz.dataset.rz); return; }
+      if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, it, el, rz.dataset.rz, NOTE_SIZE); return; }
       if (t.closest('figure.pic, .note-grip button, .note-foot button, .tag-input')) return;
       if (t.closest('.note-grip') || e.altKey || !editing) {
         if (!editing) {
@@ -190,13 +205,16 @@ export const Board = (() => {
     return el;
   }
 
-  function place(it, el = els.get(it.note)) {
+  function place(it, el) {
+    if (!it.note) { Draw.place(it); navSoon(); return; }
+    el = el || els.get(it.note);
     if (!el) return;
     el.style.transform = `translate(${it.x}px,${it.y}px)`;
     el.style.width = it.w + 'px';
     el.style.height = it.h ? it.h + 'px' : '';
     el.style.zIndex = it.z || 1;
     navSoon();
+    Draw.redraw(); // lines attached to it follow
   }
 
   function commit(n, out) {
@@ -211,29 +229,33 @@ export const Board = (() => {
   /* moves the note, or every selected note when it is part of a multi-selection;
      the grabbed note snaps to the grid and the others keep their offsets */
   function drag(e, it, el) {
-    const sx = e.clientX, sy = e.clientY, ox = it.x, oy = it.y;
-    const many = group.has(it.note) && group.size > 1;
-    const moving = (many ? [...group] : [it.note]).map(itemOf).filter(Boolean).map((m) => ({ m, x: m.x, y: m.y }));
+    const sx = e.clientX, sy = e.clientY, ox = it.x, oy = it.y, id = idOf(it);
+    const many = group.has(id) && group.size > 1;
+    const moving = Draw.carried(many ? [...group] : [id]).map(geomOf).filter(Boolean).map((m) => ({ m, x: m.x, y: m.y }));
+    const loose = Draw.looseEnds(many ? [...group] : [id]); // free ends of selected lines move along
     let moved = false;
     const mv = (ev) => {
       if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
-      if (!moved) { moved = true; for (const { m } of moving) { const x = els.get(m.note); if (x) x.classList.add('dragging'); } }
+      if (!moved) { moved = true; for (const { m } of moving) { const x = elOf(idOf(m)); if (x) x.classList.add('dragging'); } }
       let nx = ox + (ev.clientX - sx) / view.z, ny = oy + (ev.clientY - sy) / view.z;
       if (!ev.altKey) { nx = Math.round(nx / GRID) * GRID; ny = Math.round(ny / GRID) * GRID; }
       for (const o of moving) { o.m.x = Math.round(o.x + nx - ox); o.m.y = Math.round(o.y + ny - oy); place(o.m); }
+      for (const o of loose) { o.p.x = Math.round(o.x + nx - ox); o.p.y = Math.round(o.y + ny - oy); }
+      if (loose.length) Draw.redraw();
     };
     const up = () => {
-      for (const { m } of moving) { const x = els.get(m.note); if (x) x.classList.remove('dragging'); }
+      for (const { m } of moving) { const x = elOf(idOf(m)); if (x) x.classList.remove('dragging'); }
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
       if (moved) { el._dragged = true; setTimeout(() => { el._dragged = false; }, 0); Store.change('notes'); }
-      else if (many) select(it.note); // a plain click on one of several selected notes selects just that one
+      else if (many) select(id); // a plain click on one of several selected things selects just that one
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
   /* dir: the edges being dragged, any of n e s w (or a corner, like 'nw'). Dragging the
      left or top edge moves the note too, so the opposite edge stays exactly where it was;
      the dragged edge snaps to the grid. */
-  function resize(e, it, el, dir) {
+  const NOTE_SIZE = { w: 160, h: 80, W: 2000, H: 3000 };
+  function resize(e, it, el, dir, lim) {
     // the exact height: a note sized to its content can be a fraction of a pixel tall,
     // and rounding it would shift the bottom edge when the top edge is dragged
     const sx = e.clientX, sy = e.clientY, ox = it.x, oy = it.y, ow = it.w, oh = it.h || el.getBoundingClientRect().height / view.z;
@@ -241,16 +263,16 @@ export const Board = (() => {
     el.classList.add('resizing');
     const mv = (ev) => {
       const dx = (ev.clientX - sx) / view.z, dy = (ev.clientY - sy) / view.z;
-      if (dir.includes('e')) it.w = clamp(snap(ow + dx), 160, 2000);
-      if (dir.includes('w')) { it.w = clamp(right - snap(ox + dx), 160, 2000); it.x = right - it.w; }
-      if (dir.includes('s')) it.h = clamp(snap(oh + dy), 80, 3000);
-      if (dir.includes('n')) { it.h = clamp(bottom - snap(oy + dy), 80, 3000); it.y = bottom - it.h; }
+      if (dir.includes('e')) it.w = clamp(snap(ow + dx), lim.w, lim.W);
+      if (dir.includes('w')) { it.w = clamp(right - snap(ox + dx), lim.w, lim.W); it.x = right - it.w; }
+      if (dir.includes('s')) it.h = clamp(snap(oh + dy), lim.h, lim.H);
+      if (dir.includes('n')) { it.h = clamp(bottom - snap(oy + dy), lim.h, lim.H); it.y = bottom - it.h; }
       place(it, el);
     };
     const up = () => {
       el.classList.remove('resizing');
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
-      Editor.refit(el);
+      if (it.note) Editor.refit(el);
       Store.change('notes');
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
@@ -287,7 +309,7 @@ export const Board = (() => {
       const hit = board.items.filter((m) => {
         const el = els.get(m.note), hh = el ? el.offsetHeight : 120;
         return m.x < b.x && m.x + m.w > a.x && m.y < b.y && m.y + hh > a.y;
-      }).map((m) => m.note);
+      }).map((m) => m.note).concat(Draw.within({ x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y }));
       setGroup(before.concat(hit));
     };
     const up = () => { box.remove(); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
@@ -333,27 +355,34 @@ export const Board = (() => {
   }
 
   function fit() {
-    if (!board || !board.items.length) { view = { x: 40, y: 40, z: 1 }; animateView(); applyView(); return; }
+    if (!board || (!board.items.length && !Draw.bounds().length)) { view = { x: 40, y: 40, z: 1 }; animateView(); applyView(); return; }
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
     for (const it of board.items) {
       const el = els.get(it.note); const hh = el ? el.offsetHeight : 200;
       x1 = Math.min(x1, it.x); y1 = Math.min(y1, it.y); x2 = Math.max(x2, it.x + it.w); y2 = Math.max(y2, it.y + hh);
     }
-    const pad = 60, W = vp.clientWidth, H = vp.clientHeight;
-    const z = clamp(Math.min((W - pad * 2) / (x2 - x1), (H - pad * 2) / (y2 - y1)), 0.2, 1);
-    view = { z, x: (W - (x2 - x1) * z) / 2 - x1 * z, y: (H - (y2 - y1) * z) / 2 - y1 * z };
+    // a frame's name sits above it
+    for (const r of Draw.bounds()) { x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y - (r.type === 'frame' ? 22 : 0)); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h); }
+    // keep clear of the floating bars: the top bar above, the tool bar and zoom control below
+    const W = vp.clientWidth, H = vp.clientHeight, vr = vp.getBoundingClientRect(), pad = 60;
+    const hud = document.querySelector('.hud'), bar = vp.querySelector('.draw-bar');
+    const top = Math.max(pad, hud ? hud.getBoundingClientRect().bottom - vr.top + 20 : 0);
+    const bottom = Math.max(pad, bar ? vr.bottom - bar.getBoundingClientRect().top + 20 : 0);
+    const z = clamp(Math.min((W - pad * 2) / (x2 - x1), (H - top - bottom) / (y2 - y1)), 0.2, 1);
+    view = { z, x: (W - (x2 - x1) * z) / 2 - x1 * z, y: top + (H - top - bottom - (y2 - y1) * z) / 2 - y1 * z };
     animateView(); applyView();
   }
 
   /* ── selection & keyboard ── */
   function setGroup(ids) {
     const next = new Set(ids);
-    for (const id of group) if (!next.has(id) && els.get(id)) els.get(id).classList.remove('sel');
-    for (const id of next) if (els.get(id)) els.get(id).classList.add('sel');
+    for (const id of group) if (!next.has(id) && elOf(id)) elOf(id).classList.remove('sel');
+    for (const id of next) if (elOf(id)) elOf(id).classList.add('sel');
     group.clear();
     for (const id of next) group.add(id);
     if (!group.has(sel)) sel = ids.length ? ids[ids.length - 1] : null;
     navSoon();
+    Draw.selected([...group]);
   }
   function select(id) {
     if (sel === id && group.size === (id ? 1 : 0)) return;
@@ -364,15 +393,39 @@ export const Board = (() => {
     if (group.has(id)) setGroup([...group].filter((x) => x !== id));
     else { setGroup([...group, id]); sel = id; }
   }
-  const selectAll = () => { if (board) setGroup(board.items.map((m) => m.note)); };
+  const selectAll = () => { if (board) setGroup(board.items.map((m) => m.note).concat(Draw.ids())); };
   const unselect = (id) => { group.delete(id); if (sel === id) sel = group.size ? [...group].pop() : null; };
   /* the selected notes on this board, in board order */
-  const picked = () => (board ? board.items.filter((m) => group.has(m.note)).map((m) => m.note) : []);
+  const picked = () => (board ? board.items.filter((m) => group.has(m.note)).map((m) => m.note).concat(Draw.ids().filter((id) => group.has(id))) : []);
   function bringFront(it) {
-    if ((it.z || 1) >= maxZ && board.items.filter((m) => m.z === it.z).length === 1) return;
+    if (it.z == null) return; // frames stay under everything
+    if ((it.z || 1) >= maxZ && [...board.items, ...Store.shapes(board)].filter((m) => m.z === it.z).length === 1) return;
     it.z = ++maxZ;
     place(it);
     Store.change('z');
+  }
+
+  /* a pointer down on a box or frame: the same select / drag / resize rules as a note */
+  function grab(e, id) {
+    // a line has no box of its own; dragging it moves its free ends (drag() asks Draw for them)
+    const g = geomOf(id) || (Draw.get(id) ? { id, x: 0, y: 0 } : null), el = elOf(id);
+    if (!g || !el) return;
+    if (e.shiftKey && e.button === 0 && !e.target.closest('.rz')) { e.preventDefault(); toggle(id); return; }
+    if (group.has(id) && group.size > 1) sel = id; else select(id);
+    bringFront(g);
+    if (e.button !== 0) return;
+    const rz = e.target.closest('.rz');
+    if (rz) { e.preventDefault(); e.stopPropagation(); resize(e, g, el, rz.dataset.rz, Draw.limits(g)); return; }
+    e.preventDefault();
+    const a = document.activeElement;
+    if (a && a !== document.body && a.closest && !el.contains(a) && a.closest('.plane')) a.blur();
+    drag(e, g, el);
+  }
+  /* the board point under the given client point, and a note's rectangle in board units */
+  function rectOf(id) {
+    const it = itemOf(id); if (!it) return null;
+    const el = els.get(id);
+    return { x: it.x, y: it.y, w: it.w, h: it.h || (el ? el.offsetHeight : 120) };
   }
 
   function focusBody(id, end = true) {
@@ -401,12 +454,12 @@ export const Board = (() => {
   }
 
   function center(id, flash = true) {
-    const it = itemOf(id); const el = els.get(id);
+    const it = geomOf(id) || Draw.box(id); const el = elOf(id);
     if (!it || !el) return;
-    const z = Math.max(view.z, 0.8);
-    view = { z, x: vp.clientWidth / 2 - (it.x + it.w / 2) * z, y: Math.min(vp.clientHeight / 3, vp.clientHeight / 2 - (el.offsetHeight / 2) * z) - it.y * z };
+    const z = Math.max(view.z, 0.8), hh = it.note ? el.offsetHeight : it.h;
+    view = { z, x: vp.clientWidth / 2 - (it.x + it.w / 2) * z, y: Math.min(vp.clientHeight / 3, vp.clientHeight / 2 - (hh / 2) * z) - it.y * z };
     animateView(); applyView();
-    select(id); bringFront(it);
+    select(id); if (it.z != null) bringFront(it);
     if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
   }
 
@@ -414,8 +467,10 @@ export const Board = (() => {
     if (!board) return false;
     const k = e.key;
     const it = sel && itemOf(sel), n = it && noteOf(sel);
+    const shape = sel && !it ? Draw.get(sel) : null;
     const ids = picked(), many = ids.length > 1;
     if (finder && k === 'Escape') { closeFind(); return true; }
+    if (Draw.key(e)) return true;
     if (modKey(e) && k.toLowerCase() === 'a') { selectAll(); return true; }
     if ((k === 'n' || k === 'N') && !modKey(e) && !e.altKey) { addNote(null, true); return true; }
     if (k === '=' || k === '+') { zoomAt(view.z * 1.2); return true; }
@@ -425,23 +480,33 @@ export const Board = (() => {
     if ((k === 'm' || k === 'M') && !modKey(e)) { toggleMap(); return true; }
     if (k === 'Tab') { cycle(e.shiftKey ? -1 : 1); return true; }
     if (k === 'a' || k === 'A') { addExisting(); return true; }
-    if (!n) {
+    if (!n && !shape) {
       const pan = { ArrowLeft: [80, 0], ArrowRight: [-80, 0], ArrowUp: [0, 80], ArrowDown: [0, -80] }[k];
       if (pan) { view.x += pan[0]; view.y += pan[1]; applyView(); return true; }
       return false;
     }
-    if (armed && armed.includes(n.id) && (k === 'Enter' || k === 'Delete' || k === 'Backspace')) { const a = armed; disarm(); removeMany(a); return true; }
+    if (n && armed && armed.includes(n.id) && (k === 'Enter' || k === 'Delete' || k === 'Backspace')) { const a = armed; disarm(); removeMany(a); return true; }
     if (armed && k === 'Escape') { disarm(); return true; }
-    if (k === 'Enter') { focusBody(n.id); return true; }
-    if (k === 't' || k === 'T') { tagNote(n); return true; }
-    if ((k === 'l' || k === 'L') && !modKey(e)) { const el = els.get(n.id); if ((backMap.get(n.id) || []).length && el) backlinksMenu(n, el.querySelector('.note-foot')); return true; }
+    if (k === 'Enter') { if (n) focusBody(n.id); else Draw.editText(sel); return true; }
+    if (k === 't' || k === 'T') { if (n) tagNote(n); return !!n; }
+    // B: the notes that link back here (L is the line tool)
+    if ((k === 'b' || k === 'B') && n && !modKey(e)) { const el = els.get(n.id); if ((backMap.get(n.id) || []).length && el) backlinksMenu(n, el.querySelector('.note-foot')); return true; }
     if (k === 'Escape') { select(null); return true; }
-    // everything below acts on every selected note
-    const all = many ? ids : [n.id];
-    if ((k === 'Delete' || k === 'Backspace') && (e.shiftKey || modKey(e))) { confirmDeleteEverywhere(all); return true; }
-    if (k === 'Delete' || k === 'Backspace') { askRemove(all); return true; }
-    if (/^[1-9]$/.test(k) && !modKey(e)) { for (const id of all) setColor(noteOf(id), COLORS[+k - 1]); return true; }
-    if (modKey(e) && k.toLowerCase() === 'd') { const out = all.map((id) => duplicate(itemOf(id))).filter(Boolean); setGroup(out.map((c) => c.id)); return true; }
+    // everything below acts on every selected note and shape
+    const all = many ? ids : [sel];
+    const noteIds = all.filter((id) => itemOf(id)), shapeIds = all.filter((id) => !itemOf(id));
+    if (k === 'Delete' || k === 'Backspace') {
+      // a shape lives only here, so it goes at once (with undo); notes ask first as always
+      if (shapeIds.length) Draw.remove(shapeIds);
+      if (noteIds.length) { if (e.shiftKey || modKey(e)) confirmDeleteEverywhere(noteIds); else askRemove(noteIds); }
+      return true;
+    }
+    if (/^[1-9]$/.test(k) && !modKey(e)) { for (const id of noteIds) setColor(noteOf(id), COLORS[+k - 1]); for (const id of shapeIds) Draw.setColor(id, COLORS[+k - 1]); return true; }
+    if (modKey(e) && k.toLowerCase() === 'd') {
+      const out = noteIds.map((id) => duplicate(itemOf(id))).filter(Boolean).map((c) => c.id).concat(Draw.duplicate(shapeIds));
+      setGroup(out); return true;
+    }
+    if (k === ']' || k === '[') { for (const id of shapeIds) Draw.order(id, k === ']'); return shapeIds.length > 0; }
     const d = e.shiftKey ? GRID * 5 : GRID;
     // Alt+Shift+arrows resize: right and down grow, left and up shrink
     if (e.altKey && e.shiftKey) {
@@ -457,7 +522,12 @@ export const Board = (() => {
       return true;
     }
     const mv = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d] }[k];
-    if (mv) { for (const id of all) { const m = itemOf(id); m.x += mv[0]; m.y += mv[1]; place(m); } Store.change('notes'); return true; }
+    if (mv) {
+      for (const id of Draw.carried(all)) { const m = geomOf(id); if (m) { m.x += mv[0]; m.y += mv[1]; place(m); } }
+      for (const o of Draw.looseEnds(all)) { o.p.x += mv[0]; o.p.y += mv[1]; }
+      Draw.redraw();
+      Store.change('notes'); return true;
+    }
     return false;
   }
 
@@ -518,7 +588,7 @@ export const Board = (() => {
   }
   function toggleMap() {
     mapOn = !mapOn; ls.set('minimap', mapOn);
-    map.hidden = !(mapOn && board && board.items.length);
+    map.hidden = !(mapOn && board && (board.items.length || Store.shapes(board).length));
     navSoon();
   }
   const navSoon = () => { if (nav && !navRaf) navRaf = requestAnimationFrame(drawNav); };
@@ -548,7 +618,7 @@ export const Board = (() => {
     if (!nav || !board) return;
     pct.textContent = Math.round(view.z * 100) + '%';
     nav.classList.toggle('map-off', !mapOn);
-    const show = mapOn && board.items.length > 0;
+    const show = mapOn && (board.items.length > 0 || Store.shapes(board).length > 0);
     map.hidden = !show;
     if (!show) { mapT = null; return; }
     const W = map.clientWidth, H = map.clientHeight, dpr = devicePixelRatio || 1;
@@ -562,6 +632,7 @@ export const Board = (() => {
     if (!mapDrag || !mapT) {
       let x1 = v.x, y1 = v.y, x2 = v.x + v.w, y2 = v.y + v.h;
       for (const m of board.items) { x1 = Math.min(x1, m.x); y1 = Math.min(y1, m.y); x2 = Math.max(x2, m.x + m.w); y2 = Math.max(y2, m.y + heightOf(m)); }
+      for (const r of Draw.bounds()) { x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h); }
       const pad = Math.max(x2 - x1, y2 - y1) * 0.05, bw = x2 - x1 + pad * 2, bh = y2 - y1 + pad * 2;
       const s = Math.min(W / bw, H / bh);
       mapT = { s, ox: (W - bw * s) / 2 - (x1 - pad) * s, oy: (H - bh * s) / 2 - (y1 - pad) * s };
@@ -570,6 +641,18 @@ export const Board = (() => {
     const root = getComputedStyle(document.documentElement);
     const accent = root.getPropertyValue('--accent').trim(), line = root.getPropertyValue('--line').trim();
     ctx.lineWidth = 1;
+    // frames and boxes as outlines in their colour, under the notes; lines as thin strokes
+    for (const r of Draw.bounds()) {
+      ctx.strokeStyle = group.has(r.id) ? accent : paperOf(r.color);
+      ctx.setLineDash(r.type === 'frame' ? [3, 2] : []);
+      ctx.strokeRect(ox + r.x * s + 0.5, oy + r.y * s + 0.5, Math.max(2, r.w * s) - 1, Math.max(2, r.h * s) - 1);
+    }
+    ctx.setLineDash([]);
+    for (const pts of Draw.paths()) {
+      ctx.strokeStyle = line; ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, ox + p.x * s, oy + p.y * s));
+      ctx.stroke();
+    }
     for (const m of board.items) {
       const n = noteOf(m.note);
       const x = ox + m.x * s, y = oy + m.y * s, w = Math.max(2, m.w * s), hh = Math.max(2, heightOf(m) * s);
@@ -682,6 +765,12 @@ export const Board = (() => {
       el.classList.toggle('found', rs.length > 0);
       for (const range of rs) finder.hits.push({ id: m.note, range });
     }
+    // text in boxes, frame names and line labels counts too
+    for (const { id, el } of Draw.textEls()) {
+      const rs = q ? textRanges(el, q) : [];
+      const host = el.closest('.shape'); if (host) host.classList.toggle('found', rs.length > 0);
+      for (const range of rs) finder.hits.push({ id, range });
+    }
     vp.classList.toggle('finding', !!q);
     if (jump) {
       // the first match in (or after) the note find started from
@@ -713,8 +802,8 @@ export const Board = (() => {
     }
     const hit = hits[i];
     if (!hit || !move) return;
-    const el = els.get(hit.id);
-    const it = itemOf(hit.id);
+    const el = elOf(hit.id);
+    const it = geomOf(hit.id) || Draw.box(hit.id);
     if (!el || !it) return;
     // bring the note into view only when it is not already (mostly) on screen
     const vr = vp.getBoundingClientRect(), nr = el.getBoundingClientRect();
@@ -722,7 +811,8 @@ export const Board = (() => {
     else select(hit.id);
     // then scroll inside the note (and a wide code block) to the match
     requestAnimationFrame(() => {
-      const body = el.querySelector('.note-body'), r = hit.range.getBoundingClientRect(), br = body.getBoundingClientRect(), z = view.z;
+      const body = el.querySelector('.note-body'); if (!body) return;
+      const r = hit.range.getBoundingClientRect(), br = body.getBoundingClientRect(), z = view.z;
       if (r.top < br.top || r.bottom > br.bottom) body.scrollTop += (r.top - br.top - br.height / 3) / z;
       const pre = hit.range.startContainer.parentNode.closest && hit.range.startContainer.parentNode.closest('pre.code');
       if (pre) { const pr = pre.getBoundingClientRect(); if (r.left < pr.left || r.right > pr.right) pre.scrollLeft += (r.left - pr.left - pr.width / 3) / z; }
@@ -735,6 +825,7 @@ export const Board = (() => {
     finder = null;
     vp.classList.remove('finding');
     for (const el of els.values()) el.classList.remove('found');
+    for (const el of plane.querySelectorAll('.shape.found')) el.classList.remove('found');
     if (canPaint) { CSS.highlights.delete('fm-find'); CSS.highlights.delete('fm-find-on'); }
   }
 
@@ -747,6 +838,7 @@ export const Board = (() => {
     if (group.has(id)) fresh.classList.add('sel');
     old.replaceWith(fresh);
     refreshFeet();
+    Draw.redraw(); // its size may have changed: attached lines follow
   }
 
   /* ── note operations ── */
@@ -859,7 +951,9 @@ export const Board = (() => {
   function remove(id, quiet) {
     if (!board) return;
     const b = board, n = noteOf(id);
+    const pins = Draw.anchors('note', id);
     const out = Store.unplace(b.id, id); if (!out) return;
+    Draw.pin(pins); // lines attached to it stay where they were drawn
     dropEl(id);
     updateEmpty();
     Store.change('notes');
@@ -867,8 +961,9 @@ export const Board = (() => {
     const t = n && n.title ? `“${n.title.slice(0, 28)}”` : 'Note';
     App.pushUndo(`${t} removed from ${b.name}. It is still in All notes.`, () => {
       b.items.splice(Math.min(out.index, b.items.length), 0, out.it);
+      Store.reattach(out.detached);
       Store.index();
-      if (board === b) { plane.append(build(out.it)); updateEmpty(); select(id); refreshFeet(); }
+      if (board === b) { plane.append(build(out.it)); updateEmpty(); select(id); refreshFeet(); Draw.redraw(); }
       Store.change('notes');
     });
   }
@@ -879,15 +974,15 @@ export const Board = (() => {
     if (!board) return;
     const b = board;
     const outs = [];
-    for (const id of ids) { const out = Store.unplace(b.id, id); if (out) { outs.push(out); dropEl(id); } }
+    for (const id of ids) { const pins = Draw.anchors('note', id), out = Store.unplace(b.id, id); if (out) { Draw.pin(pins); outs.push(out); dropEl(id); } }
     if (!outs.length) return;
     updateEmpty();
     Store.change('notes');
     App.pushUndo(`${outs.length} notes removed from ${b.name}. They are still in All notes.`, () => {
       // put them back in reverse, so every saved index is right again
-      for (const out of outs.slice().reverse()) b.items.splice(Math.min(out.index, b.items.length), 0, out.it);
+      for (const out of outs.slice().reverse()) { b.items.splice(Math.min(out.index, b.items.length), 0, out.it); Store.reattach(out.detached); }
       Store.index();
-      if (board === b) { for (const out of outs) plane.append(build(out.it)); updateEmpty(); setGroup(outs.map((o) => o.it.note)); refreshFeet(); }
+      if (board === b) { for (const out of outs) plane.append(build(out.it)); updateEmpty(); setGroup(outs.map((o) => o.it.note)); refreshFeet(); Draw.redraw(); }
       Store.change('notes');
     });
   }
@@ -895,7 +990,9 @@ export const Board = (() => {
   /* delete the note itself, from the library and every board */
   function removeEverywhere(id, quiet) {
     const n = noteOf(id); if (!n) return;
+    const pins = Draw.anchors('note', id);
     const saved = Store.deleteNote(id); if (!saved) return;
+    Draw.pin(pins);
     dropEl(id);
     updateEmpty();
     Store.change('notes');
@@ -904,14 +1001,14 @@ export const Board = (() => {
     App.pushUndo(`Deleted ${n.title ? `“${n.title.slice(0, 28)}”` : 'note'}${where}`, () => {
       Store.restoreNote(saved);
       const mine = board && saved.placed.find((p) => p.board === board);
-      if (mine) { plane.append(build(mine.it)); updateEmpty(); select(id); refreshFeet(); }
+      if (mine) { plane.append(build(mine.it)); updateEmpty(); select(id); refreshFeet(); Draw.redraw(); }
       Store.change('notes');
     });
   }
 
   function removeEverywhereMany(ids) {
     const saved = [];
-    for (const id of ids) { const s = Store.deleteNote(id); if (s) { saved.push(s); dropEl(id); } }
+    for (const id of ids) { const pins = Draw.anchors('note', id), s = Store.deleteNote(id); if (s) { Draw.pin(pins); saved.push(s); dropEl(id); } }
     if (!saved.length) return;
     updateEmpty();
     Store.change('notes');
@@ -920,7 +1017,7 @@ export const Board = (() => {
       if (board) {
         const mine = saved.map((s) => s.placed.find((p) => p.board === board)).filter(Boolean);
         for (const p of mine) plane.append(build(p.it));
-        updateEmpty(); setGroup(mine.map((p) => p.it.note)); refreshFeet();
+        updateEmpty(); setGroup(mine.map((p) => p.it.note)); refreshFeet(); Draw.redraw();
       }
       Store.change('notes');
     });
@@ -983,7 +1080,7 @@ export const Board = (() => {
     foot.innerHTML =
       `<div class="nf-tags">${(n.tags || []).map((t) => Tags.chip(t)).join('')}<button class="nf-add" tabindex="-1" title="${n.tags && n.tags.length ? 'Edit tags' : 'Add tags'} (T)" aria-label="Tags">${icon(n.tags && n.tags.length ? 'edit' : 'tag')}</button></div>` +
       `<div class="nf-meta">${others > 0 ? `<button class="nf-boards" tabindex="-1" title="On ${others + 1} boards: open it on another" aria-label="On ${others + 1} boards">${icon('board')}${others + 1}</button>` : ''}` +
-      (back.length ? `<button class="backlinks" tabindex="-1" title="${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here (L)" aria-label="${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here">${icon('link')}${back.length}</button>` : '') + '</div>';
+      (back.length ? `<button class="backlinks" tabindex="-1" title="${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here (B)" aria-label="${back.length} ${back.length === 1 ? 'note links' : 'notes link'} here">${icon('link')}${back.length}</button>` : '') + '</div>';
   }
   const refreshFeet = debounce(() => {
     if (!board) return;
@@ -1051,6 +1148,9 @@ export const Board = (() => {
     // where a board point is drawn in the minimap, in client pixels (for tests)
     mapPoint: (x, y) => { const r = map.getBoundingClientRect(); return mapT && { x: r.left + mapT.ox + x * mapT.s, y: r.top + mapT.oy + y * mapT.s }; }, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,
     tagNote: (id) => { const n = noteOf(id); if (n) tagNote(n); },
+    // for the drawing layer (07c-draw.js)
+    plane: () => plane, toBoard, rectOf, el: (id) => els.get(id), nextZ: () => (maxZ = Math.max(maxZ, ...[...items(), ...Store.shapes(board)].map((m) => +m.z || 0)) + 1), setGroup, grab, toggle, GRID,
+    zIndexMin: () => [...items(), ...Store.shapes(board).filter((x) => Store.BOXES.includes(x.type))].reduce((m, it) => Math.min(m, +it.z || 1), Infinity),
     refreshChips: () => { for (const el of els.values()) Editor.refreshChips(el.querySelector('.note-body')); },
   };
 })();
