@@ -402,7 +402,8 @@ export const Board = (() => {
 
   /* a pointer down on a box or frame: the same select / drag / resize rules as a note */
   function grab(e, id) {
-    const g = geomOf(id), el = elOf(id);
+    // a line has no box of its own; dragging it moves its free ends (drag() asks Draw for them)
+    const g = geomOf(id) || (Draw.get(id) ? { id, x: 0, y: 0 } : null), el = elOf(id);
     if (!g || !el) return;
     if (e.shiftKey && e.button === 0 && !e.target.closest('.rz')) { e.preventDefault(); toggle(id); return; }
     if (group.has(id) && group.size > 1) sel = id; else select(id);

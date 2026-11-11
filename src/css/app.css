@@ -809,6 +809,31 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .shape-preview.shape-text { border-radius: 2px; }
 .board-vp.drawing, .board-vp.drawing .note, .board-vp.drawing .shape, .board-vp.drawing .note-body { cursor: crosshair !important; }
 
+/* lines: one SVG layer above every note and box; only the wide invisible hit path takes the pointer */
+.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 2147483000; }
+.wire-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.wire-path { fill: none; stroke: var(--stroke); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.wire.dash .wire-path { stroke-dasharray: 6 5; }
+.wire-head { fill: var(--stroke); stroke: var(--stroke); stroke-width: 1; stroke-linejoin: round; }
+.wire:hover .wire-path { stroke-width: 2.25; }
+.wire.sel .wire-path { stroke: var(--accent); stroke-width: 2.25; }
+.wire.sel .wire-head { fill: var(--accent); stroke: var(--accent); }
+.board-vp.drawing .wire-hit { pointer-events: none; }
+.draw-overlay { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2147483001; }
+.wire-label {
+  position: absolute; left: 0; top: 0; max-width: 220px; padding: 1px 6px; border-radius: 4px; white-space: pre-wrap; text-align: center;
+  font: 12px/1.35 var(--sans); color: var(--text); background: var(--bg); outline: none; cursor: default;
+}
+.wire-label.sel { box-shadow: 0 0 0 1px var(--accent); }
+.wire-label.editing { cursor: text; min-width: 40px; box-shadow: 0 0 0 2px var(--accent); }
+.wire-label.editing:empty::before { content: "Label"; opacity: .4; }
+.cdot, .wend { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; cursor: crosshair; }
+.cdot { background: var(--bg); box-shadow: inset 0 0 0 2px var(--accent); opacity: .85; transition: transform .1s, opacity .1s; }
+.cdot:hover { opacity: 1; background: var(--accent); }
+.wend { background: var(--accent); box-shadow: 0 0 0 2px var(--bg); cursor: move; }
+.plane:has(.note.editing) .cdot, .plane:has(.shape.editing) .cdot { display: none; }
+.note.wire-target, .shape.wire-target { outline: 2px solid var(--accent) !important; outline-offset: 3px; }
+
 /* the drawing tools: bottom centre of the board */
 .draw-bar { position: absolute; z-index: 6; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 2px; padding: 0 4px; }
 .draw-btn { display: grid; place-items: center; width: 32px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }

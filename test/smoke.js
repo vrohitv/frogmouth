@@ -1276,6 +1276,93 @@ import { App } from '../src/js/10-app.js';
       ok('drawn shapes are saved with the board', serial.shapes.length === 3 && serial.shapes.every((x) => x.id && x.type && Number.isFinite(x.w)));
     }
 
+    {
+      // lines and arrows that stick to notes and boxes
+      const b = Board.current();
+      const A = Store.addShape(b, { id: uid(), type: 'rect', x: 0, y: 0, w: 96, h: 96, z: 50, color: 'moth', text: 'A' });
+      const B = Store.addShape(b, { id: uid(), type: 'ellipse', x: 400, y: 0, w: 96, h: 96, z: 51, color: 'moth', text: 'B' });
+      const n = Board.addNote({ x: 0, y: 400 }, false, '<p>a note</p>');
+      Board.unmount(); App.enter(); await wait(60);
+      Board.fit(); await wait(450);
+      const mid = (id) => { const r = (Draw.el(id) || Board.el(id)).getBoundingClientRect(), v = vpEl().getBoundingClientRect(); return [r.left - v.left + r.width / 2, r.top - v.top + r.height / 2]; };
+      const connect = async (key, from, to) => { keydown(document.body, key); dptr('pointerdown', vpEl(), ...from); dptr('pointermove', window, ...to); dptr('pointerup', window, ...to); await wait(40); };
+      await connect('c', mid(A.id), mid(B.id));
+      const ln = Draw.lines()[0];
+      ok('C draws an arrow attached at both ends', ln && ln.a.shape === A.id && ln.b.shape === B.id && ln.head === 'end' && !('x' in ln.a), JSON.stringify(ln));
+      let pts = Draw.points(ln);
+      ok('it runs between the outlines, not the centres', pts[0].x >= 96 && pts[pts.length - 1].x <= 400, JSON.stringify(pts));
+      ok('an arrow has a head at its end only', $$(`.wire[data-id="${ln.id}"] .wire-head`).length === 1);
+      B.x = 400; B.y = 320; Draw.place(B); await frame(); await frame();
+      pts = Draw.points(ln);
+      ok('the arrow follows a moved box', pts[pts.length - 1].y > 300 && $(`.wire[data-id="${ln.id}"] .wire-hit`).getAttribute('d').includes(pts[pts.length - 1].y.toFixed(1)), JSON.stringify(pts));
+
+      await connect('c', mid(A.id), mid(n.id));
+      const l2 = Draw.lines()[1];
+      ok('an arrow can end on a note', l2 && l2.b.note === n.id, JSON.stringify(l2));
+      const before = JSON.stringify(Draw.points(l2));
+      const other = Store.S.data.boards[0]; Store.place(other.id, n.id, { x: 900, y: 900 });
+      other.items.find((it) => it.note === n.id).x = 5000;
+      Draw.redraw(); await frame(); await frame();
+      ok('a note moved on another board does not move the arrow here', JSON.stringify(Draw.points(l2)) === before);
+      Store.unplace(other.id, n.id);
+      const h0 = Draw.points(l2)[1].y;
+      Board.select(n.id); keydown(document.body, 'ArrowDown'); await frame(); await frame();
+      ok('an arrow follows a note that moves', Math.abs(Draw.points(l2)[1].y - (h0 + 8)) < 0.5, JSON.stringify([h0, Draw.points(l2)]));
+
+      Board.zoomAt(0.3); await frame();
+      await connect('l', [80, 140], [200, 200]);
+      const l3 = Draw.lines()[2];
+      ok('L draws a plain line between two free points', l3 && l3.head === 'none' && 'x' in l3.a && 'x' in l3.b && !$(`.wire[data-id="${l3.id}"] .wire-head`), JSON.stringify(l3));
+      await connect('l', [mid(n.id)[0], mid(n.id)[1]], [mid(n.id)[0] + 1, mid(n.id)[1] + 1]);
+      ok('a click with the line tool leaves no stub, even on a note', Draw.lines().length === 3 && Draw.tool() === 'select');
+      Board.zoomAt(1); Board.fit(); await wait(450);
+
+      Board.select(A.id); await frame();
+      ok('a selected box offers connector dots', $$('.cdot').length === 4);
+      const dot = $$('.cdot')[1], dr = dot.getBoundingClientRect();
+      dot.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: dr.left + 4, clientY: dr.top + 4 }));
+      const tb = mid(B.id), vr = vpEl().getBoundingClientRect();
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: vr.left + tb[0], clientY: vr.top + tb[1] }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: vr.left + tb[0], clientY: vr.top + tb[1] })); await wait(40);
+      const l4 = Draw.lines()[3];
+      ok('dragging from a connector dot draws an arrow from that box', l4 && l4.a.shape === A.id && l4.b.shape === B.id && l4.head === 'end', JSON.stringify(l4));
+      Draw.remove([l4.id]); await wait(20);
+
+      // select a line by clicking it; a free line moves when dragged
+      Board.select(null); await frame();
+      const hit = $(`.wire[data-id="${l3.id}"] .wire-hit`), hr = hit.getBoundingClientRect();
+      const hx = hr.left + hr.width / 2, hy = hr.top + hr.height / 2;
+      hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: hx, clientY: hy }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: hx, clientY: hy })); await frame();
+      ok('clicking a line selects it', Board.selected() === l3.id && $(`.wire[data-id="${l3.id}"]`).classList.contains('sel'));
+      ok('a selected line shows a handle at each end', $$('.wend').length === 2);
+      const ax = l3.a.x;
+      keydown(document.body, 'ArrowRight'); await frame();
+      ok('arrows move a free line', l3.a.x === ax + 8);
+      keydown(document.body, '4'); await frame();
+      ok('1-9 colour a line', l3.color === 'rose' && $(`.wire[data-id="${l3.id}"]`).classList.contains('paper-rose'));
+      keydown(document.body, 'Enter'); await wait(20);
+      ok('Enter edits a line label', document.activeElement && document.activeElement.classList.contains('wire-label'));
+      await type('calls');
+      keydown(document.activeElement, 'Escape'); await wait(20);
+      ok('the label is saved and shown on the line', l3.text === 'calls' && $$('.wire-label').some((e) => e.textContent === 'calls'), l3.text);
+
+      // drag a line's end handle onto a box to attach it
+      Board.select(l3.id); await frame();
+      const end = $$('.wend')[1], er = end.getBoundingClientRect();
+      end.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: er.left + 5, clientY: er.top + 5 }));
+      const ta = mid(B.id);
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: vr.left + ta[0], clientY: vr.top + ta[1] }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: vr.left + ta[0], clientY: vr.top + ta[1] })); await wait(30);
+      ok('dragging an end handle onto a box attaches it', l3.b.shape === B.id && 'x' in l3.a, JSON.stringify(l3));
+
+      Draw.remove([A.id]); await wait(30);
+      ok('deleting a box frees the ends attached to it', 'x' in ln.a && 'x' in l2.a && Draw.lines().length === 3);
+      undoKey(); await wait(30);
+      ok('undo attaches them again', ln.a.shape === A.id && l2.a.shape === A.id);
+      ok('lines are drawn above notes', +getComputedStyle($('.wires')).zIndex > Math.max(...$$('.note').map((e) => +e.style.zIndex || 0)));
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
