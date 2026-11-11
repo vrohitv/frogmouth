@@ -45,6 +45,9 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Shapes work like notes: click, `⇧`-click, `⇧`-drag a box, `⌘A`, drag, arrows, `1`–`9` for colour, `⌘D`, Fit, the minimap and `⌘F` (it finds text in shapes and labels too). `Del` deletes a shape at once, and `⌘Z` brings it back. `[` and `]` send a box to the back or bring it to the front.
 - With shapes or lines selected, a style bar at the top offers the nine colours, fill, dashed, order, and for lines straight or elbow and their arrowheads.
 - Shapes are drawn with the same nine paper colours as notes, so they switch with the theme. There is deliberately no pen or freehand tool.
+- **Copy, cut and paste** with `⌘C` `⌘X` `⌘V`: a selection brings whatever its frames hold and the lines between the things in it. Copy makes copies; cut moves the notes themselves (they wait in All notes until you paste). Text or an image copied anywhere else pastes onto the board as a new note.
+- **Alignment guides**: while you drag, a note or box snaps to the edges and middles of the others nearby, and a thin line shows what it lines up with. Hold `⌥` to place it freely.
+- **Big boards stay smooth**: notes off screen, or not being touched, are not painted again on every frame, so a board of 1,500 notes and 600 lines still pans and drags at 60 frames a second.
 
 **The editor**
 - `/` opens the block menu: headings, lists, todos, code, quote, divider, image, file tag, note link, secret reference and date.
@@ -76,6 +79,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
 - **Export** (the download icon) downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
+- **A passphrase, if you want one** (the padlock): each value is then encrypted in the vault file. Keys, tags and notes stay readable, so search keeps working. Revealing, copying or editing a value asks for the passphrase; it locks again when the vault closes and after 15 idle minutes. Without the passphrase the values cannot be recovered.
 - Generate random values.
 
 **Tags and filters** (All notes, Secrets and `⌘K` search alike)
@@ -98,7 +102,13 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - The vault file is watched. If another window, a sync tool or `git pull` changes it, frogmouth reloads it.
 - If you also have unsaved edits, it asks which version to keep.
 
-**Backups**: once a day, the vault file is copied to `.fm-backups/`. The last 14 copies are kept.
+**Nothing gets lost**
+- **Undo and redo** everything on a board with `⌘Z` and `⌘⇧Z`: moves, resizes, colours, styles, text in shapes, lines, pastes, arrange, deletions.
+- **Recently deleted** (the logo menu): notes and boards you delete are kept for 30 days and come back exactly where they were.
+- **Backups** in `.fm-backups/`: a copy each day the vault is opened (the last 14) and a snapshot every hour while you edit (the last 48). **Restore a backup…** in the logo menu shows what is in each one and brings it back; what was open is saved first, and the restore can be undone.
+- Two windows or tabs on the same vault never overwrite each other, in a folder or in browser storage: a save that would replace the other's changes stops and asks.
+
+**Export** (the logo menu): this board as SVG or PNG (drawn from the board itself: notes, shapes, frames, lines and labels, in the current theme), all notes as Markdown (one file per note with `[[links]]` between them, into `markdown/` in the vault folder), and secrets as JSON.
 
 ## Keyboard
 
@@ -114,7 +124,7 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `⌥1`–`⌥9`, `⌥[` `⌥]` | Board pills, previous / next board |
 | `⌥⇧[` `⌥⇧]` | Move this board left / right |
 | `F2` | Rename this board |
-| `⌘Z` | Undo a delete or arrange |
+| `⌘Z` / `⌘⇧Z` | Undo / redo |
 | `⌥←` | Back along board links |
 
 | Board | |
@@ -125,6 +135,7 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | double-click, `↵` / `Esc` | Edit / stop editing |
 | arrows / `⌥⇧` arrows | Nudge / resize |
 | `1`–`9` | Colour |
+| `⌘C` `⌘X` `⌘V` | Copy, cut, paste |
 | `⌘D` | Duplicate |
 | `T` | Tag the note |
 | `B` | Notes that link here |
@@ -165,7 +176,8 @@ my-vault/
   vault.fm               # all boards, notes and secrets, as readable JSON
   assets/                # images pasted or dropped into notes
   files/                 # other files dropped into notes
-  .fm-backups/           # daily copies of vault.fm
+  .fm-backups/           # daily copies and hourly snapshots of vault.fm
+  markdown/              # notes exported as Markdown
   anything-else.excalidraw   # any file here can be tagged with @
 ```
 
@@ -181,13 +193,13 @@ my-vault/
  "ui":{"board":"…","active":"b:…"}}}
 ```
 
-The format is specified in [docs/format.md](docs/format.md). It is versioned (`"frogmouth": 1`): later releases may add fields, and every release keeps fields it does not know, so nothing is lost when versions mix. A release never opens a file from a newer, incompatible format, so it can never write over it.
+The format is specified in [docs/format.md](docs/format.md). It is versioned (`"frogmouth": 1`, or `2` once secret values have a passphrase, so older releases refuse a file they would misread): later releases may add fields, and every release keeps fields it does not know, so nothing is lost when versions mix. A release never opens a file from a newer, incompatible format, so it can never write over it.
 
 ## Privacy and security
 
 - A Content-Security-Policy in the page forbids every network request (`connect-src 'none'`, no external scripts, styles, fonts or images). Nothing leaves your machine.
 - Note HTML is sanitized on load and paste. Scripts, event handlers, `javascript:` links, remote images and paths with `..` are removed.
-- The vault is a plain JSON file: secrets are as private as the folder they sit in, like any other file on your disk.
+- The vault is a plain JSON file: notes and secrets are as private as the folder they sit in, like any other file on your disk. Give the secret values a passphrase to encrypt them in the file (AES-GCM, with a key derived from the passphrase by PBKDF2-SHA256, 600,000 rounds, all by the browser's own WebCrypto).
 
 ## Development
 
@@ -212,12 +224,15 @@ src/css/app.css       all styles (night and day themes)
 src/fonts/            JetBrains Mono woff2 files + OFL license
 src/js/00-util.js     helpers, tags, fuzzy matching, toasts, IndexedDB
 src/js/01-bird.js     the frogmouth: wordmark, eye tracking, blinking, lids
-src/js/03-store.js    state, the .fm file, autosave, disk watching, images, files
+src/js/03-store.js    state, the .fm file, autosave, disk watching, backups, Recently deleted, images, files
+src/js/03b-crypt.js   the optional passphrase for secret values
 src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor
 src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images
 src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange, note tags
 src/js/07c-draw.js    diagrams: boxes, frames, lines and arrows on a board
+src/js/07d-history.js undo and redo
+src/js/07e-export.js  export: a board as SVG or PNG, notes as Markdown
 src/js/08-secrets.js  secrets list, JSON export
 src/js/08b-notes.js   all-notes page: sort, filter, tags, links
 src/js/09-palette.js  search and commands

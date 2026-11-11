@@ -1,4 +1,4 @@
-import { modKey, h, esc, fuzzy, markPositions, toast, copyText, icon, bus, kb, relTime, Tags } from './00-util.js';
+import { modKey, h, esc, fuzzy, markPositions, icon, bus, kb, relTime, Tags } from './00-util.js';
 import { tagAssist } from './05-ui.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';
@@ -157,7 +157,7 @@ export const Palette = (() => {
     if (it.type === 'secret') {
       const x = Store.secret(it.id);
       if (modKey(e) || !x) { App.openTab('secrets'); Secrets.select(it.id); return; }
-      copyText(x.value).then(() => toast(`Copied ${x.key}`));
+      Secrets.copy(x);
     }
   }
 

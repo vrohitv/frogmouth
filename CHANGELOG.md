@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 (2026-11-11)
+
+- **Two tabs can no longer overwrite each other.** With the vault in browser storage, a second tab's save silently replaced the first tab's changes. Browser storage is now watched and checked before every save like a folder, so a save that would overwrite another tab's work stops and asks. Opening browser storage also asks Chrome to keep it, so it is not cleared when the disk runs low.
+- **Undo and redo for everything on a board**: moves, resizes, nudges (one step per run of arrow keys), colours, shape styles, text in shapes, line labels and ends, order, adding, duplicating, pasting and arrange. `⌘Z` undoes, `⌘⇧Z` or `⌘Y` redoes. Clicking a note to bring it forward is not a step.
+- **Recently deleted** (logo menu): notes and boards you delete are kept for 30 days and restore exactly where they were, with their lines and shapes. Delete forever and Empty ask first. Secrets are not kept.
+- **Backups you can use**: besides the daily copy (14 kept), a snapshot at most once an hour while you edit (48 kept), now also for browser storage. **Restore a backup…** lists them, shows what each holds and restores one; what was open is saved first, and the restore can be undone.
+- **Copy, cut and paste** on the board (`⌘C` `⌘X` `⌘V`), with whatever frames hold and the lines between the things you copy. Copy makes copies; cut moves the notes themselves. Text or images copied elsewhere paste as a new note. `⌘D` now duplicates lines and frame contents too.
+- **Alignment guides**: a dragged note or box snaps to the edges and middles of those nearby, with a guide line; `⌥` places it freely.
+- **Export** (one item in the logo menu): this board as SVG or PNG, drawn from the board in the current theme; all notes as Markdown, one file per note with `[[links]]`, into `markdown/` in the vault folder; secrets as JSON.
+- **An optional passphrase for secret values** (the padlock on the Secrets page): values are encrypted in the file with AES-GCM under a key from PBKDF2-SHA256 (600,000 rounds), by the browser's own WebCrypto. Keys, tags and notes stay readable, so search works. It locks when the vault closes and after 15 idle minutes. A vault with a passphrase is format 2, so older releases refuse it instead of misreading it; vaults without one stay format 1.
+- **Big boards are smooth**: on a board of 1,500 notes and 600 lines, a pan step took about half a second and a drag frame 0.4 s in Chrome. Notes nobody is touching are no longer painted again every frame, and lines that did not move are not redrawn: both now run at 60 frames a second.
+- Fixed: after using a menu, the board ignored keys until something else took focus (`⇧Del` even fell through to the browser's cut). A click on the board now takes focus back.
+- Fixed: `Esc` did not close a dialog once focus had left it.
+- Fixed: the frogmouth could fall asleep with its eyes open, if it dozed off mid-blink.
+
 ## 1.3.0 (2026-11-11)
 
 - **Diagrams on boards**: rectangles, ellipses, diamonds, free text, lines, arrows and frames, drawn right beside your notes from a tool bar at the bottom of the board (`R` `O` `D` `X` `L` `C` `F`, `V` or `Esc` to select). Lines and arrows attach to notes and boxes and follow them as they move, resize or grow; drag a dot at the side of a selected note or box to connect it, drag a line's end to re-attach it, double-click a line for a label. Frames carry whatever is centred inside them. Shapes select, move, colour (`1`–`9`), duplicate, delete (with undo), fit, find and show in the minimap like notes; a style bar sets colour, fill, dash, order, elbow or straight, and arrowheads. No pen, by design. Stored as an additive `shapes` list on each board; the file format stays at 1 (docs/format.md).

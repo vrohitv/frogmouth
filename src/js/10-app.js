@@ -9,11 +9,12 @@ import { Peek } from './07b-peek.js';
 import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
 import { Palette } from './09-palette.js';
+import { History } from './07d-history.js';
+import { Export } from './07e-export.js';
 
 /* ── app shell: welcome, floating controls, board pills, sync, keys, commands ── */
 export const App = (() => {
   let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl, trailEl;
-  const undoStack = [];
 
   /* ── theme ── */
   function setTheme(t) {
@@ -391,19 +392,34 @@ export const App = (() => {
     inp.focus();
   }
 
+  /* one place for every export: the board as a picture, notes as Markdown, secrets as JSON */
+  function exportMenu(r) {
+    const onBoard = isBoardView();
+    Popup.open({
+      x: r.left, y: r.bottom + 4, title: 'Export',
+      items: [
+        ...(onBoard ? [{ id: 'svg', label: 'This board as SVG', icon: 'image' }, { id: 'png', label: 'This board as PNG', icon: 'image' }] : []),
+        { id: 'md', label: 'Notes as Markdown', icon: 'note', hint: Store.hasFolder() ? 'into the folder' : 'one file' },
+        { id: 'json', label: 'Secrets as JSON…', icon: 'key' },
+      ],
+      onPick: (it) => ({ svg: () => Export.saveBoard('svg'), png: () => Export.saveBoard('png'), md: () => Export.saveNotes(), json: () => Secrets.exportJson() })[it.id](),
+    });
+  }
   function appMenu() {
     const r = menuBtn.getBoundingClientRect();
     const items = [
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ id: 'accent', accent: k, label: `${label} accent`, icon: document.documentElement.dataset.accent === k ? 'tick' : 'dot' })),
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: kb('mod+s') } : { id: 'download', label: 'Download a copy', icon: 'down' },
-      { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
+      { id: 'trash', label: 'Recently deleted', icon: 'trash', hint: Store.trash().length ? String(Store.trash().length) : '' },
+      ...(Store.hasFolder() ? [{ id: 'backups', label: 'Restore a backup…', icon: 'undo' }] : []),
+      { id: 'export', label: 'Export…', icon: 'download' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, trash: trashPanel, backups: backupPanel, export: () => exportMenu(r), keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -485,21 +501,109 @@ export const App = (() => {
     if (d.boards.length === 1) { toast('A vault keeps at least one board'); return; }
     const n = b.items.length, k = Store.shapes(b).length;
     // notes live on in the library; shapes belong to this board alone and go with it
-    const says = [n ? `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards.` : '', k ? `Its ${k} ${k === 1 ? 'shape is' : 'shapes are'} deleted with it.` : ''].filter(Boolean).join(' ');
-    if ((n || k) && !(await Modal.confirm(`Delete the board “${b.name}”?`, `${says} You can undo right after.`, 'Delete board'))) return;
+    const says = [n ? `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards.` : '', k ? `Its ${k} ${k === 1 ? 'shape goes' : 'shapes go'} with it.` : ''].filter(Boolean).join(' ');
+    if ((n || k) && !(await Modal.confirm(`Delete the board “${b.name}”?`, `${says} The board is kept in Recently deleted for 30 days.`, 'Delete board'))) return;
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
+    const kept = Store.toTrash({ kind: 'board', board: b });
     Store.index();
     if (d.ui.board === id) d.ui.board = d.boards[Math.min(i, d.boards.length - 1)].id;
     if (d.ui.active === 'b:' + id) activate('b:' + d.ui.board);
     Store.change('boards');
     renderChrome();
-    pushUndo(`Deleted board ${b.name}. ${n ? `${n === 1 ? 'Its note is' : `Its ${n} notes are`} still in All notes.` : ''}`, () => {
+    pushUndo(`Deleted board ${b.name}. It is in Recently deleted.`, () => {
+      Store.dropTrash(kept.id);
       d.boards.splice(Math.min(i, d.boards.length), 0, b);
       Store.index();
       Store.change('boards');
       openTab('b:' + b.id);
     });
+  }
+
+  /* ── Recently deleted: notes and boards deleted in the last 30 days ── */
+  function trashPanel() {
+    const list = h('div', { class: 'trash-list' });
+    const emptyB = h('button', { class: 'btn ghost danger', text: 'Empty' });
+    const paint = () => {
+      const all = Store.trash();
+      emptyB.hidden = !all.length;
+      if (!all.length) { list.innerHTML = '<p class="muted trash-empty">Nothing here. Notes and boards you delete stay here for 30 days.</p>'; return; }
+      list.replaceChildren(...all.map((e) => {
+        const known = e.kind === 'note' || e.kind === 'board';
+        const title = e.kind === 'note' ? e.note.title || 'Untitled' : e.kind === 'board' ? e.board.name : 'Something this version cannot show';
+        const where = e.kind === 'note' ? (e.places.length ? 'from ' + e.places.map((p) => (Store.board(p.board) || {}).name || 'a deleted board').join(', ') : 'was on no board')
+          : e.kind === 'board' ? `board, ${e.board.items.length} ${e.board.items.length === 1 ? 'note' : 'notes'}${(e.board.shapes || []).length ? `, ${e.board.shapes.length} shapes` : ''}` : '';
+        return h('div', { class: 'trash-row', 'data-id': e.id },
+          h('span', { class: 'trash-ic', html: icon(e.kind === 'board' ? 'board' : 'note') }),
+          h('span', { class: 'trash-text' }, h('span', { class: 'trash-title', text: title }), h('span', { class: 'trash-sub muted', text: `${where} · deleted ${relTime(e.at)}` })),
+          known ? h('button', { class: 'btn ghost ic-only', 'data-a': 'restore', title: 'Restore', 'aria-label': `Restore ${title}`, html: icon('undo') }) : null,
+          h('button', { class: 'btn ghost ic-only danger', 'data-a': 'forget', title: 'Delete forever', 'aria-label': `Delete ${title} forever`, html: icon('trash') }));
+      }));
+    };
+    list.addEventListener('click', async (ev) => {
+      const a = ev.target.closest('[data-a]'), row = ev.target.closest('.trash-row'); if (!a || !row) return;
+      const e = Store.trash().find((x) => x.id === row.dataset.id); if (!e) return;
+      if (a.dataset.a === 'restore') restoreDeleted(e);
+      else if (await Modal.confirm('Delete forever?', `“${row.querySelector('.trash-title').textContent}” will be gone for good. This cannot be undone.`, 'Delete forever')) { Store.dropTrash(e.id); Store.change('trash'); }
+      paint();
+    });
+    emptyB.addEventListener('click', async () => {
+      const k = Store.trash().length;
+      if (!(await Modal.confirm(`Delete ${k} ${k === 1 ? 'thing' : 'things'} forever?`, 'Everything in Recently deleted will be gone for good. This cannot be undone.', 'Empty'))) return;
+      delete Store.S.data.trash; Store.change('trash'); paint();
+    });
+    paint();
+    Modal.open({ title: 'Recently deleted', wide: true, cls: 'trash', body: h('div', null, list, h('p', { class: 'muted small', text: 'Secrets are not kept here: a deleted secret is gone once the vault saves.' })),
+      actions: [{ label: 'Close', icon: 'x', value: null }] }).then(() => {});
+    // the Empty button sits with the dialog's own buttons
+    const acts = document.querySelector('.modal.trash .modal-actions'); if (acts) acts.prepend(emptyB);
+  }
+  function restoreDeleted(e) {
+    const out = Store.restoreTrash(e.id); if (!out) return;
+    const title = e.kind === 'note' ? e.note.title || 'Untitled' : e.board.name;
+    const where = e.kind === 'note' ? (out.boards.length ? ` to ${out.boards.map((b) => b.name).join(', ')}` : ' to All notes') : '';
+    if (Board.current()) Board.refresh();
+    Store.change(e.kind === 'board' ? 'boards' : 'notes');
+    pushUndo(`Restored “${title.slice(0, 28)}”${where}`, () => {
+      Store.reTrash(out);
+      if (e.kind === 'board' && Store.S.data.ui.board === out.board.id) activate('b:' + Store.S.data.boards[0].id);
+      else if (Board.current()) Board.refresh();
+      Store.change(e.kind === 'board' ? 'boards' : 'notes');
+    });
+  }
+
+  /* ── Restore a backup: every copy in .fm-backups, newest first; pick one to see what is in it ── */
+  async function backupPanel() {
+    const all = await Store.listBackups();
+    const KIND = { daily: 'Daily copy', hourly: 'Snapshot', before: 'Before a restore' };
+    const when = (t) => new Date(t).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric', hour: '2-digit', minute: '2-digit' });
+    const list = h('div', { class: 'backup-list', role: 'listbox' });
+    const preview = h('div', { class: 'backup-preview muted', text: all.length ? 'Pick a version to see what is in it.' : '' });
+    if (!all.length) list.append(h('p', { class: 'muted trash-empty', text: 'No backups yet. A copy is made each day the vault is opened, and a snapshot every hour while you edit.' }));
+    for (const b of all) list.append(h('button', { class: 'backup-row', 'data-name': b.name, role: 'option' }, h('span', { class: 'backup-when', text: when(b.at) }), h('span', { class: 'backup-kind muted', text: KIND[b.kind] })));
+    let close = null;
+    list.addEventListener('click', async (e) => {
+      const row = e.target.closest('.backup-row'); if (!row) return;
+      for (const r of list.querySelectorAll('.backup-row.on')) r.classList.remove('on');
+      row.classList.add('on');
+      const name = row.dataset.name;
+      try {
+        const j = JSON.parse(await Store.readBackup(name)), d = (j && j.data) || {};
+        const count = (k, one, many) => { const n = Array.isArray(d[k]) ? d[k].length : 0; return `${n} ${n === 1 ? one : many}`; };
+        const go = h('button', { class: 'btn primary', 'data-a': 'restore', html: `${icon('undo')} Restore this version` });
+        go.addEventListener('click', async () => {
+          if (!(await Modal.confirm('Restore this version?', 'It replaces what is open now. What is open now is saved as a backup first, and you can undo right after.', 'Restore', false, 'undo'))) return;
+          try {
+            const was = await Store.restoreBackup(name);
+            if (close) close();
+            pushUndo(`Restored the version from ${when(all.find((x) => x.name === name).at)}`, () => Store.useData(was));
+          } catch (err) { toast(err.message, { kind: 'warn', timeout: 7000 }); }
+        });
+        preview.classList.remove('muted');
+        preview.replaceChildren(h('p', { text: `${count('notes', 'note', 'notes')} · ${count('boards', 'board', 'boards')} · ${count('secrets', 'secret', 'secrets')}${j.saved ? ` · saved ${when(Date.parse(j.saved))}` : ''}` }), go);
+      } catch { preview.classList.add('muted'); preview.textContent = 'This file cannot be read as a vault.'; }
+    });
+    Modal.open({ title: 'Restore a backup', wide: true, cls: 'backups', body: (done) => { close = () => done(null); return h('div', null, list, preview); }, actions: [{ label: 'Close', icon: 'x', value: null }] });
   }
 
   /* open a note where it lives: the given board, else the current board if it is
@@ -536,13 +640,8 @@ export const App = (() => {
     });
   }
 
-  /* ── undo for deletions ── */
-  function pushUndo(label, fn) {
-    undoStack.push(fn);
-    if (undoStack.length > 30) undoStack.shift();
-    toast(label, { action: () => { const i = undoStack.lastIndexOf(fn); if (i >= 0) undoStack.splice(i, 1); fn(); }, label: `Undo` });
-  }
-  function undo() { const fn = undoStack.pop(); if (fn) { fn(); toast('Restored'); } }
+  /* ── undo: deletions push a closure that puts things back (07d-history.js) ── */
+  const pushUndo = (label, fn) => History.push(label, fn);
 
   async function downloadVault() {
     const text = await Store.serialize();
@@ -562,11 +661,14 @@ export const App = (() => {
   const isBoard = () => Store.S.data && Store.S.data.ui.active !== 'secrets';
   function commands() {
     return [
+      { title: 'Undo', key: kb('mod+z'), run: () => History.undo() },
+      { title: 'Redo', key: kb('mod+shift+z'), run: () => History.redo() },
       { title: 'New note', key: 'N', when: isBoard, run: () => Board.addNote(null, true) },
       { title: 'New board', run: newBoard },
       { title: 'Rename board', key: 'F2', when: isBoard, run: () => renameBoard(Store.S.data.ui.board) },
       { title: 'Delete board', when: isBoard, run: () => deleteBoard(Store.S.data.ui.board) },
       { title: 'Arrange notes', when: isBoard, run: () => Board.arrange() },
+      { title: 'Duplicate the selection', key: kb('mod+d'), when: () => isBoardView() && Board.selection().length > 0, run: () => Board.duplicate(Board.selection()) },
       { title: 'Find on this board', key: kb('mod+f'), when: isBoardView, run: () => Board.find() },
       { title: 'Select every note on this board', key: kb('mod+a'), when: isBoardView, run: () => Board.selectAll() },
       { title: 'Fit all notes on screen', key: kb('shift+1'), when: isBoard, run: () => Board.fit() },
@@ -584,11 +686,16 @@ export const App = (() => {
       { title: 'Move this board left', key: kb('alt+shift+['), when: isBoardView, run: () => moveBoard(-1) },
       { title: 'Move this board right', key: kb('alt+shift+]'), when: isBoardView, run: () => moveBoard(1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
+      { title: 'Export this board as SVG', when: isBoardView, run: () => Export.saveBoard('svg') },
+      { title: 'Export this board as PNG', when: isBoardView, run: () => Export.saveBoard('png') },
+      { title: 'Export notes as Markdown', run: () => Export.saveNotes() },
       { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ title: `Accent colour: ${label}`, run: () => setAccent(k) })),
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: kb('mod+s'), when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
-      { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
+      { title: 'Reload from disk', when: () => Store.S.vault.kind !== 'memory', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
+      { title: 'Recently deleted', run: trashPanel },
+      { title: 'Restore a backup…', when: () => Store.hasFolder(), run: backupPanel },
       { title: 'Download a copy of the vault', run: downloadVault },
       { title: 'Close vault', run: closeVault },
       { title: 'Keyboard shortcuts', key: '?', run: shortcuts },
@@ -597,8 +704,8 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('alt+shift+[ / ]'), 'Move this board left / right'], ['F2', 'Rename this board'], [kb('mod+z'), 'Undo a delete or arrange'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
-      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], [kb('alt+shift') + ' arrows', 'Resize'], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['B', 'Notes that link here'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
+      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('alt+shift+[ / ]'), 'Move this board left / right'], ['F2', 'Rename this board'], [kb('mod+z'), 'Undo'], [kb('mod+shift+z') + ' / ' + kb('mod+y'), 'Redo'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
+      ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], [kb('alt+shift') + ' arrows', 'Resize'], ['1–9', 'Colour'], [kb('mod+c / mod+x / mod+v'), 'Copy, cut, paste: lines and frame contents come along'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['B', 'Notes that link here'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
       ['Drawing', [['V / Esc', 'Select'], ['R O D', 'Rectangle, ellipse, diamond'], ['X', 'Text'], ['L / C', 'Line / arrow'], ['F', 'Frame'], ['Drag / click', 'Draw / default size'], ['Double-click, ' + kb('enter'), 'Edit the text or label'], ['Drag a side dot', 'Connect with an arrow'], ['Drag a line end', 'Attach it elsewhere'], ['[ ]', 'Send to back / bring to front'], ['1–9', 'Colour'], ['Del', 'Delete (undo with ' + kb('mod+z') + ')']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], [kb('mod+enter'), 'Tick a todo item'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], [kb('enter'), 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s / ' + kb('shift+s'), 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
@@ -645,7 +752,8 @@ export const App = (() => {
     if (e.altKey && !mod && e.code === 'KeyB') { e.preventDefault(); showView('board'); return; }
     if (isTypingTarget(e.target)) return;
     if (e.altKey && !mod && !e.shiftKey && k === 'ArrowLeft' && trail.length && isBoardView()) { e.preventDefault(); back(); return; }
-    if (mod && lower === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+    if (mod && lower === 'z') { e.preventDefault(); if (e.shiftKey) History.redo(); else History.undo(); return; }
+    if (mod && lower === 'y' && !e.shiftKey) { e.preventDefault(); History.redo(); return; }
     if (k === '?') { e.preventDefault(); shortcuts(); return; }
     if (k === 'F2' && isBoard()) { e.preventDefault(); renameBoard(Store.S.data.ui.board); return; }
     if (e.target.closest && e.target.closest('.hud')) return;

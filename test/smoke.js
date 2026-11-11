@@ -11,6 +11,9 @@ import { Secrets } from '../src/js/08-secrets.js';
 import { NotesList } from '../src/js/08b-notes.js';
 import { Palette } from '../src/js/09-palette.js';
 import { App } from '../src/js/10-app.js';
+import { History } from '../src/js/07d-history.js';
+import { Export } from '../src/js/07e-export.js';
+import { Crypt } from '../src/js/03b-crypt.js';
 
 /* Smoke tests. Only included by `python3 build.py --test`.
    Open test/frogmouth.html#smoke (served over http for OPFS),
@@ -1171,7 +1174,7 @@ import { App } from '../src/js/10-app.js';
     // serialization round trip
     const text = await Store.serialize();
     const parsed = JSON.parse(text);
-    ok('file format', parsed.frogmouth === Store.FORMAT && Store.FORMAT === 1 && !('version' in parsed.data) && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
+    ok('file format', parsed.frogmouth === 1 && Store.FORMAT === 2 && !('version' in parsed.data) && Array.isArray(parsed.data.notes) && parsed.data.boards.length === 2 && parsed.data.boards.every((b) => Array.isArray(b.items) && !b.notes) && parsed.data.secrets.length === 5);
     const re = Store.normalize(JSON.parse(JSON.stringify(parsed.data)));
     ok('normalize round trip', re.boards[0].items.length === Store.S.data.boards[0].items.length && re.notes.length === Store.S.data.notes.length);
     {
@@ -1180,7 +1183,7 @@ import { App } from '../src/js/10-app.js';
       const back = JSON.parse(JSON.stringify(fut));
       ok('unknown fields from a newer release are kept when saving', back.later.a === 1 && back.notes[0].later === 1 && back.boards[0].later === 2 && back.boards[0].items[0].later === 3 && back.secrets[0].later === 4 && back.ui.later === 5);
       const err = (text) => { try { Store.parse(text, 'x.fm'); return ''; } catch (e) { return e.message; } };
-      ok('a file from a newer frogmouth is refused, with what to do', /newer frogmouth \(format 2\).*latest frogmouth\.html.*Nothing was changed/.test(err(JSON.stringify({ frogmouth: 2, data: {} }))));
+      ok('a file from a newer frogmouth is refused, with what to do', /newer frogmouth \(format 3\).*latest frogmouth\.html.*Nothing was changed/.test(err(JSON.stringify({ frogmouth: 3, data: {} }))));
       ok('JSON that is not a vault is refused', /not a frogmouth vault/.test(err(JSON.stringify([{ key: 'A', value: 'b' }]))) && /not a frogmouth vault/.test(err(JSON.stringify({ notes: [], boards: [] }))) && /not valid JSON/.test(err('{oops')));
       ok('a version 1 vault is read', err(Store.serialize()) === '' && Array.isArray(Store.parse(Store.serialize()).notes));
     }
@@ -1588,13 +1591,325 @@ import { App } from '../src/js/10-app.js';
       $('.modal .btn.primary').click(); await wait(20);
     }
 
+    /* ── 1.4: large boards stay fast ── */
+    const freshBoard = async (name) => {
+      const b = { id: uid(), name, created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.change('boards'); App.openTab('b:' + b.id); await wait(40);
+      return b;
+    };
+    {
+      const b = await freshBoard('Perf');
+      const n1 = Board.addNote({ x: 0, y: 0 }, false, '<p>One</p>'), n2 = Board.addNote({ x: 400, y: 0 }, false, '<p>Two</p>'), n3 = Board.addNote({ x: 800, y: 0 }, false, '<p>Three</p>');
+      const far = Board.addNote({ x: 0, y: 400 }, false, '<p>Far</p>');
+      Store.addShape(b, { id: 'pl1', type: 'line', a: { note: n1.id }, b: { note: n2.id }, head: 'end', color: 'moth', text: '' });
+      Board.unmount(); Board.mount(b); await wait(300); // the feet render after a short delay, and change heights
+      // moving a note rewrites only the lines attached to it
+      const writes = [];
+      const mo = new MutationObserver((ms) => { for (const m of ms) writes.push(m.target.closest('g') && m.target.closest('g').dataset.id); });
+      mo.observe($('svg.wires'), { attributes: true, subtree: true });
+      Board.item(far.id).x += 16; Draw.place(Board.item(far.id)); Board.select(far.id); keydown(document.body, 'ArrowRight'); await frame(); await frame();
+      mo.disconnect();
+      ok('moving a note leaves lines it is not attached to untouched', !writes.includes('pl1'), JSON.stringify(writes));
+      // lookups stay right when placements move around in the list
+      Board.select(n2.id); keydown(document.body, 'Delete'); keydown(document.body, 'Delete'); await wait(20);
+      ok('placement lookups follow a removal', Board.item(n3.id) && Board.item(n3.id).note === n3.id && !Board.item(n2.id));
+      keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac }); await wait(30);
+      ok('and an undo', Board.item(n2.id) && Board.item(n2.id).note === n2.id && Board.item(n3.id).note === n3.id);
+      // note bodies are skipped while off screen, but keep their real height
+      const long = Board.addNote({ x: 60000, y: 60000 }, false, '<p>Tall</p>' + '<p>line</p>'.repeat(30));
+      await frame(); await frame();
+      Board.select(null); await frame();
+      const lel = $(`.note[data-id="${long.id}"]`);
+      ok('notes nobody is touching are skipped while off screen', getComputedStyle(lel).contentVisibility === 'auto', getComputedStyle(lel).contentVisibility);
+      Board.select(long.id); await frame();
+      ok('a selected note is left whole, so its handles and outline show', getComputedStyle(lel).contentVisibility === 'visible', getComputedStyle(lel).contentVisibility);
+      Board.select(null);
+      ok('an off-screen note keeps its real height', Board.rectOf(long.id).h > 500, Board.rectOf(long.id).h);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: undo and redo for everything on a board ── */
+    const undoK = () => keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+    const redoK = () => keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac, shiftKey: true });
+    {
+      const b = await freshBoard('Undo');
+      const a = Board.addNote({ x: 0, y: 0 }, false, '<p>Alpha</p>'), c = Board.addNote({ x: 400, y: 0 }, false, '<p>Gamma</p>');
+      await wait(20);
+      const steps = History.size();
+      // a click only raises a note; it is not a step
+      Board.select(c.id);
+      await press($(`.note[data-id="${a.id}"] .note-body`));
+      ok('a click that only raises a note is not an undo step', History.size() === steps, History.size() + ' vs ' + steps);
+      // a drag
+      const el = $(`.note[data-id="${a.id}"]`), r0 = el.getBoundingClientRect();
+      el.querySelector('.note-body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: r0.left + 30, clientY: r0.top + 20, isPrimary: true }));
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r0.left + 30 + 120 * Board.zoom(), clientY: r0.top + 20 + 80 * Board.zoom() }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); await wait(20);
+      const moved = { x: Board.item(a.id).x, y: Board.item(a.id).y };
+      undoK(); await wait(30);
+      ok('undo puts a dragged note back', Board.item(a.id).x === 0 && Board.item(a.id).y === 0, JSON.stringify(Board.item(a.id)));
+      redoK(); await wait(30);
+      ok('redo moves it again', Board.item(a.id).x === moved.x && Board.item(a.id).y === moved.y && moved.x > 0, JSON.stringify([moved, Board.item(a.id)]));
+      // nudges in a row are one step
+      Board.select(a.id);
+      for (let i = 0; i < 3; i++) keydown(document.body, 'ArrowRight');
+      await wait(20);
+      undoK(); await wait(30);
+      ok('three nudges in a row undo as one step', Board.item(a.id).x === moved.x, Board.item(a.id).x + ' vs ' + moved.x);
+      // colour
+      Board.select(a.id); keydown(document.body, '4'); await wait(20);
+      ok('colour key colours', Store.noteRef(a.id).note.color === 'rose');
+      undoK(); await wait(30);
+      ok('undo brings the colour back', Store.noteRef(a.id).note.color !== 'rose', Store.noteRef(a.id).note.color);
+      // shapes: style, text, a line end
+      const s1 = { id: uid(), type: 'rect', x: 0, y: 300, w: 160, h: 96, z: 1, color: 'moth', text: 'Box' };
+      Store.addShape(b, s1); Store.change('shapes'); Board.unmount(); Board.mount(b); await wait(30);
+      Board.select(s1.id); await wait(10);
+      [...$$('.draw-style .draw-btn')].find((x) => x.title === 'Dashed').click(); await wait(10);
+      ok('the style bar dashes a box', !!Draw.get(s1.id).dash);
+      undoK(); await wait(30);
+      ok('undo takes the dash off again', !Draw.get(s1.id).dash, JSON.stringify(Draw.get(s1.id)));
+      Draw.editText(s1.id); document.execCommand('selectAll'); document.execCommand('insertText', false, 'Renamed'); keydown($('.shape.editing .shape-text'), 'Escape'); await wait(20);
+      ok('shape text changed', Draw.get(s1.id).text === 'Renamed');
+      undoK(); await wait(30);
+      ok('undo brings the old shape text back', Draw.get(s1.id).text === 'Box', Draw.get(s1.id).text);
+      const ln = { id: uid(), type: 'line', a: { note: a.id }, b: { note: c.id }, head: 'end', color: 'moth', text: '' };
+      Store.addShape(b, ln); Store.change('shapes'); await wait(20);
+      Draw.get(ln.id).b = { shape: s1.id }; Store.change('shapes'); await wait(20);
+      undoK(); await wait(30);
+      ok('undo re-attaches a line end where it was', Draw.get(ln.id) && Draw.get(ln.id).b.note === c.id, JSON.stringify(Draw.get(ln.id)));
+      // things made can be unmade, and made again
+      Board.select(c.id); keydown(document.body, 'd', { metaKey: isMac, ctrlKey: !isMac }); await wait(20);
+      const dup = Board.selected();
+      ok('duplicate made a copy', dup && dup !== c.id && !!Store.noteRef(dup));
+      undoK(); await wait(30);
+      ok('undo of a duplicate removes the copy everywhere', !Board.item(dup) && !Store.noteRef(dup));
+      redoK(); await wait(30);
+      ok('redo brings the copy back with its text', Board.item(dup) && Store.noteRef(dup) && Store.noteRef(dup).note.title === 'Gamma');
+      // a new action after an undo starts a new future
+      undoK(); await wait(30);
+      Board.select(a.id); keydown(document.body, 'ArrowDown'); await wait(20);
+      const before = History.size();
+      redoK(); await wait(30);
+      ok('a new change clears redo', !Store.noteRef(dup) && History.size() === before);
+      keydown(document.body, '?'); await wait(30);
+      ok('the shortcuts list names redo', /Redo/.test(($('.keys-grid') || {}).textContent || ''));
+      if ($('.modal')) $('.modal .btn.primary').click();
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: Recently deleted ── */
+    {
+      const b = await freshBoard('Trash test');
+      const n = Board.addNote({ x: 120, y: 80 }, false, '<p>Keep me safe</p>');
+      Store.addShape(b, { id: 'tr-box', type: 'rect', x: 0, y: 400, w: 96, h: 96, z: 1, color: 'moth', text: '' });
+      await wait(20);
+      // an empty note that goes away by itself is not kept
+      const empty = Board.addNote({ x: 600, y: 0 }, false); Board.removeEverywhere(empty.id, true);
+      ok('an empty note that goes away by itself is not kept', !Store.trash().some((e) => e.note && e.note.id === empty.id));
+      Board.removeEverywhere(n.id); await wait(20);
+      const entry = Store.trash().find((e) => e.kind === 'note' && e.note.id === n.id);
+      ok('a note deleted everywhere goes to Recently deleted', !!entry && !Store.noteRef(n.id) && entry.places[0].board === b.id && entry.places[0].x === 120, JSON.stringify(entry && entry.places));
+      undoK(); await wait(30);
+      ok('undoing the delete takes it out of Recently deleted', !!Store.noteRef(n.id) && !Store.trash().some((e) => e.note && e.note.id === n.id));
+      Board.removeEverywhere(n.id); await wait(20);
+      App.commands().find((c) => c.title === 'Recently deleted').run(); await wait(40);
+      const row = [...$$('.trash-row')].find((r) => /Keep me safe/.test(r.textContent));
+      ok('Recently deleted lists it with where it was', !!row && /Trash test/.test(row.textContent), $('.modal') && $('.modal').textContent);
+      row.querySelector('[data-a="restore"]').click(); await wait(40);
+      ok('restore puts the note back in the library and on its board, where it was', !!Store.noteRef(n.id) && Board.item(n.id) && Board.item(n.id).x === 120 && !Store.trash().some((e) => e.note && e.note.id === n.id));
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      await wait(20);
+      undoK(); await wait(30);
+      ok('undoing a restore sends it back to Recently deleted', !Store.noteRef(n.id) && Store.trash().some((e) => e.note && e.note.id === n.id));
+      // a board, with its shapes
+      App.openTab('b:' + b.id); await wait(20);
+      App.commands().find((c) => c.title === 'Delete board').run(); await wait(40);
+      ok('deleting a board says it goes to Recently deleted', !!$('.modal') && /Recently deleted/.test($('.modal').textContent), $('.modal') && $('.modal').textContent);
+      if ($('.modal')) $('.modal .btn.primary').click();
+      await wait(40);
+      ok('a deleted board goes to Recently deleted', !Store.board(b.id) && Store.trash().some((e) => e.kind === 'board' && e.board.id === b.id));
+      App.commands().find((c) => c.title === 'Recently deleted').run(); await wait(40);
+      [...$$('.trash-row')].find((r) => /Trash test/.test(r.querySelector('.trash-title').textContent)).querySelector('[data-a="restore"]').click(); await wait(40);
+      ok('a restored board comes back with its shapes', !!Store.board(b.id) && Store.shapes(Store.board(b.id)).some((x) => x.id === 'tr-box'));
+      // deleting for good asks first
+      const forever = [...$$('.trash-row')].find((r) => /Keep me safe/.test(r.textContent));
+      forever.querySelector('[data-a="forget"]').click(); await wait(40);
+      ok('deleting forever asks first', $$('.modal').length === 2 && /cannot be undone/.test($$('.modal')[1].textContent));
+      $$('.modal')[1].querySelector('.btn.primary').click(); await wait(40);
+      ok('and then it is gone for good', !Store.trash().some((e) => e.note && e.note.id === n.id));
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      await wait(20);
+      // old entries go after 30 days; kinds this release does not know are kept
+      const d = Store.normalize({ notes: [], boards: [], trash: [
+        { kind: 'note', id: 't1', at: Date.now() - 31 * 864e5, note: { id: 'old', html: '<p>old</p>' }, places: [] },
+        { kind: 'note', id: 't2', at: Date.now() - 2 * 864e5, note: { id: 'new', html: '<p>new</p>' }, places: [] },
+        { kind: 'sketch', id: 't3', at: Date.now() - 2 * 864e5, data: 1 }] });
+      // Esc closes a dialog even after focus left it (a button inside was re-rendered away)
+      App.commands().find((c) => c.title === 'Recently deleted').run(); await wait(30);
+      document.activeElement.blur(); keydown(document.body, 'Escape'); await wait(20);
+      ok('Esc closes a dialog that lost focus', !$('.modal'));
+      ok('Recently deleted keeps 30 days', d.trash.map((e) => e.id).join() === 't2,t3', JSON.stringify(d.trash.map((e) => e.id)));
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: copy, cut, paste, duplicate ── */
+    const clipEv = (type, text) => { const dt = new DataTransfer(); if (text != null) dt.setData('text/plain', text); const ev = new ClipboardEvent(type, { clipboardData: dt, bubbles: true, cancelable: true }); document.body.dispatchEvent(ev); return dt; };
+    {
+      const src = await freshBoard('Copy from');
+      const p = Board.addNote({ x: 0, y: 0 }, false, '<p>Producer</p>'), q = Board.addNote({ x: 400, y: 0 }, false, '<p>Consumer</p>');
+      Store.addShape(src, { id: 'cp-frame', type: 'frame', x: 0, y: 400, w: 400, h: 300, color: 'moth', text: 'Area' });
+      Store.addShape(src, { id: 'cp-box', type: 'rect', x: 80, y: 480, w: 120, h: 80, z: 1, color: 'sea', text: 'Inside' });
+      Store.addShape(src, { id: 'cp-line', type: 'line', a: { note: p.id }, b: { note: q.id }, head: 'end', color: 'moth', text: 'feeds' });
+      Store.change('shapes'); Board.unmount(); Board.mount(src); await wait(40);
+      Board.setGroup([p.id, q.id, 'cp-frame']);
+      const dt = clipEv('copy');
+      ok('copy puts the text on the clipboard too', /Producer/.test(dt.getData('text/plain')) && /Inside/.test(dt.getData('text/plain')), dt.getData('text/plain'));
+      const dst = await freshBoard('Paste to');
+      clipEv('paste', dt.getData('text/plain')); await wait(40);
+      const notes = dst.items.map((it) => Store.noteRef(it.note).note);
+      const shapes = Store.shapes(dst);
+      const line = shapes.find((x) => x.type === 'line');
+      ok('paste makes copies of the notes', notes.length === 2 && notes.every((n) => n.id !== p.id && n.id !== q.id) && notes.map((n) => n.title).sort().join() === 'Consumer,Producer', JSON.stringify(notes.map((n) => n.title)));
+      ok('a frame comes with what it holds', shapes.some((x) => x.type === 'frame' && x.text === 'Area') && shapes.some((x) => x.type === 'rect' && x.text === 'Inside' && x.id !== 'cp-box'));
+      ok('and the line between copied notes joins the copies', line && line.text === 'feeds' && notes.some((n) => n.id === line.a.note) && notes.some((n) => n.id === line.b.note), JSON.stringify(line));
+      ok('the pasted things are selected', Board.selection().length === 5, Board.selection().length);
+      undoK(); await wait(40);
+      ok('one undo takes the whole paste away', !dst.items.length && !Store.shapes(dst).length && !notes.some((n) => Store.noteRef(n.id)));
+      // pasting on the same board lands beside the original
+      App.openTab('b:' + src.id); await wait(30);
+      Board.setGroup([p.id]); clipEv('copy');
+      clipEv('paste', 'Producer'); await wait(30);
+      const copy = src.items[src.items.length - 1];
+      ok('pasting on the same board lands just beside the original', copy.note !== p.id && copy.x === 24 && copy.y === 24, JSON.stringify(copy));
+      // cut moves the notes themselves
+      Board.setGroup([q.id]); clipEv('cut'); await wait(30);
+      ok('cut takes the note off the board (it waits in All notes)', !Board.item(q.id) && !!Store.noteRef(q.id));
+      App.openTab('b:' + dst.id); await wait(30);
+      clipEv('paste', 'Consumer'); await wait(30);
+      ok('paste after cut moves the same note here', !!Board.item(q.id) && dst.items.length === 1);
+      // text from elsewhere becomes a note
+      clipEv('paste', 'An idea from the browser\nwith a second line'); await wait(30);
+      const fromText = dst.items.map((it) => Store.noteRef(it.note).note).find((n) => n.title === 'An idea from the browser');
+      ok('pasting text from elsewhere makes a note of it', !!fromText && /second line/.test(fromText.text));
+      // duplicate keeps lines and frame contents
+      App.openTab('b:' + src.id); await wait(30);
+      Board.setGroup(['cp-frame']); keydown(document.body, 'd', { metaKey: isMac, ctrlKey: !isMac }); await wait(30);
+      ok('duplicating a frame duplicates what it holds', Store.shapes(src).filter((x) => x.type === 'rect' && x.text === 'Inside').length === 2 && Store.shapes(src).filter((x) => x.type === 'frame').length === 2);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    {
+      // after using the menu, focus stays on its button: a click on the board takes it back, and the
+      // clipboard keys never act on the board while focus is in the floating bar
+      const b = await freshBoard('Focus');
+      const n = Board.addNote({ x: 0, y: 0 }, false, '<p>Stay</p>'); await wait(20);
+      Board.select(n.id); $('.hud-menu').focus();
+      const dt = new DataTransfer(); $('.hud-menu').dispatchEvent(new ClipboardEvent('cut', { clipboardData: dt, bubbles: true, cancelable: true }));
+      ok('cut does nothing while focus is in the floating bar', !!Board.item(n.id));
+      await press($(`.note[data-id="${n.id}"] .note-body`));
+      ok('a click on the board takes focus off the floating bar', !document.activeElement.closest('.hud'), document.activeElement.className);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: alignment guides while dragging ── */
+    {
+      const b = await freshBoard('Guides');
+      const a = Board.addNote({ x: 0, y: 0 }, false, '<p>Anchor</p>'), m = Board.addNote({ x: 400, y: 200 }, false, '<p>Mover</p>');
+      Board.item(a.id).y = 5; Board.unmount(); Board.mount(b); Board.zoomAt(1); await wait(40);
+      const dragTo = async (dy, alt) => {
+        const el = $(`.note[data-id="${m.id}"]`), r = el.getBoundingClientRect();
+        el.querySelector('.note-body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: r.left + 30, clientY: r.top + 20, isPrimary: true }));
+        dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r.left + 30, clientY: r.top + 20 + dy, altKey: !!alt }));
+        await frame();
+        const shown = $$('.guide').length;
+        dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); await wait(20);
+        return shown;
+      };
+      // from y 200, up by 193 lands at 7: the grid says 8, the other note's top says 5
+      const shown = await dragTo(-193);
+      ok('a dragged note snaps to another note\'s edge', Board.item(m.id).y === 5, Board.item(m.id).y);
+      ok('and a guide shows what it lines up with while dragging', shown > 0 && !$$('.guide').length, shown);
+      Board.item(m.id).y = 200; Board.unmount(); Board.mount(b); await wait(30);
+      await dragTo(-193, true);
+      ok('Alt turns snapping off', Board.item(m.id).y === 7, Board.item(m.id).y);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: export ── */
+    {
+      const b = await freshBoard('Export me');
+      const n = Board.addNote({ x: 0, y: 0 }, false, '<p>Card title</p><ul data-type="todo"><li data-checked="true">done <code>env:prod</code></li></ul><pre class="code" data-lang="js"><code>if (x) {\n  go();\n}</code></pre>');
+      Store.addShape(b, { id: 'ex-box', type: 'diamond', x: 400, y: 0, w: 160, h: 96, z: 1, color: 'sea', text: 'Decide' });
+      Store.addShape(b, { id: 'ex-f', type: 'frame', x: -40, y: -60, w: 700, h: 300, color: 'moth', text: 'Zone' });
+      Store.addShape(b, { id: 'ex-l', type: 'line', a: { note: n.id }, b: { shape: 'ex-box' }, head: 'end', color: 'moth', text: 'yes' });
+      Store.change('shapes'); Board.unmount(); Board.mount(b); await wait(40);
+      const { svg } = Export.svg(b);
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      ok('a board exports as a valid SVG', !doc.querySelector('parsererror') && doc.documentElement.tagName === 'svg', svg.slice(0, 200));
+      ok('inline code in a list item is written once, and code keeps its indentation', (svg.match(/env:prod/g) || []).length === 1 && svg.includes('>\u00a0\u00a0go();<'), svg.match(/env:prod/g));
+      ok('with its notes, shapes, frame names and line labels', /Card title/.test(svg) && /☑ done/.test(svg) && /Decide/.test(svg) && /Zone/.test(svg) && />yes</.test(svg) && doc.querySelectorAll('polygon').length === 1, svg.length);
+      const blob = await Export.png(b).catch((e) => e);
+      ok('and as a PNG', blob && blob.type === 'image/png' && blob.size > 1000, blob && (blob.message || blob.size));
+      const md = Export.markdown('<p>Title</p><h2>Part</h2><ul data-type="todo"><li data-checked="true">a</li><li data-checked="false">b</li></ul><pre class="code" data-lang="js"><code>let x = 1;</code></pre><p>see <a class="mention" data-note="X1">@Other</a> and <b>bold</b></p><table><tbody><tr><th>k</th><th>v</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>', new Map([['X1', 'Other note']]));
+      ok('notes turn into Markdown', md.includes('## Part') && md.includes('- [x] a') && md.includes('- [ ] b') && md.includes('```js\nlet x = 1;\n```') && md.includes('[[Other note]]') && md.includes('**bold**') && md.includes('| k | v |'), md);
+      const titles = App.commands().map((c) => c.title);
+      ok('export is in the commands', ['Export this board as SVG', 'Export this board as PNG', 'Export notes as Markdown'].every((t) => titles.includes(t)), titles.filter((t) => /Export/.test(t)).join('|'));
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: a passphrase for secret values ── */
+    {
+      const d0 = Store.blankData();
+      d0.secrets = [{ id: 'k1', key: 'DB_URL', value: 'postgres://app:pw@db/app', tags: ['env:prod'], desc: 'main' }, { id: 'k2', key: 'TOKEN', value: 'tok-123', tags: [], desc: '' }];
+      Store.openMemory(d0, 'crypt'); App.enter(); App.openTab('secrets'); await wait(40);
+      ok('an unprotected vault offers a passphrase on the Secrets page', /passphrase/i.test(($('.s-lock') || {}).title || ''), ($('.s-lock') || {}).title);
+      ok('and is still written as format 1', Store.serialize().startsWith('{"frogmouth":1'));
+      await Crypt.protect('correct horse battery');
+      const file = Store.serialize();
+      ok('protecting encrypts every value in the file', !file.includes('postgres://app:pw') && !file.includes('tok-123') && Store.S.data.secrets.every((x) => x.enc && x.value === ''), file.slice(0, 120));
+      ok('keys, tags and notes stay readable, so search works', file.includes('DB_URL') && file.includes('env:prod') && file.includes('"main"'));
+      ok('a protected vault is written as format 2, so older versions refuse it', file.startsWith('{"frogmouth":2') && Store.S.data.crypt.iter === 600000);
+      ok('while unlocked the values work as before', Crypt.value(Store.secret('k1')) === 'postgres://app:pw@db/app');
+      // locked: values need the passphrase
+      Crypt.lock(); Secrets.render(); await wait(20);
+      ok('locked, a value cannot be read', Crypt.value(Store.secret('k1')) === null && Crypt.locked());
+      [...$$('.srow')].find((r) => /TOKEN/.test(r.textContent)).querySelector('[data-a="reveal"]').click(); await wait(40);
+      const pass = $('.modal input[type="password"]');
+      ok('revealing asks for the passphrase (and the bird looks away)', !!pass && pass.hasAttribute('data-shy'));
+      pass.value = 'wrong one'; $('.modal .btn.primary').click(); await wait(1500);
+      ok('a wrong passphrase is refused', !!$('.modal') && /not right/i.test($('.modal').textContent) && Crypt.locked());
+      $('.modal input[type="password"]').value = 'correct horse battery'; $('.modal .btn.primary').click(); await wait(1500);
+      ok('the right one unlocks and shows the value', !Crypt.locked() && !$('.modal') && /tok-123/.test(($('.srow .s-val.shown') || {}).textContent || ''), ($('.srow .s-val.shown') || {}).textContent);
+      // a new secret is encrypted when saved
+      Secrets.edit(null); await wait(20);
+      const [keyI, valI] = [$('.s-drawer input'), $('.s-drawer textarea')];
+      keyI.value = 'NEW_ONE'; valI.value = 'fresh-value'; $('.s-drawer .btn.primary').click(); await wait(300);
+      const nx = Store.S.data.secrets.find((x) => x.key === 'NEW_ONE');
+      ok('a secret added while protected is saved encrypted', nx && nx.enc && nx.value === '' && Crypt.value(nx) === 'fresh-value' && !Store.serialize().includes('fresh-value'));
+      // the file opens again with the passphrase
+      const text = Store.serialize();
+      Store.openMemory(Store.parse(text), 'again'); App.enter(); App.openTab('secrets'); await wait(30);
+      ok('reopened, the vault starts locked', Crypt.locked());
+      ok('and the passphrase unlocks it', (await Crypt.unlock('correct horse battery')) && Crypt.value(Store.secret('k1')) === 'postgres://app:pw@db/app');
+      await Crypt.unprotect();
+      ok('removing the passphrase writes the values in plain text again, as format 1', !Store.S.data.crypt && Store.serialize().startsWith('{"frogmouth":1') && Store.secret('k2').value === 'tok-123' && !Store.secret('k2').enc);
+      Store.openMemory(demoData(), 'test'); App.enter(); await wait(30);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
         const root = await navigator.storage.getDirectory();
         const dir = await root.getDirectoryHandle('fm-test-' + Date.now(), { create: true });
+        // browser storage is best-effort unless asked to persist: Chrome may clear it when the disk fills
+        let persistAsked = 0;
+        const sm = navigator.storage, realPersist = sm.persist;
+        sm.persist = async () => { persistAsked++; return true; };
         const res = await Store.openDir(dir, 'opfs');
+        sm.persist = realPersist;
         ok('opfs creates vault', res.ok && res.fresh);
+        ok('browser storage asks the browser to keep it', persistAsked === 1, persistAsked);
         App.enter();
         ok('sync pill names the storage', $('.sync-where').textContent === 'Browser storage');
         Store.S.data.secrets.push({ id: uid(), key: 'OPFS_KEY', value: 'v', tags: [], desc: '' });
@@ -1633,6 +1948,61 @@ import { App } from '../src/js/10-app.js';
         const mine = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
         ok('"Keep mine" then writes this version once', mine.includes('"MINE"') && Store.S.status === 'saved' && !Store.S.force, Store.S.status);
         Store.S.vault.kind = 'opfs';
+        // the same for a browser-storage vault: a second tab writing the file must not be overwritten
+        {
+          await wait(30);
+          const other = JSON.stringify({ frogmouth: 1, data: { ...JSON.parse(JSON.stringify(Store.S.data)), secrets: [{ id: 'y', key: 'OTHER_TAB', value: '1', tags: [] }] } });
+          const ow = await (await dir.getFileHandle('vault.fm')).createWritable(); await ow.write(other); await ow.close();
+          Store.S.data.secrets.push({ id: uid(), key: 'THIS_TAB', value: '1', tags: [], desc: '' }); Store.change('secrets');
+          await wait(600);
+          const both = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
+          ok('two tabs on browser storage: the second save stops instead of overwriting', Store.S.status === 'conflict' && both.includes('OTHER_TAB') && !both.includes('"THIS_TAB"'), Store.S.status);
+          await Store.keepMine();
+          // with nothing unsaved here, a write from the other tab is picked up by the watcher
+          await wait(30);
+          const third = JSON.stringify({ frogmouth: 1, data: { ...JSON.parse(JSON.stringify(Store.S.data)), secrets: [{ id: 'z', key: 'WATCHED', value: '1', tags: [] }] } });
+          const tw = await (await dir.getFileHandle('vault.fm')).createWritable(); await tw.write(third); await tw.close();
+          await wait(2300);
+          ok('browser storage is watched for writes from another tab', Store.S.data.secrets.some((s) => s.key === 'WATCHED'), JSON.stringify(Store.S.data.secrets.map((s) => s.key)));
+        }
+        // backups: a daily copy, hourly snapshots while editing, and a screen to restore one
+        {
+          const bdir = await dir.getDirectoryHandle('.fm-backups', { create: true });
+          const put = async (name, text) => { const w = await (await bdir.getFileHandle(name, { create: true })).createWritable(); await w.write(text); await w.close(); };
+          const day = (i) => new Date(Date.UTC(2025, 0, 1 + i)).toISOString().slice(0, 10);
+          for (let i = 0; i < 20; i++) await put(`vault-${day(i)}.fm`, '{}');
+          for (let i = 0; i < 60; i++) await put(`vault-${day(0)}T${String(i % 24).padStart(2, '0')}-${String(i).padStart(2, '0')}.fm`, '{}');
+          Store.S.lastSnap = 0;
+          Store.S.data.secrets.push({ id: uid(), key: 'SNAP_ME', value: '1', tags: [], desc: '' }); Store.change('secrets');
+          await wait(900);
+          const names = []; for await (const [nm] of bdir.entries()) names.push(nm);
+          const snaps = names.filter((nm) => /T\d\d-\d\d\.fm$/.test(nm)), dailies = names.filter((nm) => /-\d{4}-\d{2}-\d{2}\.fm$/.test(nm));
+          ok('saving takes an hourly snapshot and keeps the newest 48', snaps.length === 48 && (await Store.readBackup(snaps.sort().pop())).includes('SNAP_ME'), snaps.length);
+          ok('daily copies keep the newest 14, apart from the snapshots', dailies.length === 14, dailies.length);
+          // a version to go back to
+          const old = JSON.parse(JSON.stringify(Store.S.data)); old.secrets = [{ id: 'bk', key: 'FROM_BACKUP', value: '1', tags: [] }];
+          await put('vault-2099-01-01.fm', JSON.stringify({ frogmouth: 1, saved: '2099-01-01T00:00:00.000Z', data: old }));
+          App.commands().find((c) => c.title === 'Restore a backup…').run(); await wait(80);
+          const row = [...$$('.backup-row')].find((r) => r.dataset.name === 'vault-2099-01-01.fm');
+          ok('Restore lists the backups, newest first', !!row && $$('.backup-row')[0] === row, $$('.backup-row').length);
+          row.click(); await wait(80);
+          ok('picking one shows what is in it', /1 secret/.test(($('.backup-preview') || {}).textContent || ''), ($('.backup-preview') || {}).textContent);
+          $('.backup-preview [data-a="restore"]').click(); await wait(60);
+          ok('restoring asks first', $$('.modal').length === 2 && /saved as a backup first/.test($$('.modal')[1].textContent));
+          $$('.modal')[1].querySelector('.btn.primary').click(); await wait(400);
+          ok('restoring brings that version back', Store.S.data.secrets.length === 1 && Store.S.data.secrets[0].key === 'FROM_BACKUP');
+          const after = []; for await (const [nm] of bdir.entries()) after.push(nm);
+          ok('what was open is saved as a backup first', after.some((nm) => /before-restore/.test(nm)));
+          undoK(); await wait(400);
+          ok('and the restore can be undone', Store.S.data.secrets.some((s) => s.key === 'SNAP_ME'));
+          // Markdown into the vault folder: one file per note
+          const where = await Export.saveNotes();
+          const mdir = where && await (await dir.getDirectoryHandle('markdown')).getDirectoryHandle(where.split('/')[1]);
+          const files = []; if (mdir) for await (const [nm] of mdir.entries()) files.push(nm);
+          ok('notes export as Markdown files into the vault folder', files.length === Store.S.data.notes.length && files.every((f) => f.endsWith('.md')), JSON.stringify(files));
+          if ($('.modal')) keydown($('.modal'), 'Escape');
+          await wait(20);
+        }
         // a change made outside the app is reloaded and shown (the board must not keep stale notes)
         App.enter(); await wait(50);
         const disk = JSON.parse(JSON.stringify(Store.S.data));
@@ -1643,7 +2013,7 @@ import { App } from '../src/js/10-app.js';
         ok('external changes re-render the board', !!$('.note[data-id="ext1"]') && Board.current() === Store.S.data.boards[0], $$('.note').length);
         // a vault saved by a newer frogmouth is never opened, so it can never be written over
         const nd = await root.getDirectoryHandle('fm-newer-' + Date.now(), { create: true });
-        const newer = JSON.stringify({ frogmouth: 2, data: { shape: 'unknown to this version' } });
+        const newer = JSON.stringify({ frogmouth: 3, data: { shape: 'unknown to this version' } });
         const nw = await (await nd.getFileHandle('vault.fm', { create: true })).createWritable(); await nw.write(newer); await nw.close();
         const openBefore = Store.S.vault;
         let refusal = ''; try { await Store.openDir(nd, 'opfs'); } catch (e) { refusal = e.message; }

@@ -1,11 +1,12 @@
 import { $$, kb, modKey, clamp, now, h, uid, esc, relTime, toast, copyText, download, icon, Tags, bus } from './00-util.js';
 import { Store } from './03-store.js';
-import { Modal, tagAssist } from './05-ui.js';
+import { Modal, Popup, tagAssist } from './05-ui.js';
 import { App } from './10-app.js';
+import { Crypt } from './03b-crypt.js';
 
 /* ── secrets: key/value pairs with plain and key:value tags ────────── */
 export const Secrets = (() => {
-  let root, list, filterInp, countEl, drawer, tagsRow;
+  let root, list, filterInp, countEl, drawer, tagsRow, lockB;
   let rows = [], cur = 0, editingId = null, closeEditor = null;
   const revealed = new Set();
   const MASK = '••••••••••••';
@@ -26,6 +27,7 @@ export const Secrets = (() => {
         h('div', { class: 's-search', html: icon('search') }, filterInp),
         countEl,
         h('button', { class: 'btn ic-only', title: 'New secret (N)', 'aria-label': 'New secret', html: icon('plus'), onclick: () => edit(null) }),
+        lockB = h('button', { class: 'btn ghost ic-only s-lock', onclick: () => lockMenu() }),
         h('button', { class: 'btn ghost ic-only', title: 'Export every secret as a JSON file', 'aria-label': 'Export JSON', html: icon('download'), onclick: () => exportJson() })),
       tagsRow,
       h('div', { class: 's-head' }, h('span', { text: 'Key' }), h('span', { text: 'Value' }), h('span', { text: 'Tags' }), h('span')),
@@ -58,6 +60,57 @@ export const Secrets = (() => {
     // a locked or closed vault leaves nothing behind: no rows, no revealed values
     bus.on('closed', () => { revealed.clear(); rows = []; cur = 0; filterInp.value = ''; list.replaceChildren(); tagsRow.replaceChildren(); drawer.hidden = true; drawer.replaceChildren(); root.classList.remove('drawer-open'); closeEditor = null; });
     list.addEventListener('dblclick', (e) => { const row = e.target.closest('.srow'); if (row && !e.target.closest('button')) edit(Store.secret(row.dataset.id)); });
+    bus.on('locked', () => { revealed.clear(); render(); });
+    bus.on('unlocked', () => render());
+    bus.on('copy-secret', (id) => { const x = Store.secret(id); if (x) copy(x); }); // a secret reference in a note
+  }
+
+  /* ── the passphrase ── */
+  function paintLock() {
+    const st = !Crypt.on() ? 'off' : Crypt.locked() ? 'locked' : 'open';
+    lockB.innerHTML = icon(st === 'open' ? 'unlock' : 'lock');
+    lockB.classList.toggle('on', st !== 'off');
+    lockB.title = { off: 'Protect the values with a passphrase', locked: 'Values are locked: unlock with the passphrase', open: 'Values are unlocked: lock them, or remove the passphrase' }[st];
+    lockB.setAttribute('aria-label', lockB.title);
+  }
+  const passField = (placeholder) => h('input', { class: 'field mono', type: 'password', placeholder, autocomplete: 'off', spellcheck: 'false', 'data-shy': '' });
+  /* resolves true once the values can be read (asking for the passphrase if they are locked) */
+  async function need() {
+    if (!Crypt.locked()) return true;
+    const inp = passField('Passphrase'), msg = h('p', { class: 'd-pending', hidden: true, text: 'That passphrase is not right.' });
+    return !!(await Modal.open({
+      title: 'Unlock the secret values',
+      body: h('div', null, h('p', { class: 'muted', text: 'They stay unlocked while you work, and lock again when the vault closes or after 15 idle minutes.' }), inp, msg),
+      actions: [{ label: 'Cancel', icon: 'x', value: false }, { label: 'Unlock', icon: 'unlock', primary: true, run: async () => { if (await Crypt.unlock(inp.value)) return true; msg.hidden = false; inp.select(); return false; } }],
+    }));
+  }
+  async function protect() {
+    const a = passField('Passphrase, 8 characters or more'), b = passField('The same again'), msg = h('p', { class: 'd-pending', hidden: true });
+    const ok = await Modal.open({
+      title: 'Protect the values with a passphrase',
+      body: h('div', { class: 'pass-form' }, h('p', { class: 'muted', text: 'Each value is encrypted in the vault file. Keys, tags and notes stay readable, so search keeps working. Without the passphrase the values cannot be recovered: keep it somewhere safe.' }), a, b, msg),
+      actions: [{ label: 'Cancel', icon: 'x', value: false }, { label: 'Protect', icon: 'lock', primary: true, run: async () => {
+        const say = (t) => { msg.textContent = t; msg.hidden = false; return false; };
+        if (a.value.length < 8) return say('Use at least 8 characters.');
+        if (a.value !== b.value) return say('The two do not match.');
+        await Crypt.protect(a.value); return true;
+      } }],
+    });
+    if (ok) { toast('The values are now encrypted in the vault'); render(); }
+  }
+  async function lockMenu() {
+    if (!Crypt.on()) return protect();
+    if (Crypt.locked()) { if (await need()) toast('Unlocked'); return; }
+    const r = lockB.getBoundingClientRect();
+    Popup.open({
+      x: r.left, y: r.bottom + 4, title: 'Passphrase',
+      items: [{ id: 'lock', label: 'Lock now', icon: 'lock' }, { id: 'remove', label: 'Remove the passphrase…', icon: 'unlock' }],
+      onPick: async (it) => {
+        if (it.id === 'lock') { Crypt.lock(); toast('Locked'); return; }
+        if (!(await Modal.confirm('Remove the passphrase?', 'The values will be written to the vault file in plain text again.', 'Remove', true, 'unlock'))) return;
+        await Crypt.unprotect(); toast('The passphrase is removed'); render();
+      },
+    });
   }
 
   /* ── filtering ── */
@@ -68,6 +121,7 @@ export const Secrets = (() => {
   /* ── rendering ── */
   function render() {
     if (!root || !Store.S.data) return;
+    paintLock();
     const toks = filterInp.value.toLowerCase().split(/\s+/).filter(Boolean);
     const active = Tags.wanted(toks);
     const all = Store.S.data.secrets;
@@ -82,8 +136,8 @@ export const Secrets = (() => {
     if (!rows.length) { list.innerHTML = `<div class="s-empty"><p>Nothing matches “${esc(filterInp.value.trim())}”.</p><p class="muted">Press <kbd>Esc</kbd> to clear the filter.</p></div>`; return; }
     let out = '';
     rows.forEach((x, i) => {
-      const show = revealed.has(x.id);
-      const v = show ? esc(x.value.length > 400 ? x.value.slice(0, 400) + '…' : x.value) : MASK;
+      const val = Crypt.value(x), show = revealed.has(x.id) && val != null;
+      const v = show ? esc(val.length > 400 ? val.slice(0, 400) + '…' : val) : MASK;
       out += `<div class="srow${i === cur ? ' on' : ''}" data-id="${esc(x.id)}" role="option">` +
         `<div class="s-key"><button class="s-keyname" data-a="key" tabindex="-1" title="Copy key">${esc(x.key)}</button>${x.desc ? `<div class="s-desc">${esc(x.desc)}</div>` : ''}</div>` +
         `<div class="s-val${show ? ' shown' : ''}">${v}</div>` +
@@ -108,14 +162,16 @@ export const Secrets = (() => {
 
   /* ── actions ── */
   async function copy(x) {
-    if (await copyText(x.value)) { toast(`Copied ${x.key}`); flash(x); }
+    if (!(await need())) return;
+    if (await copyText(Crypt.value(x))) { toast(`Copied ${x.key}`); flash(x); }
   }
   async function copyKey(x) { if (await copyText(x.key)) toast(`Copied the name ${x.key}`); }
   function flash(x) {
     const el = list.querySelector(`.srow[data-id="${CSS.escape(x.id)}"]`);
     if (el) { el.classList.remove('copied'); void el.offsetWidth; el.classList.add('copied'); }
   }
-  function reveal(x) {
+  async function reveal(x) {
+    if (!revealed.has(x.id) && !(await need())) return;
     if (revealed.has(x.id)) revealed.delete(x.id); else revealed.add(x.id);
     render();
   }
@@ -136,12 +192,13 @@ export const Secrets = (() => {
   }
 
   /* ── edit drawer ── */
-  function edit(x) {
+  async function edit(x) {
+    if (x && x.enc && !(await need())) return;
     const isNew = !x;
     editingId = x ? x.id : null;
     const keyI = h('input', { class: 'field mono', value: x ? x.key : '', placeholder: 'STRIPE_SECRET_KEY', spellcheck: 'false', autocomplete: 'off' });
     const valI = h('textarea', { class: 'field mono masked', rows: '3', placeholder: 'value', spellcheck: 'false', autocomplete: 'off', 'data-shy': '' });
-    valI.value = x ? x.value : '';
+    valI.value = x ? Crypt.value(x) || '' : '';
     const tagI = h('input', { class: 'field mono', value: x ? x.tags.join(' ') : (filterInp.value.split(/\s+/).filter((t) => t && t[0] !== '-' && /:|^[a-z]/i.test(t) && Store.S.data.secrets.some((s) => s.tags.includes(t))).join(' ')), placeholder: 'env:prod aws billing', spellcheck: 'false', autocomplete: 'off' });
     const descI = h('input', { class: 'field', value: x ? x.desc : '', placeholder: 'Where it is used, who owns it', spellcheck: 'false' });
     const preview = h('div', { class: 'tag-preview' });
@@ -161,17 +218,20 @@ export const Secrets = (() => {
     tagI.addEventListener('input', upd);
     upd();
 
-    const save = () => {
+    const save = async () => {
       const key = keyI.value.trim();
       if (!key) { keyI.focus(); keyI.classList.add('bad'); return; }
       const tags = [...new Set(tagsOf(tagI.value))];
       const t = now();
+      if (Crypt.locked() && !(await need())) return; // a protected vault encrypts the value as it saves
       if (isNew) {
-        const nx = { id: uid(), key, value: valI.value, tags, desc: descI.value.trim(), created: t, updated: t };
+        const nx = { id: uid(), key, value: '', tags, desc: descI.value.trim(), created: t, updated: t };
+        await Crypt.setValue(nx, valI.value);
         Store.S.data.secrets.push(nx);
         toast(`Added ${key}`);
       } else {
-        Object.assign(x, { key, value: valI.value, tags, desc: descI.value.trim(), updated: t });
+        Object.assign(x, { key, tags, desc: descI.value.trim(), updated: t });
+        await Crypt.setValue(x, valI.value);
         toast(`Saved ${key}`);
       }
       Store.change('secrets');
@@ -250,6 +310,7 @@ export const Secrets = (() => {
   async function exportJson() {
     const all = Store.S.data.secrets;
     if (!all.length) { toast('There are no secrets to export'); return; }
+    if (!(await need())) return;
     const ok = await Modal.confirm('Export all secrets as JSON?',
       `The file will hold all ${all.length} secret ${all.length === 1 ? 'value' : 'values'} in plain text. Keep it somewhere safe and delete it when you are done.`, 'Export JSON', false, 'download');
     if (!ok) return;
@@ -259,7 +320,7 @@ export const Secrets = (() => {
       kind: 'secrets',
       exported: new Date().toISOString(),
       secrets: all.slice().sort((a, b) => a.key.localeCompare(b.key)).map((x) => ({
-        key: x.key, value: x.value, tags: x.tags.slice(), note: x.desc || '',
+        key: x.key, value: Crypt.value(x) || '', tags: x.tags.slice(), note: x.desc || '',
         created: x.created ? new Date(x.created).toISOString() : null,
         updated: x.updated ? new Date(x.updated).toISOString() : null,
       })),
@@ -294,5 +355,5 @@ export const Secrets = (() => {
   function focus() { if (drawer.hidden) list.focus({ preventScroll: true }); }
   function select(id) { const x = Store.secret(id); if (!x) return; if (!matches(x, filterInp.value.toLowerCase().split(/\s+/).filter(Boolean))) setFilter(''); cur = rows.indexOf(x); mark(); flash(x); }
 
-  return { init, render, key, focus, edit, select, setFilter, exportJson };
+  return { init, render, key, focus, edit, select, setFilter, exportJson, copy };
 })();

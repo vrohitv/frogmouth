@@ -20,6 +20,9 @@ export const Store = (() => {
     status: 'idle', statusText: '',
     notes: new Map(), // id -> {note, boards, board}
     rev: 0,
+    lastSnap: 0, // when the last hourly backup was taken
+    placed: 0, // bumped whenever placements are added to or taken off a board (lookup caches key on it)
+    shaped: 0, // the same for shapes
     imgCache: new Map(),
   };
 
@@ -119,7 +122,7 @@ export const Store = (() => {
   }
   /* the field exists only while a board has shapes, so boards without any stay as they were */
   const shapes = (b) => (b && b.shapes) || [];
-  function addShape(b, x) { (b.shapes || (b.shapes = [])).push(x); return x; }
+  function addShape(b, x) { (b.shapes || (b.shapes = [])).push(x); S.shaped++; return x; }
   /* every line end on b attached to {[kind]: id} becomes a free point at `at`; returns what reattach needs */
   function detach(b, kind, id, at) {
     const out = [];
@@ -134,15 +137,95 @@ export const Store = (() => {
   function dropShape(b, id) {
     const i = shapes(b).findIndex((x) => x.id === id);
     if (i < 0) return null;
-    const [shape] = b.shapes.splice(i, 1);
+    const [shape] = b.shapes.splice(i, 1); S.shaped++;
     const detached = shape.type === 'line' ? [] : detach(b, 'shape', id, centre(shape));
     if (!b.shapes.length) delete b.shapes;
     return { shape, index: i, detached };
   }
   function putShape(b, saved) {
     const list = b.shapes || (b.shapes = []);
-    list.splice(Math.min(saved.index, list.length), 0, saved.shape);
+    list.splice(Math.min(saved.index, list.length), 0, saved.shape); S.shaped++;
     reattach(saved.detached);
+  }
+
+  /* ── Recently deleted (data.trash): notes and boards deleted on purpose, kept for 30 days.
+     A note keeps where it was placed; a board keeps its placements and shapes. An entry of a
+     kind this release does not know is kept as it is. Present only while it holds something. */
+  const TRASH_DAYS = 30;
+  function normTrash(d) {
+    if (!Array.isArray(d.trash)) { delete d.trash; return; }
+    const keep = now() - TRASH_DAYS * 864e5;
+    d.trash = d.trash.filter((e) => e && typeof e === 'object' && !Array.isArray(e)).filter((e) => {
+      e.id = String(e.id || uid());
+      e.at = +e.at || now();
+      if (e.at < keep) return false;
+      if (e.kind === 'note') {
+        if (!e.note || typeof e.note !== 'object') return false;
+        normNote(e.note);
+        e.places = (Array.isArray(e.places) ? e.places : []).filter((x) => x && typeof x === 'object').map((x) => normItem({ ...x, note: e.note.id, board: String(x.board || '') }));
+      } else if (e.kind === 'board') {
+        if (!e.board || typeof e.board !== 'object') return false;
+        e.board.id = String(e.board.id || uid());
+        e.board.name = String(e.board.name || 'Untitled');
+        e.board.items = (Array.isArray(e.board.items) ? e.board.items : []).filter((it) => it && typeof it === 'object').map((it) => normItem({ ...it, note: String(it.note || '') }));
+      }
+      return true;
+    });
+    if (!d.trash.length) delete d.trash;
+  }
+  const trash = () => (S.data && S.data.trash) || [];
+  function toTrash(entry) {
+    const e = { id: uid(), at: now(), ...entry };
+    (S.data.trash || (S.data.trash = [])).unshift(e);
+    return e;
+  }
+  function dropTrash(id) {
+    const list = trash(), i = list.findIndex((e) => e.id === id);
+    if (i < 0) return null;
+    const [e] = list.splice(i, 1);
+    if (!list.length) delete S.data.trash;
+    return { entry: e, index: i };
+  }
+  /* put a deleted note or board back; returns what reTrash needs to take it out again */
+  function restoreTrash(id) {
+    const e = trash().find((x) => x.id === id);
+    if (!e || (e.kind !== 'note' && e.kind !== 'board')) return null;
+    const out = dropTrash(id);
+    if (e.kind === 'note') {
+      if (S.notes.has(e.note.id)) e.note.id = uid(); // never two notes with one id
+      S.data.notes.push(e.note);
+      out.boards = [];
+      for (const p of e.places) {
+        const b = board(p.board);
+        if (!b || b.items.some((it) => it.note === e.note.id)) continue;
+        const { board: _, ...pos } = p;
+        b.items.push(normItem({ ...pos, note: e.note.id }));
+        out.boards.push(b);
+      }
+    } else {
+      const b = e.board;
+      if (board(b.id)) b.id = uid();
+      // placements of notes deleted since go; lines attached to them stay where they were drawn
+      b.items = b.items.filter((it) => { if (S.notes.has(it.note)) return true; detach(b, 'note', it.note, centre(it)); return false; });
+      S.data.boards.push(b);
+      out.board = b;
+    }
+    index();
+    return out;
+  }
+  /* undo a restore: the note or board goes back to Recently deleted, at its old place in the list */
+  function reTrash(out) {
+    const e = out.entry;
+    if (e.kind === 'note') {
+      const saved = deleteNote(e.note.id);
+      if (saved) e.places = saved.placed.map((p) => ({ ...p.it, board: p.board.id }));
+    } else {
+      const i = S.data.boards.indexOf(out.board);
+      if (i >= 0) S.data.boards.splice(i, 1);
+      index();
+    }
+    const list = S.data.trash || (S.data.trash = []);
+    list.splice(Math.min(out.index, list.length), 0, e);
   }
 
   function normalize(d) {
@@ -171,6 +254,7 @@ export const Store = (() => {
       x.tags = Array.isArray(x.tags) ? x.tags.map(String).filter(Boolean) : [];
       x.desc = String(x.desc || '');
     }
+    normTrash(d);
     d.ui = Object.assign({ board: null, active: null }, d.ui || {});
     d.ui.recent = Array.isArray(d.ui.recent) ? d.ui.recent.filter((id) => typeof id === 'string') : [];
     delete d.version; // the format version is on the file ({"frogmouth": N}), not in the data
@@ -179,6 +263,7 @@ export const Store = (() => {
 
   /* S.notes: note id -> { note, boards: [boards it is placed on], board: first of them or null } */
   function index() {
+    S.placed++;
     S.notes.clear();
     for (const n of S.data.notes) S.notes.set(n.id, { note: n, boards: [], board: null });
     for (const b of S.data.boards) for (const it of b.items) {
@@ -202,7 +287,7 @@ export const Store = (() => {
     const have = b.items.find((it) => it.note === noteId);
     if (have) return have;
     const it = normItem({ note: noteId, x: pos.x, y: pos.y, w: pos.w || 260, h: pos.h || null, z: pos.z || 1 });
-    b.items.push(it);
+    b.items.push(it); S.placed++;
     ref.boards.push(b); if (!ref.board) ref.board = b;
     return it;
   }
@@ -212,7 +297,7 @@ export const Store = (() => {
     const b = board(boardId); if (!b) return null;
     const i = b.items.findIndex((it) => it.note === noteId);
     if (i < 0) return null;
-    const [it] = b.items.splice(i, 1);
+    const [it] = b.items.splice(i, 1); S.placed++;
     const ref = S.notes.get(noteId);
     if (ref) { ref.boards = ref.boards.filter((x) => x !== b); ref.board = ref.boards[0] || null; }
     return { it, index: i, detached: detach(b, 'note', noteId, at || centre(it)) };
@@ -228,6 +313,7 @@ export const Store = (() => {
     const ni = S.data.notes.indexOf(ref.note);
     S.data.notes.splice(ni, 1);
     S.notes.delete(id);
+    S.placed++;
     return { note: ref.note, index: ni, placed };
   }
   function restoreNote(saved) {
@@ -262,6 +348,8 @@ export const Store = (() => {
       created = true;
     }
     const vault = { kind, dir, fh, name: kind === 'opfs' ? 'Browser storage' : dir.name, file: fh.name };
+    // browser storage is best-effort: without this, Chrome may clear it when the disk runs low
+    if (kind === 'opfs' && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     const file = await fh.getFile();
     const text = created ? '' : await file.text();
     const data = text.trim() ? parse(text, fh.name) : null; // an unreadable or newer file leaves the open vault as it was
@@ -283,7 +371,7 @@ export const Store = (() => {
      is and written back unchanged. Only a change that older versions would misread
      raises it, and a version never opens a newer file, so it can never write over data
      it does not understand. */
-  const FORMAT = 1;
+  const FORMAT = 2; // the newest this release reads. A vault is written as 1 unless its secrets have a passphrase (2)
   function parse(text, name = S.vault ? S.vault.file : 'This file') {
     let j;
     try { j = JSON.parse(text); } catch { throw new Error(`${name} is not valid JSON. Fix it in a text editor or restore a backup from ${BACKUPS}.`); }
@@ -319,7 +407,7 @@ export const Store = (() => {
 
   /* ── saving ── */
   function serialize() {
-    return '{"frogmouth":' + FORMAT + ',"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
+    return '{"frogmouth":' + (S.data.crypt ? 2 : 1) + ',"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
   }
 
   /* Write the vault. Each save records which change (S.rev) it wrote, so edits made
@@ -332,7 +420,7 @@ export const Store = (() => {
     S.saving = true;
     setStatus('saving', 'Saving…');
     try {
-      if (S.vault.kind === 'dir' && !S.force) {
+      if (onDisk() && !S.force) {
         const onDisk = await S.vault.fh.getFile();
         if (onDisk.lastModified > S.lastMod) { setStatus('conflict', 'Changed on disk'); return; }
       }
@@ -343,6 +431,7 @@ export const Store = (() => {
       await w.close();
       const f = await S.vault.fh.getFile();
       S.lastMod = f.lastModified;
+      snapshot(text);
       if (S.rev === rev) { S.dirty = false; setStatus('saved', 'Saved'); }
       else { setStatus('unsaved', 'Unsaved'); S.again = true; }
     } catch (err) {
@@ -366,8 +455,10 @@ export const Store = (() => {
   }
 
   /* ── watching the file for edits made elsewhere ── */
+  /* a vault in a folder or in browser storage is a file another tab, window or tool can write too */
+  const onDisk = () => !!S.vault && (S.vault.kind === 'dir' || S.vault.kind === 'opfs');
   async function checkDisk() {
-    if (!S.vault || S.vault.kind !== 'dir' || S.saving || document.hidden) return;
+    if (!onDisk() || S.saving || document.hidden) return;
     try {
       const f = await S.vault.fh.getFile();
       if (f.lastModified <= S.lastMod) return;
@@ -413,21 +504,69 @@ export const Store = (() => {
     await save();
   }
 
-  /* ── daily backup of the raw file, keeps the last 14 ── */
+  /* ── backups in .fm-backups, next to the vault file ──
+     daily:  the file as it was when first opened that day, the last 14 kept
+     hourly: a snapshot at most once an hour while editing, the last 48 kept
+     before: what was open just before a backup was restored, the last 10 kept
+     Every name starts with the vault file's own name, so each kind sorts by time. */
+  const KEEP = { daily: 14, hourly: 48, before: 10 };
+  const backupKind = (n) => (!n.endsWith(EXT) ? null : /-before-restore-/.test(n) ? 'before' : /T\d\d-\d\d\.fm$/.test(n) ? 'hourly' : /-\d{4}-\d{2}-\d{2}\.fm$/.test(n) ? 'daily' : null);
+  const base = () => S.vault.file.replace(/\.fm$/, '');
+  const stamp = (secs) => new Date().toISOString().slice(0, secs ? 19 : 16).replace(/:/g, '-');
+  const backupDir = () => S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
+  async function writeBackup(name, text) {
+    const dir = await backupDir();
+    const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(text); await w.close();
+    const by = { daily: [], hourly: [], before: [] };
+    for await (const [n, h] of dir.entries()) { const k = h.kind === 'file' && backupKind(n); if (k) by[k].push(n); }
+    for (const k of Object.keys(by)) { by[k].sort(); while (by[k].length > KEEP[k]) await dir.removeEntry(by[k].shift()); }
+  }
   async function backup(text) {
-    if (!S.vault || S.vault.kind !== 'dir') return;
+    if (!hasFolder()) return;
     try {
-      const dir = await S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
-      const day = new Date().toISOString().slice(0, 10);
-      const name = S.vault.file.replace(/\.fm$/, '') + '-' + day + EXT;
-      try { await dir.getFileHandle(name); return; } catch {}
-      const fh = await dir.getFileHandle(name, { create: true });
-      const w = await fh.createWritable(); await w.write(text); await w.close();
-      const names = [];
-      for await (const [n, h] of dir.entries()) if (h.kind === 'file' && n.endsWith(EXT)) names.push(n);
-      names.sort();
-      while (names.length > 14) await dir.removeEntry(names.shift());
+      const name = `${base()}-${new Date().toISOString().slice(0, 10)}${EXT}`;
+      try { await (await backupDir()).getFileHandle(name); return; } catch {}
+      await writeBackup(name, text);
     } catch (err) { console.warn('backup skipped', err); }
+  }
+  /* after a save: a snapshot, at most once an hour */
+  function snapshot(text) {
+    if (!hasFolder() || Date.now() - S.lastSnap < 3600e3) return;
+    S.lastSnap = Date.now();
+    writeBackup(`${base()}-${stamp()}${EXT}`, text).catch((err) => console.warn('snapshot skipped', err));
+  }
+  /* every backup, newest first: {name, kind, at} */
+  async function listBackups() {
+    if (!hasFolder()) return [];
+    const out = [];
+    let dir; try { dir = await S.vault.dir.getDirectoryHandle(BACKUPS); } catch { return out; }
+    for await (const [n, h] of dir.entries()) {
+      const kind = h.kind === 'file' && backupKind(n); if (!kind) continue;
+      const m = /(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})-(\d{2})(?:-(\d{2}))?)?\.fm$/.exec(n);
+      const at = m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) : (await h.getFile()).lastModified;
+      out.push({ name: n, kind, at });
+    }
+    return out.sort((a, b) => b.at - a.at || b.name.localeCompare(a.name));
+  }
+  async function readBackup(name) {
+    if (!backupKind(name) || /[\\/]/.test(name)) throw new Error('Not a backup');
+    const dir = await S.vault.dir.getDirectoryHandle(BACKUPS);
+    return (await (await dir.getFileHandle(name)).getFile()).text();
+  }
+  /* open a backup in place of what is open: what was open is saved as a backup first.
+     Returns the data that was open, for undo (useData) */
+  async function restoreBackup(name) {
+    const data = parse(await readBackup(name), name);
+    await writeBackup(`${base()}-before-restore-${stamp(true)}${EXT}`, serialize());
+    return useData(data);
+  }
+  /* replace what is open with other data, and save it */
+  function useData(data) {
+    const was = S.data;
+    setData(data);
+    change('all');
+    bus.emit('reloaded');
+    return was;
   }
 
   /* ── recent folders (handles persist in IndexedDB) ── */
@@ -551,5 +690,6 @@ export const Store = (() => {
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, tagCounts, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
     shapes, addShape, dropShape, putShape, detach, reattach, BOXES,
+    trash, toTrash, dropTrash, restoreTrash, reTrash, listBackups, readBackup, restoreBackup, useData,
   };
 })();
