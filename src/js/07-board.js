@@ -276,17 +276,22 @@ export const Board = (() => {
     const many = group.has(id) && group.size > 1;
     const moving = Draw.carried(many ? [...group] : [id]).map(geomOf).filter(Boolean).map((m) => ({ m, x: m.x, y: m.y }));
     const loose = Draw.looseEnds(many ? [...group] : [id]); // free ends of selected lines move along
+    const guides = alignTo(moving.map((o) => idOf(o.m)), ox, oy);
     let moved = false;
     const mv = (ev) => {
       if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
       if (!moved) { moved = true; for (const { m } of moving) { const x = elOf(idOf(m)); if (x) x.classList.add('dragging'); } }
       let nx = ox + (ev.clientX - sx) / view.z, ny = oy + (ev.clientY - sy) / view.z;
-      if (!ev.altKey) { nx = Math.round(nx / GRID) * GRID; ny = Math.round(ny / GRID) * GRID; }
+      // the edges and middles of other notes and boxes pull it in; otherwise it snaps to the grid. Alt: neither
+      const pull = ev.altKey ? null : guides.snap(nx, ny);
+      if (!ev.altKey) { nx = pull.x != null ? pull.x : Math.round(nx / GRID) * GRID; ny = pull.y != null ? pull.y : Math.round(ny / GRID) * GRID; }
+      guides.show(pull);
       for (const o of moving) { o.m.x = Math.round(o.x + nx - ox); o.m.y = Math.round(o.y + ny - oy); place(o.m); }
       for (const o of loose) { o.p.x = Math.round(o.x + nx - ox); o.p.y = Math.round(o.y + ny - oy); }
       if (loose.length) Draw.redraw();
     };
     const up = () => {
+      guides.show(null);
       for (const { m } of moving) { const x = elOf(idOf(m)); if (x) x.classList.remove('dragging'); }
       removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
       if (moved) { el._dragged = true; setTimeout(() => { el._dragged = false; }, 0); Store.change('notes'); }
@@ -294,6 +299,48 @@ export const Board = (() => {
     };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
+  /* Alignment while dragging: the moving group's left, middle and right (and top, middle,
+     bottom) are pulled onto those of the other notes and boxes when within a few pixels, and
+     a thin guide shows the line they share. ox, oy: where the grabbed thing starts. */
+  function alignTo(ids, ox, oy) {
+    const mine = new Set(ids), r = (id) => rectOf(id) || Draw.geom(id);
+    let gx1 = Infinity, gy1 = Infinity, gx2 = -Infinity, gy2 = -Infinity;
+    for (const id of ids) { const g = r(id); if (g) { gx1 = Math.min(gx1, g.x); gy1 = Math.min(gy1, g.y); gx2 = Math.max(gx2, g.x + g.w); gy2 = Math.max(gy2, g.y + g.h); } }
+    const others = board.items.filter((m) => !mine.has(m.note)).map((m) => rectOf(m.note))
+      .concat(Draw.bounds().filter((x) => !mine.has(x.id) && x.type !== 'frame'));
+    const lines = (a, b) => [a, (a + b) / 2, b];
+    const xs = others.flatMap((o) => lines(o.x, o.x + o.w).map((v) => ({ v, o }))), ys = others.flatMap((o) => lines(o.y, o.y + o.h).map((v) => ({ v, o })));
+    const els = [];
+    function best(edges, cand) {
+      const near = 6 / view.z;
+      let out = null;
+      for (const e of edges) for (const c of cand) { const d = c.v - e; if (Math.abs(d) <= near && (!out || Math.abs(d) < Math.abs(out.d))) out = { d, line: c }; }
+      return out;
+    }
+    return {
+      snap(nx, ny) {
+        if (gx1 === Infinity) return { x: null, y: null };
+        const dx = nx - ox, dy = ny - oy;
+        const bx = best(lines(gx1 + dx, gx2 + dx), xs), by = best(lines(gy1 + dy, gy2 + dy), ys);
+        return { x: bx ? nx + bx.d : null, y: by ? ny + by.d : null, bx, by, dx: bx ? dx + bx.d : dx, dy: by ? dy + by.d : dy };
+      },
+      show(p) {
+        for (const el of els.splice(0)) el.remove();
+        if (!p) return;
+        const t = 1 / view.z;
+        if (p.bx) {
+          const o = p.bx.line.o, y1 = Math.min(o.y, gy1 + p.dy), y2 = Math.max(o.y + o.h, gy2 + p.dy);
+          els.push(h('div', { class: 'guide', style: { transform: `translate(${p.bx.line.v - t / 2}px,${y1}px)`, width: t + 'px', height: y2 - y1 + 'px' } }));
+        }
+        if (p.by) {
+          const o = p.by.line.o, x1 = Math.min(o.x, gx1 + p.dx), x2 = Math.max(o.x + o.w, gx2 + p.dx);
+          els.push(h('div', { class: 'guide', style: { transform: `translate(${x1}px,${p.by.line.v - t / 2}px)`, width: x2 - x1 + 'px', height: t + 'px' } }));
+        }
+        plane.append(...els);
+      },
+    };
+  }
+
   /* dir: the edges being dragged, any of n e s w (or a corner, like 'nw'). Dragging the
      left or top edge moves the note too, so the opposite edge stays exactly where it was;
      the dragged edge snaps to the grid. */

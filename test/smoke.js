@@ -1793,6 +1793,30 @@ import { History } from '../src/js/07d-history.js';
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 
+    /* ── 1.4: alignment guides while dragging ── */
+    {
+      const b = await freshBoard('Guides');
+      const a = Board.addNote({ x: 0, y: 0 }, false, '<p>Anchor</p>'), m = Board.addNote({ x: 400, y: 200 }, false, '<p>Mover</p>');
+      Board.item(a.id).y = 5; Board.unmount(); Board.mount(b); Board.zoomAt(1); await wait(40);
+      const dragTo = async (dy, alt) => {
+        const el = $(`.note[data-id="${m.id}"]`), r = el.getBoundingClientRect();
+        el.querySelector('.note-body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: r.left + 30, clientY: r.top + 20, isPrimary: true }));
+        dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r.left + 30, clientY: r.top + 20 + dy, altKey: !!alt }));
+        await frame();
+        const shown = $$('.guide').length;
+        dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); await wait(20);
+        return shown;
+      };
+      // from y 200, up by 193 lands at 7: the grid says 8, the other note's top says 5
+      const shown = await dragTo(-193);
+      ok('a dragged note snaps to another note\'s edge', Board.item(m.id).y === 5, Board.item(m.id).y);
+      ok('and a guide shows what it lines up with while dragging', shown > 0 && !$$('.guide').length, shown);
+      Board.item(m.id).y = 200; Board.unmount(); Board.mount(b); await wait(30);
+      await dragTo(-193, true);
+      ok('Alt turns snapping off', Board.item(m.id).y === 7, Board.item(m.id).y);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {

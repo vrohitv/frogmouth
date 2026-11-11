@@ -893,6 +893,8 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .board-vp.finding .shape:not(.found):not(.shape-frame) { opacity: .35; transition: opacity .15s; }
 @media (max-width: 760px) { .draw-bar { left: 8px; bottom: 8px; transform: none; } .draw-style { left: 8px; top: auto; bottom: 50px; transform: none; max-width: calc(100% - 16px); overflow-x: auto; } }
 
+/* the line a dragged note or box lines up on */
+.guide { position: absolute; left: 0; top: 0; z-index: 100000; background: var(--accent); pointer-events: none; }
 .marquee { position: absolute; z-index: 5; pointer-events: none; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 2px; }
 
 /* ── find on this board ── */
