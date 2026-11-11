@@ -77,6 +77,8 @@ def main():
         targets = chrome.call("Target.getTargets")["targetInfos"]
         page = next(t for t in targets if t["type"] == "page")
         session = chrome.call("Target.attachToTarget", {"targetId": page["targetId"], "flatten": True})["sessionId"]
+        # the suite assumes the night theme; pin the OS scheme so CI runners that report light agree
+        chrome.call("Emulation.setEmulatedMedia", {"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, session)
         chrome.call("Page.navigate", {"url": url}, session)
         deadline = time.time() + 60
         while time.time() < deadline:
