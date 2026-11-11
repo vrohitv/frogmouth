@@ -825,6 +825,7 @@ export const Board = (() => {
     if (group.has(id)) fresh.classList.add('sel');
     old.replaceWith(fresh);
     refreshFeet();
+    Draw.redraw(); // its size may have changed: attached lines follow
   }
 
   /* ── note operations ── */
@@ -1132,7 +1133,7 @@ export const Board = (() => {
     tagNote: (id) => { const n = noteOf(id); if (n) tagNote(n); },
     // for the drawing layer (07c-draw.js)
     plane: () => plane, toBoard, rectOf, el: (id) => els.get(id), nextZ: () => (maxZ = Math.max(maxZ, ...[...items(), ...Store.shapes(board)].map((m) => +m.z || 0)) + 1), setGroup, grab, toggle, GRID,
-    zIndexMin: () => [...items(), ...Store.shapes(board)].reduce((m, it) => (it.z != null ? Math.min(m, +it.z || 1) : m), Infinity),
+    zIndexMin: () => [...items(), ...Store.shapes(board).filter((x) => Store.BOXES.includes(x.type))].reduce((m, it) => Math.min(m, +it.z || 1), Infinity),
     refreshChips: () => { for (const el of els.values()) Editor.refreshChips(el.querySelector('.note-body')); },
   };
 })();

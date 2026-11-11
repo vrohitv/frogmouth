@@ -792,11 +792,9 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .shape-text[contenteditable="plaintext-only"] { cursor: text; overflow: visible; }
 .shape.editing .shape-text:empty::before { content: "Type…"; opacity: .35; }
 /* free text: no outline, reads like a label; the board shows through */
-.shape-text-type, .shape.shape-text { color: var(--text); }
-.shape.shape-text .shape-text { justify-content: flex-start; align-items: flex-start; text-align: left; padding: 6px 4px; font-size: 15px; }
-.shape.shape-text.paper-moth .shape-text { color: var(--text); }
-.shape.shape-text:not(.paper-moth) .shape-text { color: color-mix(in oklch, var(--paper) 30%, var(--ink)); }
-.shape.shape-text:hover { outline: 1px dashed var(--line); outline-offset: 2px; }
+.shape-free .shape-text { justify-content: flex-start; align-items: flex-start; text-align: left; padding: 6px 4px; font-size: 15px; color: var(--text); }
+.shape-free:not(.paper-moth) .shape-text { color: color-mix(in oklch, var(--paper) 30%, var(--ink)); }
+.shape-free:hover { outline: 1px dashed var(--line); outline-offset: 2px; }
 .shape.sel:not(.editing) { outline: 2px dashed var(--accent); outline-offset: 3px; }
 .shape.editing { outline: 2px solid var(--accent); outline-offset: 3px; }
 .shape.dragging { cursor: grabbing; }
@@ -806,7 +804,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .shape .rz-se::after { border-color: var(--stroke); }
 .shape-preview { position: absolute; left: 0; top: 0; pointer-events: none; border: 1.5px dashed var(--accent); background: var(--accent-soft); border-radius: 6px; }
 .shape-preview.shape-ellipse { border-radius: 50%; }
-.shape-preview.shape-text { border-radius: 2px; }
+.shape-preview.shape-free { border-radius: 2px; }
 .board-vp.drawing, .board-vp.drawing .note, .board-vp.drawing .shape, .board-vp.drawing .note-body { cursor: crosshair !important; }
 
 /* frames: a named region under everything; only its edge, name and handles take the pointer */

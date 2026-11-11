@@ -53,6 +53,8 @@ export const Draw = (() => {
   const FRAME = 'frame';
   const isBox = (x) => Store.BOXES.includes(x.type);
   const isThing = (x) => isBox(x) || x.type === FRAME; // has x, y, w, h
+  // the class for a type; free text gets its own name, apart from .shape-text (the text inside every shape)
+  const cls = (type) => 'shape-' + (type === 'text' ? 'free' : type);
   const DEFAULT = { rect: [160, 96], ellipse: [160, 96], diamond: [160, 96], text: [160, 40], frame: [480, 320] };
   const LIMITS = { box: { w: 24, h: 24, W: 4000, H: 4000 }, frame: { w: 80, h: 60, W: 8000, H: 8000 } };
   const TOOLS = [
@@ -134,7 +136,7 @@ export const Draw = (() => {
     text.textContent = x.text || '';
     // a frame resizes from its corners only, so its edges are there to grab and move it
     const edges = (x.type === FRAME ? ['ne', 'nw', 'se', 'sw'] : ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw']).map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d }));
-    const el = h('div', { class: 'shape shape-' + x.type, 'data-id': x.id }, text, ...edges);
+    const el = h('div', { class: 'shape ' + cls(x.type), 'data-id': x.id }, text, ...edges);
     if (x.type !== 'text') {
       const svg = document.createElementNS(svgNS, 'svg');
       svg.setAttribute('class', 'shape-bg');
@@ -152,7 +154,7 @@ export const Draw = (() => {
     });
     el.addEventListener('dblclick', (e) => { if (e.target.closest('.rz')) return; e.preventDefault(); e.stopPropagation(); editText(x.id); });
     text.addEventListener('keydown', (e) => {
-      e.stopPropagation(); // the board and app never see keys typed into a shape
+      if (!e.metaKey && !e.ctrlKey) e.stopPropagation(); // the board never sees keys typed into a shape; Mod+S and friends still work
       // commit here too: blur does not always fire (a window without focus)
       if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey || x.type === FRAME))) { e.preventDefault(); commitText(x, el); text.blur(); }
     });
@@ -161,7 +163,7 @@ export const Draw = (() => {
   }
   function style(x, el = els.get(x.id)) {
     if (!el) return;
-    el.className = `shape shape-${x.type} paper-${x.color || 'moth'}${x.fill === false ? ' nofill' : ''}${x.dash ? ' dash' : ''}${el.classList.contains('sel') ? ' sel' : ''}${el.classList.contains('editing') ? ' editing' : ''}`;
+    el.className = `shape ${cls(x.type)} paper-${x.color || 'moth'}${x.fill === false ? ' nofill' : ''}${x.dash ? ' dash' : ''}${el.classList.contains('sel') ? ' sel' : ''}${el.classList.contains('editing') ? ' editing' : ''}`;
   }
   /* apply position and size; the outline is drawn at its real size, so corners and strokes never stretch */
   function place(x) {
@@ -215,7 +217,7 @@ export const Draw = (() => {
     const G = Board.GRID, snap = (v, alt) => (alt ? Math.round(v) : Math.round(v / G) * G);
     const kind = tool, sx = e.clientX, sy = e.clientY, p0 = Board.toBoard(sx, sy);
     let moved = false, last = e;
-    preview = h('div', { class: 'shape-preview shape-' + kind });
+    preview = h('div', { class: 'shape-preview ' + cls(kind) });
     Board.plane().append(preview);
     const rectFor = (ev) => {
       const p1 = Board.toBoard(ev.clientX, ev.clientY);
@@ -290,11 +292,11 @@ export const Draw = (() => {
   function order(id, front) {
     const x = geom(id); if (!x || x.z == null) return;
     if (front) x.z = Board.nextZ();
-    else if (x.z <= Board.zIndexMin() && [...board.items, ...list()].filter((m) => m.z === x.z).length === 1) return;
+    else if (x.z <= Board.zIndexMin() && [...board.items, ...list().filter(isBox)].filter((m) => m.z === x.z).length === 1) return;
     else {
       const min = Board.zIndexMin();
-      // nothing goes below 1 (frames sit at 0): make room by lifting everything else
-      if (min <= 1) for (const m of [...board.items, ...list()]) if (m !== x && m.z != null) m.z += 1;
+      // nothing goes below 1 (frames sit at 0): make room by lifting everything else (never a shape this release does not know)
+      if (min <= 1) for (const m of [...board.items, ...list().filter(isBox)]) if (m !== x) m.z = (+m.z || 1) + 1;
       x.z = min <= 1 ? 1 : min - 1;
       refreshZ();
     }
@@ -446,7 +448,7 @@ export const Draw = (() => {
       el.addEventListener('pointerdown', (e) => { if (el.isContentEditable) { e.stopPropagation(); return; } Board.grab(e, x.id); });
       el.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); editLabel(x); });
       el.addEventListener('keydown', (e) => {
-        e.stopPropagation();
+        if (!e.metaKey && !e.ctrlKey) e.stopPropagation();
         if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); commitLabel(x, el); el.blur(); }
       });
       el.addEventListener('blur', () => commitLabel(x, el));

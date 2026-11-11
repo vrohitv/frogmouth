@@ -1252,6 +1252,13 @@ import { App } from '../src/js/10-app.js';
       ok('1-9 colours a box', s.color === 'sea' && $(`.shape[data-id="${s.id}"]`).classList.contains('paper-sea'));
       const zBefore = s.z; Board.select(dm.id); keydown(document.body, '['); await wait(10);
       ok('[ sends a box behind everything', dm.z < Math.min(...[...b.items, ...Store.shapes(b)].filter((m) => m !== dm && m.z != null).map((m) => m.z)), JSON.stringify([dm.z, zBefore]));
+      {
+        const alien = { id: uid(), type: 'cloud', z: 1, puff: 2 };
+        Store.addShape(b, alien); const before = JSON.stringify(alien);
+        Board.select(e.id); keydown(document.body, '['); await wait(10);
+        ok('shapes of a type from a newer release are never changed', JSON.stringify(alien) === before && !$(`[data-id="${alien.id}"]`), JSON.stringify(alien));
+        b.shapes.splice(b.shapes.indexOf(alien), 1);
+      }
       Board.select(s.id);
       keydown(document.body, 'Delete'); await wait(20);
       ok('Del deletes a box at once, with undo', Store.shapes(b).length === 2 && !$(`.shape[data-id="${s.id}"]`));
@@ -1273,6 +1280,13 @@ import { App } from '../src/js/10-app.js';
       }
       document.documentElement.dataset.theme = 'night';
       const serial = JSON.parse(Store.serialize()).data.boards.find((x) => x.id === b.id);
+      {
+        const tx = Store.addShape(b, { id: uid(), type: 'text', x: 0, y: 900, w: 160, h: 40, z: 60, color: 'moth', text: 'a label' });
+        Board.unmount(); App.enter(); await wait(40);
+        const outer = $(`.shape[data-id="${tx.id}"]`), cs = getComputedStyle(outer);
+        ok('a text shape keeps its resize handles reachable (not clipped by its own text styles)', cs.overflow === 'visible' && cs.paddingLeft === '0px' && outer.querySelectorAll('.shape-text').length === 1);
+        Draw.remove([tx.id]); await wait(10);
+      }
       ok('drawn shapes are saved with the board', serial.shapes.length === 3 && serial.shapes.every((x) => x.id && x.type && Number.isFinite(x.w)));
     }
 
@@ -1471,6 +1485,18 @@ import { App } from '../src/js/10-app.js';
       Board.closeFind();
     }
 
+    {
+      // a board's shapes live only on it: deleting the board says so and asks first
+      const b = { id: uid(), name: 'Sketch only', created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.addShape(b, { id: uid(), type: 'rect', x: 0, y: 0, w: 96, h: 96, z: 1, color: 'moth', text: '' });
+      Store.change('boards'); App.openTab('b:' + b.id); await wait(40);
+      App.commands().find((c) => c.title === 'Delete board').run(); await wait(40);
+      ok('deleting a board with shapes asks first and says they go with it', !!$('.modal') && /1 shape/.test($('.modal').textContent) && !!Store.board(b.id), $('.modal') && $('.modal').textContent);
+      if ($('.modal')) $('.modal .btn.primary').click();
+      await wait(40);
+      ok('and then deletes it', !Store.board(b.id));
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
     {
       // drawing is in the command list and the shortcuts sheet
       const titles = App.commands().map((c) => c.title);

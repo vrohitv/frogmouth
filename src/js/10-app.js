@@ -481,8 +481,10 @@ export const App = (() => {
     const d = Store.S.data;
     const b = Store.board(id); if (!b) return;
     if (d.boards.length === 1) { toast('A vault keeps at least one board'); return; }
-    const n = b.items.length;
-    if (n && !(await Modal.confirm(`Delete the board “${b.name}”?`, `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards. You can undo right after.`, 'Delete board'))) return;
+    const n = b.items.length, k = Store.shapes(b).length;
+    // notes live on in the library; shapes belong to this board alone and go with it
+    const says = [n ? `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards.` : '', k ? `Its ${k} ${k === 1 ? 'shape is' : 'shapes are'} deleted with it.` : ''].filter(Boolean).join(' ');
+    if ((n || k) && !(await Modal.confirm(`Delete the board “${b.name}”?`, `${says} You can undo right after.`, 'Delete board'))) return;
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
     Store.index();
