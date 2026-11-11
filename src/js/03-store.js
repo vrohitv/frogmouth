@@ -20,6 +20,7 @@ export const Store = (() => {
     status: 'idle', statusText: '',
     notes: new Map(), // id -> {note, boards, board}
     rev: 0,
+    lastSnap: 0, // when the last hourly backup was taken
     placed: 0, // bumped whenever placements are added to or taken off a board (lookup caches key on it)
     shaped: 0, // the same for shapes
     imgCache: new Map(),
@@ -430,6 +431,7 @@ export const Store = (() => {
       await w.close();
       const f = await S.vault.fh.getFile();
       S.lastMod = f.lastModified;
+      snapshot(text);
       if (S.rev === rev) { S.dirty = false; setStatus('saved', 'Saved'); }
       else { setStatus('unsaved', 'Unsaved'); S.again = true; }
     } catch (err) {
@@ -502,21 +504,69 @@ export const Store = (() => {
     await save();
   }
 
-  /* ── daily backup of the raw file, keeps the last 14 ── */
+  /* ── backups in .fm-backups, next to the vault file ──
+     daily:  the file as it was when first opened that day, the last 14 kept
+     hourly: a snapshot at most once an hour while editing, the last 48 kept
+     before: what was open just before a backup was restored, the last 10 kept
+     Every name starts with the vault file's own name, so each kind sorts by time. */
+  const KEEP = { daily: 14, hourly: 48, before: 10 };
+  const backupKind = (n) => (!n.endsWith(EXT) ? null : /-before-restore-/.test(n) ? 'before' : /T\d\d-\d\d\.fm$/.test(n) ? 'hourly' : /-\d{4}-\d{2}-\d{2}\.fm$/.test(n) ? 'daily' : null);
+  const base = () => S.vault.file.replace(/\.fm$/, '');
+  const stamp = (secs) => new Date().toISOString().slice(0, secs ? 19 : 16).replace(/:/g, '-');
+  const backupDir = () => S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
+  async function writeBackup(name, text) {
+    const dir = await backupDir();
+    const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(text); await w.close();
+    const by = { daily: [], hourly: [], before: [] };
+    for await (const [n, h] of dir.entries()) { const k = h.kind === 'file' && backupKind(n); if (k) by[k].push(n); }
+    for (const k of Object.keys(by)) { by[k].sort(); while (by[k].length > KEEP[k]) await dir.removeEntry(by[k].shift()); }
+  }
   async function backup(text) {
-    if (!S.vault || S.vault.kind !== 'dir') return;
+    if (!hasFolder()) return;
     try {
-      const dir = await S.vault.dir.getDirectoryHandle(BACKUPS, { create: true });
-      const day = new Date().toISOString().slice(0, 10);
-      const name = S.vault.file.replace(/\.fm$/, '') + '-' + day + EXT;
-      try { await dir.getFileHandle(name); return; } catch {}
-      const fh = await dir.getFileHandle(name, { create: true });
-      const w = await fh.createWritable(); await w.write(text); await w.close();
-      const names = [];
-      for await (const [n, h] of dir.entries()) if (h.kind === 'file' && n.endsWith(EXT)) names.push(n);
-      names.sort();
-      while (names.length > 14) await dir.removeEntry(names.shift());
+      const name = `${base()}-${new Date().toISOString().slice(0, 10)}${EXT}`;
+      try { await (await backupDir()).getFileHandle(name); return; } catch {}
+      await writeBackup(name, text);
     } catch (err) { console.warn('backup skipped', err); }
+  }
+  /* after a save: a snapshot, at most once an hour */
+  function snapshot(text) {
+    if (!hasFolder() || Date.now() - S.lastSnap < 3600e3) return;
+    S.lastSnap = Date.now();
+    writeBackup(`${base()}-${stamp()}${EXT}`, text).catch((err) => console.warn('snapshot skipped', err));
+  }
+  /* every backup, newest first: {name, kind, at} */
+  async function listBackups() {
+    if (!hasFolder()) return [];
+    const out = [];
+    let dir; try { dir = await S.vault.dir.getDirectoryHandle(BACKUPS); } catch { return out; }
+    for await (const [n, h] of dir.entries()) {
+      const kind = h.kind === 'file' && backupKind(n); if (!kind) continue;
+      const m = /(\d{4})-(\d{2})-(\d{2})(?:T(\d{2})-(\d{2})(?:-(\d{2}))?)?\.fm$/.exec(n);
+      const at = m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) : (await h.getFile()).lastModified;
+      out.push({ name: n, kind, at });
+    }
+    return out.sort((a, b) => b.at - a.at || b.name.localeCompare(a.name));
+  }
+  async function readBackup(name) {
+    if (!backupKind(name) || /[\\/]/.test(name)) throw new Error('Not a backup');
+    const dir = await S.vault.dir.getDirectoryHandle(BACKUPS);
+    return (await (await dir.getFileHandle(name)).getFile()).text();
+  }
+  /* open a backup in place of what is open: what was open is saved as a backup first.
+     Returns the data that was open, for undo (useData) */
+  async function restoreBackup(name) {
+    const data = parse(await readBackup(name), name);
+    await writeBackup(`${base()}-before-restore-${stamp(true)}${EXT}`, serialize());
+    return useData(data);
+  }
+  /* replace what is open with other data, and save it */
+  function useData(data) {
+    const was = S.data;
+    setData(data);
+    change('all');
+    bus.emit('reloaded');
+    return was;
   }
 
   /* ── recent folders (handles persist in IndexedDB) ── */
@@ -640,6 +690,6 @@ export const Store = (() => {
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, tagCounts, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
     shapes, addShape, dropShape, putShape, detach, reattach, BOXES,
-    trash, toTrash, dropTrash, restoreTrash, reTrash,
+    trash, toTrash, dropTrash, restoreTrash, reTrash, listBackups, readBackup, restoreBackup, useData,
   };
 })();

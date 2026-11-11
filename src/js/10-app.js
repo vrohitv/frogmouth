@@ -398,13 +398,14 @@ export const App = (() => {
       ...Object.entries(ACCENTS).map(([k, label]) => ({ id: 'accent', accent: k, label: `${label} accent`, icon: document.documentElement.dataset.accent === k ? 'tick' : 'dot' })),
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: kb('mod+s') } : { id: 'download', label: 'Download a copy', icon: 'down' },
       { id: 'trash', label: 'Recently deleted', icon: 'trash', hint: Store.trash().length ? String(Store.trash().length) : '' },
+      ...(Store.hasFolder() ? [{ id: 'backups', label: 'Restore a backup…', icon: 'undo' }] : []),
       { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, trash: trashPanel, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, trash: trashPanel, backups: backupPanel, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -557,6 +558,40 @@ export const App = (() => {
     });
   }
 
+  /* ── Restore a backup: every copy in .fm-backups, newest first; pick one to see what is in it ── */
+  async function backupPanel() {
+    const all = await Store.listBackups();
+    const KIND = { daily: 'Daily copy', hourly: 'Snapshot', before: 'Before a restore' };
+    const when = (t) => new Date(t).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric', hour: '2-digit', minute: '2-digit' });
+    const list = h('div', { class: 'backup-list', role: 'listbox' });
+    const preview = h('div', { class: 'backup-preview muted', text: all.length ? 'Pick a version to see what is in it.' : '' });
+    if (!all.length) list.append(h('p', { class: 'muted trash-empty', text: 'No backups yet. A copy is made each day the vault is opened, and a snapshot every hour while you edit.' }));
+    for (const b of all) list.append(h('button', { class: 'backup-row', 'data-name': b.name, role: 'option' }, h('span', { class: 'backup-when', text: when(b.at) }), h('span', { class: 'backup-kind muted', text: KIND[b.kind] })));
+    let close = null;
+    list.addEventListener('click', async (e) => {
+      const row = e.target.closest('.backup-row'); if (!row) return;
+      for (const r of list.querySelectorAll('.backup-row.on')) r.classList.remove('on');
+      row.classList.add('on');
+      const name = row.dataset.name;
+      try {
+        const j = JSON.parse(await Store.readBackup(name)), d = (j && j.data) || {};
+        const count = (k, one, many) => { const n = Array.isArray(d[k]) ? d[k].length : 0; return `${n} ${n === 1 ? one : many}`; };
+        const go = h('button', { class: 'btn primary', 'data-a': 'restore', html: `${icon('undo')} Restore this version` });
+        go.addEventListener('click', async () => {
+          if (!(await Modal.confirm('Restore this version?', 'It replaces what is open now. What is open now is saved as a backup first, and you can undo right after.', 'Restore', false, 'undo'))) return;
+          try {
+            const was = await Store.restoreBackup(name);
+            if (close) close();
+            pushUndo(`Restored the version from ${when(all.find((x) => x.name === name).at)}`, () => Store.useData(was));
+          } catch (err) { toast(err.message, { kind: 'warn', timeout: 7000 }); }
+        });
+        preview.classList.remove('muted');
+        preview.replaceChildren(h('p', { text: `${count('notes', 'note', 'notes')} · ${count('boards', 'board', 'boards')} · ${count('secrets', 'secret', 'secrets')}${j.saved ? ` · saved ${when(Date.parse(j.saved))}` : ''}` }), go);
+      } catch { preview.classList.add('muted'); preview.textContent = 'This file cannot be read as a vault.'; }
+    });
+    Modal.open({ title: 'Restore a backup', wide: true, cls: 'backups', body: (done) => { close = () => done(null); return h('div', null, list, preview); }, actions: [{ label: 'Close', icon: 'x', value: null }] });
+  }
+
   /* open a note where it lives: the given board, else the current board if it is
      there, else the first board it is on; a note on no board opens in All notes */
   function gotoNote(id, boardId) {
@@ -642,6 +677,7 @@ export const App = (() => {
       { title: 'Save now', key: kb('mod+s'), when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind !== 'memory', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
       { title: 'Recently deleted', run: trashPanel },
+      { title: 'Restore a backup…', when: () => Store.hasFolder(), run: backupPanel },
       { title: 'Download a copy of the vault', run: downloadVault },
       { title: 'Close vault', run: closeVault },
       { title: 'Keyboard shortcuts', key: '?', run: shortcuts },

@@ -1815,6 +1815,39 @@ import { History } from '../src/js/07d-history.js';
           await wait(2300);
           ok('browser storage is watched for writes from another tab', Store.S.data.secrets.some((s) => s.key === 'WATCHED'), JSON.stringify(Store.S.data.secrets.map((s) => s.key)));
         }
+        // backups: a daily copy, hourly snapshots while editing, and a screen to restore one
+        {
+          const bdir = await dir.getDirectoryHandle('.fm-backups', { create: true });
+          const put = async (name, text) => { const w = await (await bdir.getFileHandle(name, { create: true })).createWritable(); await w.write(text); await w.close(); };
+          const day = (i) => new Date(Date.UTC(2025, 0, 1 + i)).toISOString().slice(0, 10);
+          for (let i = 0; i < 20; i++) await put(`vault-${day(i)}.fm`, '{}');
+          for (let i = 0; i < 60; i++) await put(`vault-${day(0)}T${String(i % 24).padStart(2, '0')}-${String(i).padStart(2, '0')}.fm`, '{}');
+          Store.S.lastSnap = 0;
+          Store.S.data.secrets.push({ id: uid(), key: 'SNAP_ME', value: '1', tags: [], desc: '' }); Store.change('secrets');
+          await wait(900);
+          const names = []; for await (const [nm] of bdir.entries()) names.push(nm);
+          const snaps = names.filter((nm) => /T\d\d-\d\d\.fm$/.test(nm)), dailies = names.filter((nm) => /-\d{4}-\d{2}-\d{2}\.fm$/.test(nm));
+          ok('saving takes an hourly snapshot and keeps the newest 48', snaps.length === 48 && (await Store.readBackup(snaps.sort().pop())).includes('SNAP_ME'), snaps.length);
+          ok('daily copies keep the newest 14, apart from the snapshots', dailies.length === 14, dailies.length);
+          // a version to go back to
+          const old = JSON.parse(JSON.stringify(Store.S.data)); old.secrets = [{ id: 'bk', key: 'FROM_BACKUP', value: '1', tags: [] }];
+          await put('vault-2099-01-01.fm', JSON.stringify({ frogmouth: 1, saved: '2099-01-01T00:00:00.000Z', data: old }));
+          App.commands().find((c) => c.title === 'Restore a backup…').run(); await wait(80);
+          const row = [...$$('.backup-row')].find((r) => r.dataset.name === 'vault-2099-01-01.fm');
+          ok('Restore lists the backups, newest first', !!row && $$('.backup-row')[0] === row, $$('.backup-row').length);
+          row.click(); await wait(80);
+          ok('picking one shows what is in it', /1 secret/.test(($('.backup-preview') || {}).textContent || ''), ($('.backup-preview') || {}).textContent);
+          $('.backup-preview [data-a="restore"]').click(); await wait(60);
+          ok('restoring asks first', $$('.modal').length === 2 && /saved as a backup first/.test($$('.modal')[1].textContent));
+          $$('.modal')[1].querySelector('.btn.primary').click(); await wait(400);
+          ok('restoring brings that version back', Store.S.data.secrets.length === 1 && Store.S.data.secrets[0].key === 'FROM_BACKUP');
+          const after = []; for await (const [nm] of bdir.entries()) after.push(nm);
+          ok('what was open is saved as a backup first', after.some((nm) => /before-restore/.test(nm)));
+          undoK(); await wait(400);
+          ok('and the restore can be undone', Store.S.data.secrets.some((s) => s.key === 'SNAP_ME'));
+          if ($('.modal')) keydown($('.modal'), 'Escape');
+          await wait(20);
+        }
         // a change made outside the app is reloaded and shown (the board must not keep stale notes)
         App.enter(); await wait(50);
         const disk = JSON.parse(JSON.stringify(Store.S.data));
