@@ -1363,6 +1363,56 @@ import { App } from '../src/js/10-app.js';
       ok('lines are drawn above notes', +getComputedStyle($('.wires')).zIndex > Math.max(...$$('.note').map((e) => +e.style.zIndex || 0)));
     }
 
+    {
+      // frames hold what is centred inside them; lines keep their place when a note leaves
+      const b = { id: uid(), name: 'Frames', created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.change('boards'); App.openTab('b:' + b.id); await wait(60);
+      Board.zoomAt(1); await frame();
+      const fr = Store.addShape(b, { id: uid(), type: 'frame', x: 0, y: 0, w: 480, h: 320, color: 'moth', text: 'Backend' });
+      const inBox = Store.addShape(b, { id: uid(), type: 'rect', x: 40, y: 40, w: 96, h: 96, z: 2, color: 'moth', text: '' });
+      const outBox = Store.addShape(b, { id: uid(), type: 'rect', x: 600, y: 40, w: 96, h: 96, z: 3, color: 'moth', text: '' });
+      const n = Board.addNote({ x: 200, y: 100 }, false, '<p>inside</p>');
+      const ln = Store.addShape(b, { id: uid(), type: 'line', a: { note: n.id }, b: { shape: outBox.id }, head: 'end' });
+      Board.unmount(); App.enter(); await wait(60);
+      Board.zoomAt(1); await frame();
+      ok('F is the frame tool', (keydown(document.body, 'f'), Draw.tool() === 'frame') && (keydown(document.body, 'Escape'), Draw.tool() === 'select'));
+      ok('a frame shows its name and sits under notes', $('.shape-frame .frame-name').textContent === 'Backend' && +getComputedStyle($('.shape-frame')).zIndex < +getComputedStyle(Board.el(n.id)).zIndex);
+      ok('a frame holds what is centred inside it', JSON.stringify(Draw.inside(fr.id).sort()) === JSON.stringify([inBox.id, n.id].sort()), JSON.stringify(Draw.inside(fr.id)));
+      const fc = Board.toBoard(0, 0), inner = $('.shape-frame'), ir = inner.getBoundingClientRect();
+      ok('the inside of a frame lets clicks through to the board', document.elementFromPoint(ir.left + 300, ir.top + 260) && !document.elementFromPoint(ir.left + 300, ir.top + 260).closest('.shape-frame'));
+      const name = $('.shape-frame .frame-name'), r = name.getBoundingClientRect();
+      name.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: r.left + 4, clientY: r.top + 4 }));
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r.left + 84, clientY: r.top + 4 }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 84, clientY: r.top + 4 })); await wait(30);
+      ok('dragging a frame moves its contents and nothing else', fr.x === 80 && inBox.x === 120 && Board.item(n.id).x === 280 && outBox.x === 600, JSON.stringify([fr.x, inBox.x, Board.item(n.id).x, outBox.x]));
+      const ny0 = Board.item(n.id).y;
+      Board.select(fr.id); keydown(document.body, 'ArrowDown'); await frame();
+      ok('nudging a frame nudges its contents', fr.y === 8 && inBox.y === 48 && Board.item(n.id).y === ny0 + 8, JSON.stringify([fr.y, inBox.y, Board.item(n.id).y, Board.selected() === fr.id, document.activeElement.className]));
+
+      App.openTab('notes'); await wait(60);
+      const saved = Store.deleteNote(n.id); Store.change('notes');
+      App.openTab('b:' + b.id); await wait(60);
+      ok('a note deleted from another page leaves its arrow with a free end, and the board still opens', 'x' in ln.a && Draw.lines().length === 1 && !!$(`.wire[data-id="${ln.id}"]`));
+      Store.restoreNote(saved); Store.change('notes'); Board.unmount(); App.enter(); await wait(60);
+      ok('restoring the note attaches the arrow again', ln.a.note === n.id);
+
+      const p = Draw.points(ln)[0];
+      Board.remove(n.id); await wait(30);
+      ok('removing a note from the board leaves the arrow end where it was', 'x' in ln.a && Math.abs(ln.a.x - p.x) < 1 && Math.abs(ln.a.y - p.y) < 1, JSON.stringify([ln.a, p]));
+      undoKey(); await wait(30);
+      ok('undo puts the note back with its arrow attached', ln.a.note === n.id && !!Board.el(n.id));
+      const q = Draw.points(ln)[1];
+      Draw.remove([outBox.id]); await wait(20);
+      ok('deleting a box leaves the arrow end where it was', 'x' in ln.b && Math.abs(ln.b.x - q.x) < 1 && Math.abs(ln.b.y - q.y) < 1, JSON.stringify([ln.b, q]));
+      undoKey(); await wait(20);
+      const pe = Draw.points(ln)[0];
+      Board.select(n.id); keydown(document.body, 'Delete', { shiftKey: true }); await wait(40);
+      $('.modal .btn.primary').click(); await wait(40);
+      ok('deleting a note everywhere also leaves the arrow end in place', 'x' in ln.a && Math.abs(ln.a.x - pe.x) < 1, JSON.stringify([ln.a, pe]));
+      undoKey(); await wait(40);
+      ok('and undo re-attaches it', ln.a.note === n.id);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {

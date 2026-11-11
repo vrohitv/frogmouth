@@ -58,9 +58,9 @@ export const Draw = (() => {
   const TOOLS = [
     ['select', 'cursor', 'Select', 'V'], ['rect', 'rect', 'Rectangle', 'R'], ['ellipse', 'ellipse', 'Ellipse', 'O'],
     ['diamond', 'diamond', 'Diamond', 'D'], ['text', 'text', 'Text', 'X'],
-    ['line', 'line', 'Line', 'L'], ['arrow', 'arrow', 'Arrow', 'C'],
+    ['line', 'line', 'Line', 'L'], ['arrow', 'arrow', 'Arrow', 'C'], ['frame', 'frame', 'Frame', 'F'],
   ];
-  const KEYS = { v: 'select', r: 'rect', o: 'ellipse', d: 'diamond', x: 'text', l: 'line', c: 'arrow' };
+  const KEYS = { v: 'select', r: 'rect', o: 'ellipse', d: 'diamond', x: 'text', l: 'line', c: 'arrow', f: 'frame' };
   const LINE_TOOLS = ['line', 'arrow'];
   let vp, bar, board = null, tool = 'select', lastColor = 'moth', preview = null;
   const els = new Map(); // shape id -> element (boxes and frames)
@@ -127,7 +127,8 @@ export const Draw = (() => {
   /* ── a box or frame element ── */
   const svgNS = 'http://www.w3.org/2000/svg';
   function build(x) {
-    const text = h('div', { class: 'shape-text', spellcheck: 'false' });
+    // a frame's text is its name, shown above its top-left corner
+    const text = h('div', { class: x.type === FRAME ? 'shape-text frame-name' : 'shape-text', spellcheck: 'false' });
     text.textContent = x.text || '';
     const edges = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d }));
     const el = h('div', { class: 'shape shape-' + x.type, 'data-id': x.id }, text, ...edges);
@@ -135,6 +136,8 @@ export const Draw = (() => {
       const svg = document.createElementNS(svgNS, 'svg');
       svg.setAttribute('class', 'shape-bg');
       svg.append(document.createElementNS(svgNS, x.type === 'ellipse' ? 'ellipse' : x.type === 'diamond' ? 'polygon' : 'rect'));
+      // a frame is grabbed by its edge (or name); its inside belongs to the board
+      if (x.type === FRAME) { const hit = document.createElementNS(svgNS, 'rect'); hit.setAttribute('class', 'frame-hit'); svg.append(hit); }
       el.prepend(svg);
     }
     els.set(x.id, el);
@@ -148,7 +151,7 @@ export const Draw = (() => {
     text.addEventListener('keydown', (e) => {
       e.stopPropagation(); // the board and app never see keys typed into a shape
       // commit here too: blur does not always fire (a window without focus)
-      if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); commitText(x, el); text.blur(); }
+      if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey || x.type === FRAME))) { e.preventDefault(); commitText(x, el); text.blur(); }
     });
     text.addEventListener('blur', () => commitText(x, el));
     return el;
@@ -170,7 +173,7 @@ export const Draw = (() => {
       svg.setAttribute('width', w); svg.setAttribute('height', hh); svg.setAttribute('viewBox', `0 0 ${w} ${hh}`);
       if (x.type === 'ellipse') { sh.setAttribute('cx', w / 2); sh.setAttribute('cy', hh / 2); sh.setAttribute('rx', Math.max(1, w / 2 - i)); sh.setAttribute('ry', Math.max(1, hh / 2 - i)); }
       else if (x.type === 'diamond') sh.setAttribute('points', `${w / 2},${i} ${w - i},${hh / 2} ${w / 2},${hh - i} ${i},${hh / 2}`);
-      else { sh.setAttribute('x', i); sh.setAttribute('y', i); sh.setAttribute('width', Math.max(1, w - 2 * i)); sh.setAttribute('height', Math.max(1, hh - 2 * i)); sh.setAttribute('rx', x.type === FRAME ? 4 : 6); }
+      else for (const r of svg.children) { r.setAttribute('x', i); r.setAttribute('y', i); r.setAttribute('width', Math.max(1, w - 2 * i)); r.setAttribute('height', Math.max(1, hh - 2 * i)); r.setAttribute('rx', x.type === FRAME ? 4 : 6); }
     }
     redraw();
   }
@@ -192,7 +195,8 @@ export const Draw = (() => {
     const t = el.querySelector('.shape-text');
     el.classList.remove('editing');
     t.contentEditable = 'false';
-    const v = t.textContent.replace(/\u200b/g, '');
+    let v = t.textContent.replace(/\u200b/g, '');
+    if (x.type === FRAME) { v = v.replace(/\s+/g, ' ').trim(); t.textContent = v; }
     // a text shape left empty goes away quietly, like an empty note
     if (x.type === 'text' && !v.trim()) { drop([x.id], true); return; }
     // grow to fit the text, so nothing is cut off
@@ -246,7 +250,7 @@ export const Draw = (() => {
   /* ── operations the board calls with the selection ── */
   function drop(ids, quiet) {
     const b = board, saved = [];
-    for (const id of ids) { const out = Store.dropShape(b, id); if (out) { saved.push(out); const el = els.get(id); if (el) { el.remove(); els.delete(id); } } }
+    for (const id of ids) { const pins = anchors('shape', id), out = Store.dropShape(b, id); pin(pins); if (out) { saved.push(out); const el = els.get(id); if (el) { el.remove(); els.delete(id); } } }
     if (!saved.length) return;
     Board.setGroup(Board.selection().filter((id) => !ids.includes(id)));
     redraw();
@@ -318,7 +322,30 @@ export const Draw = (() => {
       : x.x < r.x + r.w && x.x + x.w > r.x && x.y < r.y + r.h && x.y + x.h > r.y)).map((x) => x.id)
       .concat(lines().filter((x) => { const p = points(x); return p.length && p.every((q) => q.x >= r.x && q.y >= r.y && q.x <= r.x + r.w && q.y <= r.y + r.h); }).map((x) => x.id));
   }
-  const carried = (sel) => sel.filter((id) => Board.item(id) || geom(id));
+  /* what moves when the selection moves: each selected note and box, and whatever each selected frame holds */
+  function carried(sel) {
+    const out = new Set(sel.filter((id) => Board.item(id) || geom(id)));
+    for (const id of sel) { const x = geom(id); if (x && x.type === FRAME) for (const c of inside(id)) out.add(c); }
+    return [...out];
+  }
+  /* notes and boxes whose centre is inside the frame, right now (a frame stores no children) */
+  function inside(id) {
+    const f = geom(id); if (!f || f.type !== FRAME) return [];
+    const ins = (r) => { const cx = r.x + r.w / 2, cy = r.y + r.h / 2; return cx >= f.x && cx <= f.x + f.w && cy >= f.y && cy <= f.y + f.h; };
+    return board.items.filter((it) => ins(Board.rectOf(it.note))).map((it) => it.note)
+      .concat(list().filter((x) => isBox(x) && ins(x)).map((x) => x.id));
+  }
+  /* where each line attached to a thing is drawn now, so it can stay there when the thing goes */
+  function anchors(kind, id) {
+    const out = [];
+    if (!board) return out;
+    for (const x of lines()) for (const end of ['a', 'b']) {
+      if (x[end][kind] !== id) continue;
+      const p = points(x); if (p.length) out.push({ line: x, end, p: end === 'a' ? p[0] : p[p.length - 1] });
+    }
+    return out;
+  }
+  function pin(list) { for (const { line, end, p } of list) if (!line[end].note && !line[end].shape) line[end] = { x: Math.round(p.x), y: Math.round(p.y) }; redraw(); }
   const lines = () => list().filter((x) => x.type === 'line');
   /* the free ends of the selected lines; they move with the selection */
   function looseEnds(sel) {
@@ -548,7 +575,7 @@ export const Draw = (() => {
   return {
     anchor, route, KINDS, GAP,
     init, mount, unmount, tool: () => tool, setTool, begin, key,
-    get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, editText, remove, setColor, duplicate, order,
+    get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, inside, anchors, pin, editText, remove, setColor, duplicate, order,
     ids, bounds, within, carried, looseEnds, paths, limits, box, selected,
   };
 })();

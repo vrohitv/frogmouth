@@ -922,7 +922,9 @@ export const Board = (() => {
   function remove(id, quiet) {
     if (!board) return;
     const b = board, n = noteOf(id);
+    const pins = Draw.anchors('note', id);
     const out = Store.unplace(b.id, id); if (!out) return;
+    Draw.pin(pins); // lines attached to it stay where they were drawn
     dropEl(id);
     updateEmpty();
     Store.change('notes');
@@ -930,8 +932,9 @@ export const Board = (() => {
     const t = n && n.title ? `“${n.title.slice(0, 28)}”` : 'Note';
     App.pushUndo(`${t} removed from ${b.name}. It is still in All notes.`, () => {
       b.items.splice(Math.min(out.index, b.items.length), 0, out.it);
+      Store.reattach(out.detached);
       Store.index();
-      if (board === b) { plane.append(build(out.it)); updateEmpty(); select(id); refreshFeet(); }
+      if (board === b) { plane.append(build(out.it)); updateEmpty(); select(id); refreshFeet(); Draw.redraw(); }
       Store.change('notes');
     });
   }
@@ -942,15 +945,15 @@ export const Board = (() => {
     if (!board) return;
     const b = board;
     const outs = [];
-    for (const id of ids) { const out = Store.unplace(b.id, id); if (out) { outs.push(out); dropEl(id); } }
+    for (const id of ids) { const pins = Draw.anchors('note', id), out = Store.unplace(b.id, id); if (out) { Draw.pin(pins); outs.push(out); dropEl(id); } }
     if (!outs.length) return;
     updateEmpty();
     Store.change('notes');
     App.pushUndo(`${outs.length} notes removed from ${b.name}. They are still in All notes.`, () => {
       // put them back in reverse, so every saved index is right again
-      for (const out of outs.slice().reverse()) b.items.splice(Math.min(out.index, b.items.length), 0, out.it);
+      for (const out of outs.slice().reverse()) { b.items.splice(Math.min(out.index, b.items.length), 0, out.it); Store.reattach(out.detached); }
       Store.index();
-      if (board === b) { for (const out of outs) plane.append(build(out.it)); updateEmpty(); setGroup(outs.map((o) => o.it.note)); refreshFeet(); }
+      if (board === b) { for (const out of outs) plane.append(build(out.it)); updateEmpty(); setGroup(outs.map((o) => o.it.note)); refreshFeet(); Draw.redraw(); }
       Store.change('notes');
     });
   }
@@ -958,7 +961,9 @@ export const Board = (() => {
   /* delete the note itself, from the library and every board */
   function removeEverywhere(id, quiet) {
     const n = noteOf(id); if (!n) return;
+    const pins = Draw.anchors('note', id);
     const saved = Store.deleteNote(id); if (!saved) return;
+    Draw.pin(pins);
     dropEl(id);
     updateEmpty();
     Store.change('notes');
@@ -967,14 +972,14 @@ export const Board = (() => {
     App.pushUndo(`Deleted ${n.title ? `“${n.title.slice(0, 28)}”` : 'note'}${where}`, () => {
       Store.restoreNote(saved);
       const mine = board && saved.placed.find((p) => p.board === board);
-      if (mine) { plane.append(build(mine.it)); updateEmpty(); select(id); refreshFeet(); }
+      if (mine) { plane.append(build(mine.it)); updateEmpty(); select(id); refreshFeet(); Draw.redraw(); }
       Store.change('notes');
     });
   }
 
   function removeEverywhereMany(ids) {
     const saved = [];
-    for (const id of ids) { const s = Store.deleteNote(id); if (s) { saved.push(s); dropEl(id); } }
+    for (const id of ids) { const pins = Draw.anchors('note', id), s = Store.deleteNote(id); if (s) { Draw.pin(pins); saved.push(s); dropEl(id); } }
     if (!saved.length) return;
     updateEmpty();
     Store.change('notes');
@@ -983,7 +988,7 @@ export const Board = (() => {
       if (board) {
         const mine = saved.map((s) => s.placed.find((p) => p.board === board)).filter(Boolean);
         for (const p of mine) plane.append(build(p.it));
-        updateEmpty(); setGroup(mine.map((p) => p.it.note)); refreshFeet();
+        updateEmpty(); setGroup(mine.map((p) => p.it.note)); refreshFeet(); Draw.redraw();
       }
       Store.change('notes');
     });

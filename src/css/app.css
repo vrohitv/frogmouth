@@ -809,6 +809,21 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .shape-preview.shape-text { border-radius: 2px; }
 .board-vp.drawing, .board-vp.drawing .note, .board-vp.drawing .shape, .board-vp.drawing .note-body { cursor: crosshair !important; }
 
+/* frames: a named region under everything; only its edge, name and handles take the pointer */
+.shape-frame { pointer-events: none; }
+.shape-frame .shape-bg > rect:first-child { fill: color-mix(in srgb, var(--paper) 28%, transparent); stroke-width: 1.25; }
+.shape-frame .frame-hit { fill: none !important; stroke: transparent !important; stroke-width: 14 !important; pointer-events: stroke; cursor: move; }
+.shape-frame .rz, .shape-frame .frame-name { pointer-events: auto; }
+.shape-frame .frame-name {
+  inset: auto auto 100% 0; display: block; max-width: 100%; padding: 0 2px 4px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 600 12.5px/1.3 var(--sans); color: var(--muted); cursor: move;
+}
+.shape-frame .frame-name[contenteditable="plaintext-only"] { cursor: text; overflow: visible; color: var(--text); }
+.shape-frame.editing .frame-name:empty::before { content: "Frame name"; }
+.shape-frame:not(.editing) .frame-name:empty::before { content: "Frame"; opacity: .6; }
+.shape-frame.sel:not(.editing), .shape-frame.editing { outline-offset: 2px; }
+.shape-frame.dash .shape-bg > rect:first-child { stroke-dasharray: 6 5; }
+
 /* lines: one SVG layer above every note and box; only the wide invisible hit path takes the pointer */
 .wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 2147483000; }
 .wire-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
