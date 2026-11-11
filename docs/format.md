@@ -8,7 +8,7 @@ A frogmouth vault is a folder with one `vault.fm` file in it. The file is UTF-8 
 {"frogmouth": 1, "saved": "2026-10-22T09:30:00.000Z", "data": { … }}
 ```
 
-- **`frogmouth`** is the format version, an integer. This document describes **format 1**.
+- **`frogmouth`** is the format version, an integer. This document describes **formats 1 and 2**. A vault is written as 1, unless its secret values have a passphrase (`data.crypt`, below): then it is written as 2, because a release that only knows 1 would take the empty `value`s for the real ones. A file without `crypt` is always 1.
 - **Additions keep the version.** A release may add fields to any object, or new kinds of blocks to note HTML, without changing the number.
 - **Unknown markup in note HTML** (a kind of block or link a release does not know) shows as plain text in that release, and is dropped only if that release edits the note.
 - **Unknown fields are kept.** A release that reads a field it does not know leaves it as it is and writes it back unchanged. So a vault edited by a newer release and then by an older one loses nothing the older one did not touch.
@@ -25,7 +25,9 @@ A frogmouth vault is a folder with one `vault.fm` file in it. The file is UTF-8 
  "notes":   [ note, … ],
  "boards":  [ board, … ],
  "secrets": [ secret, … ],
- "ui":      { … }
+ "ui":      { … },
+ "trash":   [ deleted, … ],   (since 1.4, only while it holds something)
+ "crypt":   { … }             (since 1.4, only when secret values have a passphrase; format 2)
 }
 ```
 
@@ -102,10 +104,24 @@ Shapes belong to one board; unlike notes they are not shared. Every shape has an
 
 | Field | Type | |
 |---|---|---|
-| `id`, `key`, `value` | string | `value` is plain text |
+| `id`, `key`, `value` | string | `value` is plain text; empty when the value is encrypted |
+| `enc` | string | With a passphrase: the value encrypted, base64 of a 12-byte IV followed by the AES-GCM ciphertext |
 | `tags` | string[] | As for notes |
 | `desc` | string | |
 | `created`, `updated` | number | |
+
+### crypt
+
+Present when the secret values have a passphrase. `{"v": 1, "kdf": "PBKDF2-SHA256", "iter": 600000, "salt": base64, "check": base64}`. The key is PBKDF2-SHA256 of the passphrase with `salt` and `iter` rounds, an AES-GCM 256-bit key. `check` is the text `frogmouth` encrypted like a value, so a wrong passphrase is told apart from a right one. Keys, tags and notes of secrets are never encrypted.
+
+### trash
+
+Notes and boards deleted in the last 30 days, newest first. Older entries are dropped on load; an entry of a kind a release does not know is kept as it is.
+
+| `kind` | Fields |
+|---|---|
+| `note` | `id`, `at` (when it was deleted), `note` (the whole note), `places`: where it sat, as placements with a `board` id added |
+| `board` | `id`, `at`, `board` (the whole board, with its placements and shapes) |
 
 ### ui
 
@@ -117,6 +133,7 @@ Where you were: `board` (id), `active` (`b:<board id>`, `notes` or `secrets`) an
 |---|---|
 | `assets/` | Images pasted or dropped into notes |
 | `files/` | Other files dropped into notes |
-| `.fm-backups/` | One copy of `vault.fm` per day; the last 14 are kept |
+| `.fm-backups/` | Copies of the vault file, named after it: one per day (`vault-2026-11-11.fm`, last 14 kept), a snapshot at most hourly while editing (`vault-2026-11-11T14-05.fm`, last 48), and the version that was open before a backup was restored (`vault-before-restore-….fm`, last 10) |
+| `markdown/` | Notes exported as Markdown, one folder per export |
 
 Any other file in the folder can be tagged in a note, and is left alone.
