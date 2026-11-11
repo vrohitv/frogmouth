@@ -57,6 +57,9 @@ export const Board = (() => {
       Draw.begin(e);
     }, true);
     vp.addEventListener('pointerdown', onVpDown);
+    // the board cancels its presses (to drag without selecting text), so focus would stay on a
+    // button of the floating bar, and the board's keys would not reach it: a press here takes it back
+    vp.addEventListener('pointerdown', () => { const a = document.activeElement; if (a && a.closest && a.closest('.hud')) a.blur(); }, true);
     vp.addEventListener('wheel', onWheel, { passive: false });
     vp.addEventListener('dblclick', (e) => {
       if (e.target !== vp && e.target !== plane && e.target !== empty && !empty.contains(e.target)) return;
@@ -1210,7 +1213,8 @@ export const Board = (() => {
   function duplicate(ids) { const g = gather(ids); if (g) put(g, 24, 24, false); }
   /* the clipboard's own events, so the text goes to the system clipboard too, and text or
      images copied elsewhere can be pasted onto the board as a note */
-  const clipOk = (e) => board && !vp.hidden && !isTypingTarget(e.target) && !Modal.isOpen() && !Popup.isOpen() && !(getSelection() && !getSelection().isCollapsed);
+  // like the board's other keys: not while typing, in a dialog, or with focus in the floating bar
+  const clipOk = (e) => board && !vp.hidden && !isTypingTarget(e.target) && !(e.target.closest && e.target.closest('.hud')) && !Modal.isOpen() && !Popup.isOpen() && !(getSelection() && !getSelection().isCollapsed);
   function onCopy(e, mode) {
     if (!clipOk(e)) return;
     const ids = picked(); if (!ids.length) return;

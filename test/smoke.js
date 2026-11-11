@@ -1795,6 +1795,19 @@ import { Crypt } from '../src/js/03b-crypt.js';
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 
+    {
+      // after using the menu, focus stays on its button: a click on the board takes it back, and the
+      // clipboard keys never act on the board while focus is in the floating bar
+      const b = await freshBoard('Focus');
+      const n = Board.addNote({ x: 0, y: 0 }, false, '<p>Stay</p>'); await wait(20);
+      Board.select(n.id); $('.hud-menu').focus();
+      const dt = new DataTransfer(); $('.hud-menu').dispatchEvent(new ClipboardEvent('cut', { clipboardData: dt, bubbles: true, cancelable: true }));
+      ok('cut does nothing while focus is in the floating bar', !!Board.item(n.id));
+      await press($(`.note[data-id="${n.id}"] .note-body`));
+      ok('a click on the board takes focus off the floating bar', !document.activeElement.closest('.hud'), document.activeElement.className);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
     /* ── 1.4: alignment guides while dragging ── */
     {
       const b = await freshBoard('Guides');
