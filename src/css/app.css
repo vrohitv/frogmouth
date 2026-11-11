@@ -585,6 +585,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .trash-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trash-sub { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trash-empty { padding: 18px 8px; }
+.modal.trash .trash-list + p { margin-top: 14px; }
 .modal.trash .modal-actions .btn.danger { margin-right: auto; }
 /* Restore a backup */
 .backup-list { display: flex; flex-direction: column; gap: 1px; max-height: 44vh; overflow: auto; margin: 0 -8px; }

@@ -1745,6 +1745,10 @@ import { Crypt } from '../src/js/03b-crypt.js';
         { kind: 'note', id: 't1', at: Date.now() - 31 * 864e5, note: { id: 'old', html: '<p>old</p>' }, places: [] },
         { kind: 'note', id: 't2', at: Date.now() - 2 * 864e5, note: { id: 'new', html: '<p>new</p>' }, places: [] },
         { kind: 'sketch', id: 't3', at: Date.now() - 2 * 864e5, data: 1 }] });
+      // Esc closes a dialog even after focus left it (a button inside was re-rendered away)
+      App.commands().find((c) => c.title === 'Recently deleted').run(); await wait(30);
+      document.activeElement.blur(); keydown(document.body, 'Escape'); await wait(20);
+      ok('Esc closes a dialog that lost focus', !$('.modal'));
       ok('Recently deleted keeps 30 days', d.trash.map((e) => e.id).join() === 't2,t3', JSON.stringify(d.trash.map((e) => e.id)));
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }

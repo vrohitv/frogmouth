@@ -103,7 +103,10 @@ export const Modal = (() => {
       const prevFocus = document.activeElement;
       const card = h('div', { class: 'modal' + (wide ? ' wide' : '') + (cls ? ' ' + cls : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title });
       const scrim = h('div', { class: 'scrim' }, card);
+      // Esc closes the dialog on top even when focus has left it (a button inside was re-rendered)
+      const onEsc = (e) => { if (e.key === 'Escape' && stack[stack.length - 1] === scrim && !card.contains(e.target)) { e.stopPropagation(); done(null); } };
       const done = (v) => {
+        removeEventListener('keydown', onEsc, true);
         scrim.remove();
         stack = stack.filter((m) => m !== scrim);
         if (onClose) onClose(v);
@@ -136,6 +139,7 @@ export const Modal = (() => {
       });
       document.body.append(scrim);
       stack.push(scrim);
+      addEventListener('keydown', onEsc, true);
       const f = card.querySelector(risky ? 'input,textarea,select,.btn:not(.primary)' : 'input,textarea,select,.btn.primary');
       if (f) f.focus({ preventScroll: true }); // open at the top, even when the focused button is at the bottom
     });
