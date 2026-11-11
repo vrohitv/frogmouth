@@ -261,13 +261,24 @@ export const Draw = (() => {
   }
 
   /* ── operations the board calls with the selection ── */
-  function drop(ids, quiet) {
+  /* take shapes off the board; lines attached to them stay where they were drawn */
+  function take(ids) {
     const b = board, saved = [];
     for (const id of ids) { const pins = anchors('shape', id), out = Store.dropShape(b, id); pin(pins); if (out) { saved.push(out); const el = els.get(id); if (el) { el.remove(); els.delete(id); } } }
-    if (!saved.length) return;
+    if (!saved.length) return saved;
     Board.setGroup(Board.selection().filter((id) => !ids.includes(id)));
     redraw();
     Store.change('shapes');
+    return saved;
+  }
+  /* put new shapes on the board (a paste, a duplicate) */
+  function add(shapes) {
+    for (const x of shapes) { Store.addShape(board, x); if (known(x)) Board.plane().append(build(x)); }
+    redraw();
+  }
+  function drop(ids, quiet) {
+    const b = board, saved = take(ids);
+    if (!saved.length) return;
     if (quiet) { for (const id of ids) History.forget(id); return; }
     App.pushUndo(saved.length === 1 ? 'Deleted a shape' : `Deleted ${saved.length} shapes`, () => {
       for (const sv of saved.slice().reverse()) Store.putShape(b, sv);
@@ -282,19 +293,6 @@ export const Draw = (() => {
     style(x);
     redraw();
     Store.change('shapes');
-  }
-  function duplicate(ids) {
-    const out = [];
-    for (const id of ids) {
-      const x = geom(id); if (!x) continue;
-      const c = { ...JSON.parse(JSON.stringify(x)), id: uid(), x: x.x + 24, y: x.y + 24 };
-      if (x.type !== FRAME) c.z = Board.nextZ();
-      Store.addShape(board, c);
-      Board.plane().append(build(c));
-      out.push(c.id);
-    }
-    if (out.length) Store.change('shapes');
-    return out;
   }
   /* bring a box to the front, or send it behind every note and box */
   function order(id, front) {
@@ -634,7 +632,7 @@ export const Draw = (() => {
   return {
     anchor, route, KINDS, GAP,
     init, mount, unmount, tool: () => tool, setTool, begin, key,
-    textEls, get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, inside, anchors, pin, editText, remove, setColor, duplicate, order,
+    textEls, get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, inside, anchors, pin, editText, remove, take, add, setColor, order,
     ids, bounds, within, carried, looseEnds, paths, limits, box, selected,
   };
 })();

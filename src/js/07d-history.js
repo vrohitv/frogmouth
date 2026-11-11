@@ -66,6 +66,12 @@ export const History = (() => {
     toast(label, { action: () => { const i = undos.lastIndexOf(entry); if (i >= 0) { undos.splice(i, 1); run(() => fn()); } }, label: 'Undo' });
   }
 
+  /* several changes made as one action (a paste, a cut, align) are one step */
+  function batch(fn) {
+    quiet++;
+    try { return fn(); } finally { quiet--; record('notes'); }
+  }
+
   function run(fn) {
     quiet++;
     try { fn(); } finally { quiet--; }
@@ -138,5 +144,5 @@ export const History = (() => {
   bus.on('loaded', clear);
   bus.on('closed', clear);
 
-  return { undo, redo, push, forget, top, undoStep, size: () => undos.length, redoSize: () => redos.length, nudge: () => { nudge = true; } };
+  return { undo, redo, push, forget, top, undoStep, batch, size: () => undos.length, redoSize: () => redos.length, nudge: () => { nudge = true; } };
 })();

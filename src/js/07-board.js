@@ -1,4 +1,4 @@
-import { kb, modKey, clamp, now, h, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags, fuzzy, markPositions, wheelZoom } from './00-util.js';
+import { kb, modKey, clamp, now, h, uid, debounce, esc, isTypingTarget, bus, toast, ls, icon, Tags, fuzzy, markPositions, wheelZoom } from './00-util.js';
 import { Store } from './03-store.js';
 import { Popup, Modal, editTags } from './05-ui.js';
 import { Editor } from './06-editor.js';
@@ -67,6 +67,9 @@ export const Board = (() => {
     vp.addEventListener('dragover', (e) => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); vp.classList.add('drop'); } });
     vp.addEventListener('dragleave', (e) => { if (e.target === vp) vp.classList.remove('drop'); });
     vp.addEventListener('drop', onDrop);
+    document.addEventListener('copy', (e) => onCopy(e, 'copy'));
+    document.addEventListener('cut', (e) => onCopy(e, 'cut'));
+    document.addEventListener('paste', onPaste);
     addEventListener('keydown', (e) => { if (e.code === 'Space' && !isTypingTarget(e.target) && !Modal.isOpen()) { if (!spaceDown) { spaceDown = true; vp.classList.add('grab'); } e.preventDefault(); } });
     addEventListener('keyup', (e) => { if (e.code === 'Space') { spaceDown = false; vp.classList.remove('grab'); } });
     new ResizeObserver(() => {
@@ -542,10 +545,7 @@ export const Board = (() => {
       return true;
     }
     if (/^[1-9]$/.test(k) && !modKey(e)) { for (const id of noteIds) setColor(noteOf(id), COLORS[+k - 1]); for (const id of shapeIds) Draw.setColor(id, COLORS[+k - 1]); return true; }
-    if (modKey(e) && k.toLowerCase() === 'd') {
-      const out = noteIds.map((id) => duplicate(itemOf(id))).filter(Boolean).map((c) => c.id).concat(Draw.duplicate(shapeIds));
-      setGroup(out); return true;
-    }
+    if (modKey(e) && k.toLowerCase() === 'd') { duplicate(all); return true; }
     if (k === ']' || k === '[') { for (const id of shapeIds) Draw.order(id, k === ']'); return shapeIds.length > 0; }
     const d = e.shiftKey ? GRID * 5 : GRID;
     // Alt+Shift+arrows resize: right and down grow, left and up shrink
@@ -1072,11 +1072,116 @@ export const Board = (() => {
     });
   }
 
-  function duplicate(it) {
-    const n = noteOf(it.note); if (!n) return null;
-    const c = addNote({ x: it.x + 24, y: it.y + 24 }, false, n.html, { color: n.color, w: it.w, h: it.h });
-    if (c) { c.tags = n.tags.slice(); refreshFeet(); }
-    return c;
+  /* ── copy, cut, paste, duplicate ─────────────────────────────────
+     A selection travels with what belongs to it: whatever its frames hold, and the lines
+     between the things in it. A selected line whose end leaves the set keeps that end as a
+     free point where it is drawn. Copy then paste makes copies; cut then paste moves the
+     notes themselves (until then they wait in All notes). */
+  let clip = null, pastes = 0;
+  function gather(ids) {
+    if (!board) return null;
+    const set = new Set(Draw.carried(ids));
+    const notes = [], shapes = [];
+    for (const id of set) {
+      const it = itemOf(id);
+      if (it) { const n = noteOf(id); if (n) notes.push({ note: n, it: { ...it, h: it.h } }); }
+      else { const x = Draw.get(id); if (x) shapes.push(JSON.parse(JSON.stringify(x))); }
+    }
+    const inSet = (end) => (end.note && set.has(end.note)) || (end.shape && set.has(end.shape));
+    for (const x of Draw.lines()) {
+      if (!ids.includes(x.id) && !(inSet(x.a) && inSet(x.b))) continue;
+      const pts = Draw.points(x); if (!pts.length) continue;
+      const c = JSON.parse(JSON.stringify(x));
+      for (const [end, pt] of [['a', pts[0]], ['b', pts[pts.length - 1]]]) if ((c[end].note || c[end].shape) && !inSet(c[end])) c[end] = { x: Math.round(pt.x), y: Math.round(pt.y) };
+      shapes.push(c);
+    }
+    if (!notes.length && !shapes.length) return null;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    const grow = (r) => { x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h); };
+    for (const { it } of notes) grow(rectOf(it.note));
+    for (const x of shapes) if (x.type === 'line') { for (const e of [x.a, x.b]) if ('x' in e) grow({ x: e.x, y: e.y, w: 0, h: 0 }); } else grow(x);
+    const text = notes.map(({ note }) => note.text || note.title || '').concat(shapes.map((x) => x.text || '')).filter(Boolean).join('\n\n');
+    return { board: board.id, notes, shapes, box: { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }, text };
+  }
+  /* put a gathered group on this board, moved by dx, dy; move: place the notes themselves */
+  function put(g, dx, dy, move) {
+    const map = new Map(), out = [];
+    History.batch(() => {
+      for (const { note, it } of g.notes) {
+        let id = note.id;
+        if (!(move && Store.noteRef(id) && !itemOf(id))) id = Store.createNote({ html: note.html, color: note.color, tags: (note.tags || []).slice(), title: note.title, text: note.text }).id;
+        const placed = Store.place(board.id, id, { x: it.x + dx, y: it.y + dy, w: it.w, h: it.h, z: ++maxZ });
+        plane.append(build(placed));
+        map.set(note.id, id); out.push(id);
+      }
+      const made = [];
+      for (const x of g.shapes) if (x.type !== 'line') {
+        const c = { ...JSON.parse(JSON.stringify(x)), id: uid(), x: x.x + dx, y: x.y + dy };
+        if (x.type !== 'frame') c.z = ++maxZ;
+        map.set(x.id, c.id); made.push(c);
+      }
+      for (const x of g.shapes) if (x.type === 'line') {
+        const c = { ...JSON.parse(JSON.stringify(x)), id: uid() };
+        for (const end of ['a', 'b']) {
+          const e = c[end];
+          c[end] = e.note && map.has(e.note) ? { note: map.get(e.note) } : e.shape && map.has(e.shape) ? { shape: map.get(e.shape) } : { x: (e.x || 0) + dx, y: (e.y || 0) + dy };
+        }
+        made.push(c);
+      }
+      Draw.add(made);
+      out.push(...made.map((x) => x.id));
+      updateEmpty(); refreshFeet();
+      Store.change('notes');
+    });
+    setGroup(out);
+    return out;
+  }
+  function copy(ids) { const g = gather(ids); if (g) { clip = { ...g, mode: 'copy' }; pastes = 0; } return g; }
+  function cut(ids) {
+    const g = gather(ids); if (!g) return null;
+    clip = { ...g, mode: 'cut' }; pastes = 0;
+    History.batch(() => {
+      for (const { note } of g.notes) remove(note.id, true);
+      Draw.take(g.shapes.map((x) => x.id).filter((id) => Draw.get(id)));
+    });
+    const k = g.notes.length + g.shapes.length;
+    toast(`Cut ${k} ${k === 1 ? 'thing' : 'things'}. ${kb('mod+v')} puts ${k === 1 ? 'it' : 'them'} down${g.notes.length ? '; cut notes wait in All notes' : ''}.`);
+    return g;
+  }
+  function paste() {
+    if (!clip || !board) return;
+    const here = clip.board === board.id && clip.mode === 'copy';
+    let dx, dy;
+    if (here) { pastes++; dx = dy = 24 * pastes; }
+    else {
+      const c = toBoard(vp.getBoundingClientRect().left + vw / 2, vp.getBoundingClientRect().top + vh / 2);
+      dx = Math.round((c.x - clip.box.w / 2 - clip.box.x) / GRID) * GRID; dy = Math.round((c.y - clip.box.h / 2 - clip.box.y) / GRID) * GRID;
+    }
+    put(clip, dx, dy, clip.mode === 'cut');
+    if (clip.mode === 'cut') clip = { ...clip, mode: 'copy', board: board.id, box: { ...clip.box, x: clip.box.x + dx, y: clip.box.y + dy }, notes: clip.notes.map((n) => ({ ...n, it: { ...n.it, x: n.it.x + dx, y: n.it.y + dy } })) };
+  }
+  function duplicate(ids) { const g = gather(ids); if (g) put(g, 24, 24, false); }
+  /* the clipboard's own events, so the text goes to the system clipboard too, and text or
+     images copied elsewhere can be pasted onto the board as a note */
+  const clipOk = (e) => board && !vp.hidden && !isTypingTarget(e.target) && !Modal.isOpen() && !Popup.isOpen() && !(getSelection() && !getSelection().isCollapsed);
+  function onCopy(e, mode) {
+    if (!clipOk(e)) return;
+    const ids = picked(); if (!ids.length) return;
+    const g = mode === 'cut' ? cut(ids) : copy(ids); if (!g) return;
+    e.preventDefault();
+    if (e.clipboardData) e.clipboardData.setData('text/plain', g.text);
+  }
+  async function onPaste(e) {
+    if (!board || vp.hidden || isTypingTarget(e.target) || Modal.isOpen() || Popup.isOpen()) return;
+    const dt = e.clipboardData, text = dt ? dt.getData('text/plain') : '';
+    const files = dt ? [...dt.files] : [];
+    e.preventDefault();
+    if (clip && (!text || text === clip.text) && !files.length) { paste(); return; }
+    const c = toBoard(vp.getBoundingClientRect().left + vw / 2, vp.getBoundingClientRect().top + vh / 3);
+    if (files.length) { const html = await filesToHtml(files); if (html) addNote({ x: c.x - 130, y: c.y - 20 }, false, html + '<p><br></p>', { w: /figure/.test(html) ? 360 : 260 }); return; }
+    if (!text.trim()) return;
+    const html = text.replace(/\r/g, '').split('\n').map((l) => `<p>${l ? esc(l) : '<br>'}</p>`).join('');
+    addNote({ x: c.x - 130, y: c.y - 20 }, false, html);
   }
 
   function setColor(n, c) {
@@ -1175,6 +1280,13 @@ export const Board = (() => {
     if (!files.length || e.target.closest('.note')) return;
     e.preventDefault();
     const p = toBoard(e.clientX, e.clientY);
+    const html = await filesToHtml(files);
+    if (html) {
+      addNote({ x: p.x - 40, y: p.y - 20 }, false, html + '<p><br></p>', { w: /figure/.test(html) ? 360 : 260 });
+    }
+  }
+  /* images become pictures in the vault's assets/, other files are copied to files/ and tagged */
+  async function filesToHtml(files) {
     let html = '';
     for (const f of files) {
       if (f.type.startsWith('image/')) {
@@ -1186,13 +1298,11 @@ export const Board = (() => {
         else toast('Open a vault folder to attach files', { kind: 'warn' });
       }
     }
-    if (html) {
-      addNote({ x: p.x - 40, y: p.y - 20 }, false, html + '<p><br></p>', { w: /figure/.test(html) ? 360 : 260 });
-    }
+    return html;
   }
 
   return {
-    init, mount, unmount, refresh, addNote, reloadNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
+    init, mount, unmount, refresh, copy, cut, paste, duplicate, addNote, reloadNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
     zoom: () => view.z, view: () => ({ ...view }), zoomAt, toggleMap,
     // where a board point is drawn in the minimap, in client pixels (for tests)
     mapPoint: (x, y) => { const r = map.getBoundingClientRect(); return mapT && { x: r.left + mapT.ox + x * mapT.s, y: r.top + mapT.oy + y * mapT.s }; }, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,

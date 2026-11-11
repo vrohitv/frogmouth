@@ -1747,6 +1747,52 @@ import { History } from '../src/js/07d-history.js';
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 
+    /* ── 1.4: copy, cut, paste, duplicate ── */
+    const clipEv = (type, text) => { const dt = new DataTransfer(); if (text != null) dt.setData('text/plain', text); const ev = new ClipboardEvent(type, { clipboardData: dt, bubbles: true, cancelable: true }); document.body.dispatchEvent(ev); return dt; };
+    {
+      const src = await freshBoard('Copy from');
+      const p = Board.addNote({ x: 0, y: 0 }, false, '<p>Producer</p>'), q = Board.addNote({ x: 400, y: 0 }, false, '<p>Consumer</p>');
+      Store.addShape(src, { id: 'cp-frame', type: 'frame', x: 0, y: 400, w: 400, h: 300, color: 'moth', text: 'Area' });
+      Store.addShape(src, { id: 'cp-box', type: 'rect', x: 80, y: 480, w: 120, h: 80, z: 1, color: 'sea', text: 'Inside' });
+      Store.addShape(src, { id: 'cp-line', type: 'line', a: { note: p.id }, b: { note: q.id }, head: 'end', color: 'moth', text: 'feeds' });
+      Store.change('shapes'); Board.unmount(); Board.mount(src); await wait(40);
+      Board.setGroup([p.id, q.id, 'cp-frame']);
+      const dt = clipEv('copy');
+      ok('copy puts the text on the clipboard too', /Producer/.test(dt.getData('text/plain')) && /Inside/.test(dt.getData('text/plain')), dt.getData('text/plain'));
+      const dst = await freshBoard('Paste to');
+      clipEv('paste', dt.getData('text/plain')); await wait(40);
+      const notes = dst.items.map((it) => Store.noteRef(it.note).note);
+      const shapes = Store.shapes(dst);
+      const line = shapes.find((x) => x.type === 'line');
+      ok('paste makes copies of the notes', notes.length === 2 && notes.every((n) => n.id !== p.id && n.id !== q.id) && notes.map((n) => n.title).sort().join() === 'Consumer,Producer', JSON.stringify(notes.map((n) => n.title)));
+      ok('a frame comes with what it holds', shapes.some((x) => x.type === 'frame' && x.text === 'Area') && shapes.some((x) => x.type === 'rect' && x.text === 'Inside' && x.id !== 'cp-box'));
+      ok('and the line between copied notes joins the copies', line && line.text === 'feeds' && notes.some((n) => n.id === line.a.note) && notes.some((n) => n.id === line.b.note), JSON.stringify(line));
+      ok('the pasted things are selected', Board.selection().length === 5, Board.selection().length);
+      undoK(); await wait(40);
+      ok('one undo takes the whole paste away', !dst.items.length && !Store.shapes(dst).length && !notes.some((n) => Store.noteRef(n.id)));
+      // pasting on the same board lands beside the original
+      App.openTab('b:' + src.id); await wait(30);
+      Board.setGroup([p.id]); clipEv('copy');
+      clipEv('paste', 'Producer'); await wait(30);
+      const copy = src.items[src.items.length - 1];
+      ok('pasting on the same board lands just beside the original', copy.note !== p.id && copy.x === 24 && copy.y === 24, JSON.stringify(copy));
+      // cut moves the notes themselves
+      Board.setGroup([q.id]); clipEv('cut'); await wait(30);
+      ok('cut takes the note off the board (it waits in All notes)', !Board.item(q.id) && !!Store.noteRef(q.id));
+      App.openTab('b:' + dst.id); await wait(30);
+      clipEv('paste', 'Consumer'); await wait(30);
+      ok('paste after cut moves the same note here', !!Board.item(q.id) && dst.items.length === 1);
+      // text from elsewhere becomes a note
+      clipEv('paste', 'An idea from the browser\nwith a second line'); await wait(30);
+      const fromText = dst.items.map((it) => Store.noteRef(it.note).note).find((n) => n.title === 'An idea from the browser');
+      ok('pasting text from elsewhere makes a note of it', !!fromText && /second line/.test(fromText.text));
+      // duplicate keeps lines and frame contents
+      App.openTab('b:' + src.id); await wait(30);
+      Board.setGroup(['cp-frame']); keydown(document.body, 'd', { metaKey: isMac, ctrlKey: !isMac }); await wait(30);
+      ok('duplicating a frame duplicates what it holds', Store.shapes(src).filter((x) => x.type === 'rect' && x.text === 'Inside').length === 2 && Store.shapes(src).filter((x) => x.type === 'frame').length === 2);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
