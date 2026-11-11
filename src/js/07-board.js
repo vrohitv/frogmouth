@@ -361,10 +361,15 @@ export const Board = (() => {
       const el = els.get(it.note); const hh = el ? el.offsetHeight : 200;
       x1 = Math.min(x1, it.x); y1 = Math.min(y1, it.y); x2 = Math.max(x2, it.x + it.w); y2 = Math.max(y2, it.y + hh);
     }
-    for (const r of Draw.bounds()) { x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h); }
-    const pad = 60, W = vp.clientWidth, H = vp.clientHeight;
-    const z = clamp(Math.min((W - pad * 2) / (x2 - x1), (H - pad * 2) / (y2 - y1)), 0.2, 1);
-    view = { z, x: (W - (x2 - x1) * z) / 2 - x1 * z, y: (H - (y2 - y1) * z) / 2 - y1 * z };
+    // a frame's name sits above it
+    for (const r of Draw.bounds()) { x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y - (r.type === 'frame' ? 22 : 0)); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h); }
+    // keep clear of the floating bars: the top bar above, the tool bar and zoom control below
+    const W = vp.clientWidth, H = vp.clientHeight, vr = vp.getBoundingClientRect(), pad = 60;
+    const hud = document.querySelector('.hud'), bar = vp.querySelector('.draw-bar');
+    const top = Math.max(pad, hud ? hud.getBoundingClientRect().bottom - vr.top + 20 : 0);
+    const bottom = Math.max(pad, bar ? vr.bottom - bar.getBoundingClientRect().top + 20 : 0);
+    const z = clamp(Math.min((W - pad * 2) / (x2 - x1), (H - top - bottom) / (y2 - y1)), 0.2, 1);
+    view = { z, x: (W - (x2 - x1) * z) / 2 - x1 * z, y: top + (H - top - bottom - (y2 - y1) * z) / 2 - y1 * z };
     animateView(); applyView();
   }
 

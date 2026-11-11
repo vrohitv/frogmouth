@@ -1412,6 +1412,16 @@ import { App } from '../src/js/10-app.js';
       undoKey(); await wait(40);
       ok('and undo re-attaches it', ln.a.note === n.id);
     }
+    {
+      // Fit keeps everything clear of the floating bars, frame names included
+      const big = Store.addShape(Board.current(), { id: uid(), type: 'frame', x: -1200, y: -500, w: 2400, h: 1200, color: 'moth', text: 'Everything' });
+      Board.unmount(); App.enter(); await wait(60);
+      Board.fit(); await wait(450);
+      const top = $('.hud').getBoundingClientRect().bottom, bot = $('.draw-bar').getBoundingClientRect().top;
+      const rs = [...$$('.note'), ...$$('.shape'), ...$$('.frame-name')].map((e) => e.getBoundingClientRect());
+      ok('Fit keeps everything between the top bar and the tool bar', rs.every((r) => r.top >= top - 1 && r.bottom <= bot + 1), JSON.stringify([top, bot, Math.min(...rs.map((r) => r.top)), Math.max(...rs.map((r) => r.bottom))]));
+      Draw.remove([big.id]);
+    }
 
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
