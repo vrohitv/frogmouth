@@ -371,7 +371,7 @@ export const Store = (() => {
      is and written back unchanged. Only a change that older versions would misread
      raises it, and a version never opens a newer file, so it can never write over data
      it does not understand. */
-  const FORMAT = 1;
+  const FORMAT = 2; // the newest this release reads. A vault is written as 1 unless its secrets have a passphrase (2)
   function parse(text, name = S.vault ? S.vault.file : 'This file') {
     let j;
     try { j = JSON.parse(text); } catch { throw new Error(`${name} is not valid JSON. Fix it in a text editor or restore a backup from ${BACKUPS}.`); }
@@ -407,7 +407,7 @@ export const Store = (() => {
 
   /* ── saving ── */
   function serialize() {
-    return '{"frogmouth":' + FORMAT + ',"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
+    return '{"frogmouth":' + (S.data.crypt ? 2 : 1) + ',"saved":"' + new Date().toISOString() + '","data":' + JSON.stringify(S.data, null, 1) + '}\n';
   }
 
   /* Write the vault. Each save records which change (S.rev) it wrote, so edits made
