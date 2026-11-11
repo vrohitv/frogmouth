@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0 (unreleased)
+
+- **Visible editing**: every secret row has a pencil that opens its editor, and the open board's pill has a pencil that renames it in place.
+- **Board pills**: right-click a pill for Rename, Pin and Delete. The small hover × is gone, so a board can no longer be deleted by a near miss. Pinned pills show a pin, and names get more room before they are cut.
+- **Boards panel** (`⌥J`): two-line rows with the titles of each board's first notes under its name, pinned boards in their own section at the top, and pin, rename and delete always visible.
+
 ## 1.2.1 (2026-10-22)
 
 - **Colour picker**: each note has one small colour button instead of a row of nine swatches. It opens a compact 3 × 3 picker of the papers in the current theme, with the current one marked: click, press `1`–`9`, or use the arrows and `↵`; `Esc` or a click outside closes it. With several notes selected it colours all of them. The `1`–`9` keys on the board work as before.

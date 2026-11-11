@@ -299,18 +299,33 @@ export const App = (() => {
       count.textContent = q ? `${scored.length} of ${d.boards.length}` : `${d.boards.length} ${d.boards.length === 1 ? 'board' : 'boards'}`;
       paint();
     }
+    // what is on a board, so it can be told apart by more than its name
+    function preview(b) {
+      if (!b.items.length) return 'Empty';
+      const t = b.items.slice(0, 3).map((it) => { const ref = Store.noteRef(it.note); return (ref && ref.note.title) || 'Untitled'; }).join(', ');
+      return t + (b.items.length > 3 ? ` +${b.items.length - 3}` : '');
+    }
+    const rowEl = (i) => list.querySelector(`.bd-row[data-i="${i}"]`);
     function paint() {
-      list.innerHTML = rows.map((r, i) => r.create
-        ? `<div class="bd-row bd-create${i === idx ? ' on' : ''}" data-i="${i}">${icon('plus')}<span class="bd-name">Create board “${esc(r.create)}”</span></div>`
-        : `<div class="bd-row${i === idx ? ' on' : ''}${r.b.id === d.ui.board && isBoardView() ? ' current' : ''}" data-i="${i}">` +
-          `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${kb('alt+p')})">${icon('pin')}</button>` +
-          `<span class="bd-name">${r.m ? markPositions(r.b.name, r.m.p) : esc(r.b.name)}</span>` +
-          `<span class="bd-meta">${r.b.items.length} ${r.b.items.length === 1 ? 'note' : 'notes'}</span>` +
-          `<span class="bd-meta bd-when">${esc(ago(r.b.opened))}</span>` +
-          `<span class="bd-acts"><button data-a="rename" tabindex="-1" title="Rename (F2)">${icon('edit')}</button>` +
-          `<button data-a="delete" tabindex="-1" title="Delete board (${kb('mod+shift+backspace')}); its notes stay in All notes">${icon('x')}</button></span></div>`).join('') ||
-        '<div class="pal-empty">No boards.</div>';
-      const on = list.children[idx]; if (on) on.scrollIntoView({ block: 'nearest' });
+      const grouped = !inp.value.trim();
+      let out = '', head = null;
+      rows.forEach((r, i) => {
+        // with nothing typed: pinned boards first, then the rest by when they were last opened
+        const sec = r.create ? null : r.b.pinned ? 'Pinned' : 'Boards';
+        if (grouped && sec && sec !== head && (sec === 'Pinned' || rows.some((x) => x.b && x.b.pinned))) out += `<div class="bd-head">${sec}</div>`;
+        if (sec) head = sec;
+        out += r.create
+          ? `<div class="bd-row bd-create${i === idx ? ' on' : ''}" data-i="${i}">${icon('plus')}<span class="bd-name">Create board “${esc(r.create)}”</span></div>`
+          : `<div class="bd-row${i === idx ? ' on' : ''}${r.b.id === d.ui.board && isBoardView() ? ' current' : ''}" data-i="${i}">` +
+            `<button class="bd-pin${r.b.pinned ? ' pinned' : ''}" data-a="pin" tabindex="-1" title="${r.b.pinned ? 'Unpin' : 'Pin: always keep a pill'} (${kb('alt+p')})">${icon('pin')}</button>` +
+            `<span class="bd-text"><span class="bd-name">${r.m ? markPositions(r.b.name, r.m.p) : esc(r.b.name)}</span><span class="bd-sub">${esc(preview(r.b))}</span></span>` +
+            `<span class="bd-meta">${r.b.items.length} ${r.b.items.length === 1 ? 'note' : 'notes'}</span>` +
+            `<span class="bd-meta bd-when">${esc(ago(r.b.opened))}</span>` +
+            `<span class="bd-acts"><button data-a="rename" tabindex="-1" title="Rename (F2)">${icon('edit')}</button>` +
+            `<button data-a="delete" tabindex="-1" title="Delete board (${kb('mod+shift+backspace')}); its notes stay in All notes">${icon('x')}</button></span></div>`;
+      });
+      list.innerHTML = out || '<div class="pal-empty">No boards.</div>';
+      const on = rowEl(idx); if (on) on.scrollIntoView({ block: 'nearest' });
     }
     function open(r) {
       close();
@@ -320,7 +335,7 @@ export const App = (() => {
     function pin(r) { if (!r || r.create) return; togglePin(r.b); paint(); }
     function rename(r) {
       if (!r || r.create) return;
-      const row = list.children[rows.indexOf(r)]; if (!row) return;
+      const row = rowEl(rows.indexOf(r)); if (!row) return;
       const name = row.querySelector('.bd-name');
       const ri = h('input', { class: 'bp-input bd-rename', value: r.b.name, spellcheck: 'false', 'aria-label': 'Board name' });
       name.replaceChildren(ri);

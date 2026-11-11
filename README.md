@@ -21,8 +21,8 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 
 **Boards of sticky notes**
 - The notes get the whole window. Only a few controls float over it: the logo (its menu holds theme, export and shortcuts), a three-way switch (board, all notes, secrets), the board pills, search, and the sync icon.
-- Boards are floating pills. Click one to open it, double-click to rename it in place, drag to reorder, hover for × to delete (undoable). **+** adds a board.
-- **The Boards panel** (the board-count button next to the pills, or `⌥J`) lists every board with its note count and when you last opened it. Type to find one, `↵` to open it, or type a new name to create it. `⌥P` pins, `F2` renames, `⌘⇧⌫` deletes (its notes stay in All notes).
+- Boards are floating pills. Click one to open it, double-click it (or the pencil on the open one) to rename it in place, drag to reorder, right-click for rename, pin and delete (undoable). **+** adds a board.
+- **The Boards panel** (the board-count button next to the pills, or `⌥J`) lists every board with its note count, when you last opened it, and the titles of its first notes, so you can tell boards apart at a glance. Pinned boards come first. Type to find one, `↵` to open it, or type a new name to create it. `⌥P` pins, `F2` renames, `⌘⇧⌫` deletes (its notes stay in All notes).
 - With many boards, **pinned boards always keep a pill**; your most recently used boards fill the rest (six in all). `⌥1`–`⌥9` jump to the pills, and `⌘K` then `#` searches boards too.
 - **Notes are shared, boards are views.** Every note lives in one library (the All notes page); a board only places notes on it. The same note can sit on several boards (its foot then says "2 boards"), and editing it anywhere edits it everywhere.
 - **Deleting a board never deletes notes.** They stay in All notes (marked *on no board* if that was their only board) and on any other boards.
@@ -64,6 +64,7 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 **Secrets**
 - Key/value pairs with plain tags (`aws`) and key:value tags (`env:prod`). Every tag is listed as a chip under the filter; click one to filter by it.
 - Filter syntax: `env:prod aws -legacy`.
+- Every row has a pencil to edit it (or `↵`, `e`, double-click), an eye to reveal and a copy button.
 - Values stay masked until you reveal them. Search never looks at values.
 - `c` copies the value, `⇧C` copies the key, and Enter in the filter copies the top match.
 - **Export JSON** downloads every secret (key, value, tags, note, dates; no notes) as `frogmouth-secrets-YYYY-MM-DD.json`. Values are in plain text, so it asks first.
