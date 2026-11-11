@@ -819,6 +819,16 @@ import { App } from '../src/js/10-app.js';
       $('.secrets').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
       ok('clicking outside closes the editor', $('.s-drawer').hidden);
     }
+    {
+      // editing is visible: every row has a pencil that opens the editor
+      const row = $$('.srow').find((r) => r.querySelector('.s-keyname').textContent === 'DATABASE_URL');
+      const pen = row.querySelector('.s-act [data-a="edit"]');
+      ok('every secret row has a visible edit button', $$('.srow').every((r) => r.querySelector('.s-act [data-a="edit"]')) && !!pen && pen.getBoundingClientRect().width > 0);
+      if (pen) pen.click();
+      await wait(40);
+      ok('the edit button opens the editor on that secret', !$('.s-drawer').hidden && $('.s-drawer .d-head h3').textContent === 'DATABASE_URL');
+      keydown($('.s-drawer'), 'Escape'); await wait(20);
+    }
     ok('tag row is a pivot: plain tags, then each key with its values', $$('.secrets .s-tagrow > .chip').map((c) => c.dataset.tag).join() === 'aws,billing,db,example' && $$('.secrets .tp-group .tp-k').length === 1 && $$('.secrets .tp-group .tp-v').map((c) => c.dataset.tag).join() === 'env:dev,env:prod,env:staging', $$('.secrets .s-tagrow .chip').map((c) => c.dataset.tag).join());
     {
       // tags: AND with spaces, OR with commas, any value with key:, deeper levels by prefix
@@ -879,8 +889,35 @@ import { App } from '../src/js/10-app.js';
     ok('new board is active', Store.S.data.ui.active === 'b:' + infra.id && $('.board-pill.on .bp-name').textContent === 'Infra');
     $$('.board-pill')[0].click();
     ok('clicking a pill switches board', Store.S.data.ui.active === 'b:' + Store.S.data.boards[0].id);
-    $(`.board-pill[data-id="${infra.id}"] .bp-x`).click();
-    ok('x deletes an empty board', !Store.board(infra.id) && $$('.board-pill').length === nBoards);
+    {
+      // the open board's pill has a pencil that renames in place
+      const b0 = Store.S.data.boards[0], was = b0.name;
+      const pen = $('.board-pill.on .bp-edit');
+      ok('the open board pill shows a rename button', !!pen && getComputedStyle(pen).opacity !== '0');
+      if (pen) pen.click();
+      await wait(20);
+      const ri = $('.board-pill input.bp-input');
+      ok('it renames in place', !!ri);
+      if (ri) { ri.value = 'Renamed by pencil'; keydown(ri, 'Enter'); }
+      await wait(20);
+      ok('and saves the name', b0.name === 'Renamed by pencil');
+      b0.name = was; Store.change('boards');
+    }
+    {
+      // right-click a pill: rename, pin, delete (no hover cross to mis-hit)
+      ok('pills have no delete cross', !$('.board-pill .bp-x'));
+      const menu = async () => { $(`.board-pill[data-id="${infra.id}"]`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 30 })); await wait(30); };
+      const pickItem = (w) => { const it = $$('.pop .pop-item').find((e) => e.textContent.includes(w)); if (it) it.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); };
+      await menu();
+      const labels = $$('.pop .pop-item').map((e) => e.textContent);
+      ok('right-click on a pill offers rename, pin and delete', ['Rename', 'Pin', 'Delete board'].every((w) => labels.some((l) => l.includes(w))), labels.join('|'));
+      pickItem('Pin'); await wait(20);
+      ok('pinning from the menu marks the pill', Store.board(infra.id).pinned === true && !!$(`.board-pill[data-id="${infra.id}"] .bp-pin`));
+      await menu(); pickItem('Unpin'); await wait(20);
+      ok('and unpinning removes the mark and the field', !('pinned' in Store.board(infra.id)) && !$(`.board-pill[data-id="${infra.id}"] .bp-pin`));
+      await menu(); pickItem('Delete board'); await wait(30);
+    }
+    ok('the menu deletes an empty board', !Store.board(infra.id) && $$('.board-pill').length === nBoards);
     keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
     ok('undo restores the board', !!Store.board(infra.id));
     App.openTab('secrets');
@@ -1013,6 +1050,22 @@ import { App } from '../src/js/10-app.js';
       ok('alt+P pins a board', p3.pinned === true && !!$('.bd-row .bd-pin.pinned'));
       keydown(bin2, 'Escape');
       ok('Esc closes the panel', !$('.bd-panel'));
+      {
+        // the panel: pinned boards first, two-line rows that preview the board, actions always visible
+        keydown(document.body, 'j', { altKey: true, code: 'KeyJ' }); await wait(30);
+        const heads = $$('.bd-list .bd-head').map((e) => e.textContent);
+        ok('the panel groups pinned boards first', heads[0] === 'Pinned' && heads[1] === 'Boards' && $('.bd-list .bd-row .bd-name').textContent === 'Project 3', heads.join('|'));
+        const row = $$('.bd-row').find((r) => r.querySelector('.bd-name').textContent === d.boards[0].name);
+        const firstTitle = (Store.noteRef(d.boards[0].items[0].note).note.title || '').slice(0, 12);
+        ok('a row previews what is on the board', !!row && !!row.querySelector('.bd-sub') && row.querySelector('.bd-sub').textContent.includes(firstTitle), row && row.textContent);
+        ok('rows are comfortable to hit', row && row.getBoundingClientRect().height >= 44, row && row.getBoundingClientRect().height);
+        ok('row actions are visible without hovering', row && getComputedStyle(row.querySelector('.bd-acts')).opacity !== '0');
+        const bi = $('.bd-input'); bi.value = 'Proj'; bi.dispatchEvent(new Event('input')); await wait(20);
+        ok('typing gives one flat list', !$('.bd-list .bd-head') && $$('.bd-row').length >= 30);
+        keydown(bi, 'ArrowDown'); 
+        ok('arrow keys still walk the rows', $$('.bd-row')[1].classList.contains('on'));
+        keydown(bi, 'Escape'); await wait(20);
+      }
       for (let k = 20; k <= 26; k++) App.openTab('b:' + d.boards.find((b) => b.name === `Project ${k}`).id); // use lots of other boards
       ok('a pinned board keeps its pill', $$('.board-pill .bp-name').some((e) => e.textContent === 'Project 3'));
       // rename and delete from the panel
@@ -1067,8 +1120,10 @@ import { App } from '../src/js/10-app.js';
       ok('placements keep their own geometry', Board.item(welcome.id) !== d.boards[0].items.find((it) => it.note === welcome.id));
       Board.addNote({ x: 600, y: 300 }, false, '<p>Only on Side</p>');
       const onlySide = [...Store.S.notes.values()].find(({ note }) => note.title === 'Only on Side').note;
-      // delete the board through the pill (confirm modal, since it has notes)
-      $(`.board-pill[data-id="${side.id}"] .bp-x`).click();
+      // delete the board through the pill's menu (confirm modal, since it has notes)
+      $(`.board-pill[data-id="${side.id}"]`).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 30 }));
+      await wait(30);
+      $$('.pop .pop-item').find((e) => e.textContent.includes('Delete board')).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       await wait(30);
       const confirmBtn = $('.modal .btn.primary');
       ok('deleting a board says its notes stay', !!confirmBtn && /stay in All notes/.test($('.modal').textContent));

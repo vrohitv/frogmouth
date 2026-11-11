@@ -210,21 +210,23 @@ export const App = (() => {
   }
   function renderBoards() {
     const d = Store.S.data;
-    const many = d.boards.length > 1;
     const shown = pillBoards();
     const hidden = d.boards.length - shown.length;
     const pills = shown.map((b, i) => {
       const on = isBoardView() && d.ui.board === b.id;
       const pill = h('div', { class: 'board-pill' + (on ? ' on' : ''), role: 'tab', 'aria-selected': String(on), draggable: 'true', 'data-id': b.id,
-        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename, drag to reorder.` },
+        title: `${b.name}${i < 9 ? `  (${kb('alt+' + (i + 1))})` : ''}. Double-click to rename, drag to reorder. Right-click for more.` },
+        b.pinned ? h('span', { class: 'bp-pin', html: icon('pin'), 'aria-label': 'Pinned' }) : null,
         h('span', { class: 'bp-name', text: b.name }),
-        many ? h('button', { class: 'bp-x', title: 'Delete board', 'aria-label': `Delete ${b.name}`, html: icon('x'), tabindex: '-1' }) : null);
+        on ? h('button', { class: 'bp-edit', title: 'Rename (F2)', 'aria-label': `Rename ${b.name}`, html: icon('edit'), tabindex: '-1' }) : null);
       pill.addEventListener('click', (e) => {
-        if (e.target.closest('.bp-x')) { e.stopPropagation(); deleteBoard(b.id); return; }
+        if (e.target.closest('.bp-edit')) { e.stopPropagation(); renameBoard(b.id); return; }
         if (pill.querySelector('input')) return;
         activate('b:' + b.id);
       });
-      pill.addEventListener('dblclick', (e) => { if (!e.target.closest('.bp-x')) renameBoard(b.id); });
+      pill.addEventListener('dblclick', (e) => { if (!e.target.closest('.bp-edit')) renameBoard(b.id); });
+      // delete lives in a menu, not on a small hover target next to the name
+      pill.addEventListener('contextmenu', (e) => { if (pill.querySelector('input')) return; e.preventDefault(); boardMenu(b, e.clientX, e.clientY); });
       pill.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-board', b.id); e.dataTransfer.effectAllowed = 'move'; pill.classList.add('dragging'); });
       pill.addEventListener('dragend', () => pill.classList.remove('dragging'));
       pill.addEventListener('dragover', (e) => {
@@ -256,6 +258,17 @@ export const App = (() => {
     h('button', { class: 'bp-add', title: 'New board', 'aria-label': 'New board', html: icon('plus'), onclick: newBoard })].filter(Boolean));
     const on = boardsEl.querySelector('.board-pill.on');
     if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function togglePin(b) { if (b.pinned) delete b.pinned; else b.pinned = true; Store.change('boards'); }
+  /* a pill's right-click menu */
+  function boardMenu(b, x, y) {
+    const items = [
+      { id: 'rename', label: 'Rename', icon: 'edit', hint: 'F2' },
+      { id: 'pin', label: b.pinned ? 'Unpin' : 'Pin: always keep a pill', icon: 'pin', hint: kb('alt+p') },
+    ];
+    if (Store.S.data.boards.length > 1) items.push({ id: 'delete', label: 'Delete board…', icon: 'x' });
+    Popup.open({ x, y, title: b.name, items, onPick: (it) => ({ rename: () => renameBoard(b.id), pin: () => togglePin(b), delete: () => deleteBoard(b.id) })[it.id]() });
   }
 
   /* ── the Boards panel: every board, searchable, with pin / rename / delete ──
@@ -304,7 +317,7 @@ export const App = (() => {
       if (r.create) { const b = { id: uid(), name: r.create, created: now(), items: [] }; d.boards.push(b); Store.change('boards'); activate('b:' + b.id); }
       else activate('b:' + r.b.id);
     }
-    function pin(r) { if (!r || r.create) return; r.b.pinned = !r.b.pinned; if (!r.b.pinned) delete r.b.pinned; Store.change('boards'); paint(); }
+    function pin(r) { if (!r || r.create) return; togglePin(r.b); paint(); }
     function rename(r) {
       if (!r || r.create) return;
       const row = list.children[rows.indexOf(r)]; if (!row) return;

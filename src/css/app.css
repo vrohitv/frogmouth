@@ -224,14 +224,15 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .board-pill.dragging { opacity: .35; }
 .board-pill.drop-before { box-shadow: inset 2px 0 0 var(--accent); }
 .board-pill.drop-after { box-shadow: inset -2px 0 0 var(--accent); }
-.bp-name { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
-.bp-x {
-  display: grid; place-items: center; width: 16px; height: 16px; margin-right: -7px; padding: 0;
-  border: 0; border-radius: 4px; background: none; color: inherit; cursor: pointer; opacity: 0;
+.bp-name { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
+.bp-pin { display: grid; place-items: center; margin-left: -3px; opacity: .5; }
+.bp-pin .ic { width: 11px; height: 11px; }
+.bp-edit {
+  display: grid; place-items: center; width: 18px; height: 18px; margin-right: -7px; padding: 0;
+  border: 0; border-radius: 4px; background: none; color: inherit; cursor: pointer; opacity: .45;
 }
-.bp-x .ic { width: 10px; height: 10px; stroke-width: 1.8; }
-.board-pill:hover .bp-x { opacity: .55; }
-.bp-x:hover { opacity: 1 !important; background: var(--line); }
+.bp-edit .ic { width: 11px; height: 11px; }
+.bp-edit:hover { opacity: 1; background: var(--line); }
 .bp-input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 5px; height: 24px; padding: 0 6px; outline: none; margin: 0 -6px; }
 .bp-more { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 9px; border: 0; border-radius: 7px; background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
 .bp-more .ic { width: 14px; height: 14px; }
@@ -593,7 +594,7 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .s-search .field { padding-left: 32px; height: 34px; font-family: var(--mono); font-size: 12.5px; }
 .s-count { font-size: 12px; min-width: 70px; text-align: right; }
 .s-bar, .s-head, .srow, .n-head, .nrow, .s-empty { width: 100%; max-width: 1040px; margin-left: auto; margin-right: auto; }
-.s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 64px; gap: 14px; align-items: center; padding: 0 16px; }
+.s-head, .srow { display: grid; grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 1fr) minmax(140px, 1.1fr) 96px; gap: 14px; align-items: center; padding: 0 16px; }
 .s-head { height: 26px; color: var(--faint); font-size: 11.5px; border-bottom: 1px solid var(--line); }
 .s-list { overflow-y: auto; outline: none; padding-bottom: 40px; }
 .srow { min-height: 42px; padding-top: 5px; padding-bottom: 5px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); cursor: default; position: relative; }
