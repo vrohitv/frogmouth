@@ -77,6 +77,74 @@ export const Store = (() => {
     return it;
   }
 
+  /* ── shapes: boxes, frames and lines drawn on a board (docs/format.md) ──
+     A type this release does not know is kept as it is and not drawn. A line end is a
+     free point {x, y}, or attached to a note or shape on the same board. */
+  const BOXES = ['rect', 'ellipse', 'diamond', 'text'];
+  const SHAPE_TYPES = [...BOXES, 'frame', 'line'];
+  const HEADS = ['none', 'end', 'both'];
+  const fin = (v) => (Number.isFinite(+v) ? +v : 0);
+  function normShapes(b) {
+    if (!Array.isArray(b.shapes)) { delete b.shapes; return; }
+    const seen = new Set(), out = [];
+    for (const x of b.shapes) {
+      if (!x || typeof x !== 'object' || Array.isArray(x)) continue;
+      x.id = String(x.id || uid());
+      if (seen.has(x.id)) continue;
+      seen.add(x.id);
+      out.push(x);
+      if (!SHAPE_TYPES.includes(x.type) || x.type === 'line') continue;
+      const frame = x.type === 'frame';
+      x.x = fin(x.x); x.y = fin(x.y);
+      x.w = clamp(fin(x.w), frame ? 80 : 24, frame ? 8000 : 4000);
+      x.h = clamp(fin(x.h), frame ? 60 : 24, frame ? 8000 : 4000);
+      if (!frame) x.z = +x.z || 1;
+      x.color = typeof x.color === 'string' && x.color ? x.color : 'moth';
+      x.text = typeof x.text === 'string' ? x.text : '';
+    }
+    // lines last: an end may only attach to a note placed here or a known, non-line shape here
+    const notes = new Set(b.items.map((it) => it.note));
+    const things = new Set(out.filter((x) => SHAPE_TYPES.includes(x.type) && x.type !== 'line').map((x) => x.id));
+    const okEnd = (e) => e && typeof e === 'object' && ('note' in e ? notes.has(e.note) : 'shape' in e ? things.has(e.shape) : Number.isFinite(e.x) && Number.isFinite(e.y));
+    b.shapes = out.filter((x) => {
+      if (x.type !== 'line') return true;
+      if (!okEnd(x.a) || !okEnd(x.b)) return false;
+      if (!HEADS.includes(x.head)) x.head = 'end';
+      if (x.route !== 'elbow') delete x.route;
+      x.color = typeof x.color === 'string' && x.color ? x.color : 'moth';
+      x.text = typeof x.text === 'string' ? x.text : '';
+      return true;
+    });
+    if (!b.shapes.length) delete b.shapes;
+  }
+  /* the field exists only while a board has shapes, so boards without any stay as they were */
+  const shapes = (b) => (b && b.shapes) || [];
+  function addShape(b, x) { (b.shapes || (b.shapes = [])).push(x); return x; }
+  /* every line end on b attached to {[kind]: id} becomes a free point at `at`; returns what reattach needs */
+  function detach(b, kind, id, at) {
+    const out = [];
+    for (const x of shapes(b)) {
+      if (x.type !== 'line') continue;
+      for (const end of ['a', 'b']) if (x[end] && x[end][kind] === id) { out.push({ line: x, end, was: x[end] }); x[end] = { x: at.x, y: at.y }; }
+    }
+    return out;
+  }
+  function reattach(list) { for (const { line, end, was } of list || []) line[end] = was; }
+  const centre = (r) => ({ x: r.x + r.w / 2, y: r.y + (r.h || 120) / 2 });
+  function dropShape(b, id) {
+    const i = shapes(b).findIndex((x) => x.id === id);
+    if (i < 0) return null;
+    const [shape] = b.shapes.splice(i, 1);
+    const detached = shape.type === 'line' ? [] : detach(b, 'shape', id, centre(shape));
+    if (!b.shapes.length) delete b.shapes;
+    return { shape, index: i, detached };
+  }
+  function putShape(b, saved) {
+    const list = b.shapes || (b.shapes = []);
+    list.splice(Math.min(saved.index, list.length), 0, saved.shape);
+    reattach(saved.detached);
+  }
+
   function normalize(d) {
     d = d && typeof d === 'object' ? d : {};
     d.notes = Array.isArray(d.notes) ? d.notes.filter((n) => n && typeof n === 'object') : [];
@@ -91,6 +159,7 @@ export const Store = (() => {
       b.items = Array.isArray(b.items) ? b.items.filter((it) => it && typeof it === 'object') : [];
       const seen = new Set();
       b.items = b.items.filter((it) => { it.note = String(it.note || ''); if (!byId.has(it.note) || seen.has(it.note)) return false; seen.add(it.note); return true; }).map(normItem);
+      normShapes(b);
     }
     d.notes = [...byId.values()];
     if (!d.boards.length) d.boards.push({ id: uid(), name: 'Inbox', created: now(), items: [] });
@@ -138,14 +207,15 @@ export const Store = (() => {
     return it;
   }
   /* take a note off one board; the note stays in the library */
-  function unplace(boardId, noteId) {
+  /* lines attached to the note become free points at `at` (default: the placement's centre) */
+  function unplace(boardId, noteId, at) {
     const b = board(boardId); if (!b) return null;
     const i = b.items.findIndex((it) => it.note === noteId);
     if (i < 0) return null;
     const [it] = b.items.splice(i, 1);
     const ref = S.notes.get(noteId);
     if (ref) { ref.boards = ref.boards.filter((x) => x !== b); ref.board = ref.boards[0] || null; }
-    return { it, index: i };
+    return { it, index: i, detached: detach(b, 'note', noteId, at || centre(it)) };
   }
   /* delete a note from the library and every board; returns what undo needs */
   function deleteNote(id) {
@@ -153,7 +223,7 @@ export const Store = (() => {
     const placed = [];
     for (const b of S.data.boards) {
       const i = b.items.findIndex((it) => it.note === id);
-      if (i >= 0) placed.push({ board: b, index: i, it: b.items.splice(i, 1)[0] });
+      if (i >= 0) { const it = b.items.splice(i, 1)[0]; placed.push({ board: b, index: i, it, detached: detach(b, 'note', id, centre(it)) }); }
     }
     const ni = S.data.notes.indexOf(ref.note);
     S.data.notes.splice(ni, 1);
@@ -162,7 +232,7 @@ export const Store = (() => {
   }
   function restoreNote(saved) {
     S.data.notes.splice(Math.min(saved.index, S.data.notes.length), 0, saved.note);
-    for (const p of saved.placed) if (S.data.boards.includes(p.board)) p.board.items.splice(Math.min(p.index, p.board.items.length), 0, p.it);
+    for (const p of saved.placed) if (S.data.boards.includes(p.board)) { p.board.items.splice(Math.min(p.index, p.board.items.length), 0, p.it); reattach(p.detached); }
     index();
   }
 
@@ -480,5 +550,6 @@ export const Store = (() => {
     S, FILE, FORMAT, parse, canPickDir, canOPFS, blankData, normalize, index, openDir, openMemory, close,
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, tagCounts, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
+    shapes, addShape, dropShape, putShape, detach, reattach, BOXES,
   };
 })();

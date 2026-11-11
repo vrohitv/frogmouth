@@ -1104,6 +1104,39 @@ import { App } from '../src/js/10-app.js';
       ok('JSON that is not a vault is refused', /not a frogmouth vault/.test(err(JSON.stringify([{ key: 'A', value: 'b' }]))) && /not a frogmouth vault/.test(err(JSON.stringify({ notes: [], boards: [] }))) && /not valid JSON/.test(err('{oops')));
       ok('a version 1 vault is read', err(Store.serialize()) === '' && Array.isArray(Store.parse(Store.serialize()).notes));
     }
+    {
+      // shapes on boards (since 1.3): additive, validated, unknown types and fields kept
+      const raw = { notes: [{ id: 'n1', html: '<p>A</p>' }], boards: [{ id: 'b1', name: 'B', items: [{ note: 'n1', x: 0, y: 0, w: 200, h: 100 }], shapes: [
+        { id: 's1', type: 'rect', x: 10.4, y: 20, w: 5, h: 5, color: 'sea', text: 'API', extra: { keep: 1 } },
+        { id: 's2', type: 'cloud', puff: 3 },
+        { id: 's3', type: 'line', a: { shape: 's1' }, b: { note: 'n1' }, head: 'end' },
+        { id: 's4', type: 'line', a: { shape: 'gone' }, b: { x: 5, y: 5 } },
+        'junk', { id: 's1', type: 'rect' },
+      ] }, { id: 'b2', name: 'C', items: [] }] };
+      const d = Store.normalize(JSON.parse(JSON.stringify(raw)));
+      const sh = d.boards[0].shapes, by = (id) => sh.find((x) => x.id === id);
+      ok('a box keeps unknown fields and gets the minimum size', by('s1').extra.keep === 1 && by('s1').w === 24 && by('s1').h === 24 && by('s1').color === 'sea' && by('s1').text === 'API', JSON.stringify(by('s1')));
+      ok('a shape type from a newer release is kept as it is', JSON.stringify(by('s2')) === JSON.stringify(raw.boards[0].shapes[1]));
+      ok('a line to something not on the board is dropped; junk and duplicates are dropped', !by('s4') && sh.length === 3, JSON.stringify(sh));
+      ok('a board without shapes has no shapes field', !('shapes' in d.boards[1]) && Store.shapes(d.boards[1]).length === 0 && !('shapes' in d.boards[1]));
+      const out = Store.detach(d.boards[0], 'note', 'n1', { x: 100, y: 50 });
+      ok('detaching turns an attached end into a free point', out.length === 1 && out[0].end === 'b' && by('s3').b.x === 100 && by('s3').b.y === 50 && !('note' in by('s3').b));
+      Store.reattach(out);
+      ok('and undo attaches it again', by('s3').b.note === 'n1' && !('x' in by('s3').b));
+      const nb = d.boards[1];
+      const box = Store.addShape(nb, { id: 'q', type: 'rect', x: 0, y: 0, w: 40, h: 40, z: 1, color: 'moth', text: '' });
+      ok('adding a shape creates the field', nb.shapes.length === 1 && nb.shapes[0] === box);
+      const gone = Store.dropShape(nb, 'q');
+      ok('dropping the last shape removes the field', !('shapes' in nb) && gone.shape === box);
+      Store.putShape(nb, gone);
+      ok('putting it back restores it', nb.shapes[0] === box);
+      const sd = Store.dropShape(d.boards[0], 's1');
+      ok('dropping a box frees lines attached to it, at its centre', Math.abs(by('s3').a.x - 22.4) < 0.01 && by('s3').a.y === 32 && sd.detached.length === 1, JSON.stringify(by('s3').a));
+      Store.putShape(d.boards[0], sd);
+      ok('and putting it back re-attaches them', by('s3').a.shape === 's1');
+      const back = JSON.parse(JSON.stringify(d));
+      ok('shapes survive a save', back.boards[0].shapes.length === 3 && back.boards[0].shapes.find((x) => x.id === 's2').puff === 3);
+    }
 
     // notes are shared: one note on several boards; deleting a board keeps its notes
     {

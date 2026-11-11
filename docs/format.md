@@ -66,9 +66,37 @@ Paths are relative to the vault folder, use `/`, and never contain `..` or `:`.
 | `id`, `name` | string | |
 | `items` | placement[] | The notes on this board |
 | `pinned` | `true` | Present only when pinned |
+| `shapes` | shape[] | Boxes, frames and lines drawn on this board (since 1.3). Present only when the board has at least one |
 | `created`, `opened` | number | `opened` orders the board lists |
 
 A **placement** is `{"note": id, "x": number, "y": number, "w": number, "h": number|null, "z": number}`. Positions and sizes are board units: CSS pixels at 100% zoom, with the origin at the board's top-left. They never depend on the screen. `h: null` means the note is as tall as its content. `z` orders overlapping notes.
+
+### shape
+
+Shapes belong to one board; unlike notes they are not shared. Every shape has an `id` (unique within the board) and a `type`:
+
+| `type` | | Fields |
+|---|---|---|
+| `rect` | Rectangle with rounded corners | `x` `y` `w` `h` `z` `color` `text`, optional `fill: false`, `dash: true` |
+| `ellipse` | Ellipse | as `rect` |
+| `diamond` | Diamond | as `rect` |
+| `text` | Free text, no outline | as `rect` |
+| `frame` | A named region. Whatever is centred inside it moves with it; it stores no list of children | `x` `y` `w` `h` `color` `text` (its name), optional `dash: true` |
+| `line` | A line or arrow | `a` `b` (its ends), `head`, optional `route: "elbow"`, `color`, `text` (its label), optional `dash: true` |
+
+```json
+{"id":"s1","type":"rect","x":80,"y":80,"w":160,"h":96,"z":4,"color":"sea","text":"API"}
+{"id":"s2","type":"frame","x":40,"y":40,"w":480,"h":320,"color":"moth","text":"Backend"}
+{"id":"s3","type":"line","a":{"shape":"s1"},"b":{"note":"n7"},"head":"end","route":"elbow","color":"moth","text":"calls"}
+```
+
+- Positions and sizes are board units, like placements. Boxes are at least 24 × 24, frames at least 80 × 60.
+- `color` is one of the note colour names; `text` is plain text, never HTML.
+- `z` orders boxes among the board's notes (one shared order). Frames are always drawn under notes and boxes, lines above them; neither has a `z`.
+- A line end is a free point `{"x": n, "y": n}`, or attached: `{"note": id}` (a note placed on this board) or `{"shape": id}` (a box or frame on this board). An attached end has no stored position: it is drawn where the line between the two ends' centres crosses the outline, so it follows when either end moves or resizes. A line with an end that points at nothing is dropped on load.
+- `head` is `none`, `end` or `both`. Without `route` a line is straight; `elbow` draws it in three straight segments.
+- When a note leaves a board or a shape is deleted, the line ends attached to it become free points where they were.
+- A shape whose `type` a release does not know is kept, with all its fields, and not drawn.
 
 ### secret
 
