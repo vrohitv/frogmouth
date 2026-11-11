@@ -1,3 +1,8 @@
+import { h, uid, icon, kb, clamp, bus } from './00-util.js';
+import { Store } from './03-store.js';
+import { Board } from './07-board.js';
+import { App } from './10-app.js';
+
 /* ── draw: boxes, frames and lines on a board ───────────────────────
    Shapes belong to one board (board.shapes, docs/format.md); notes are shared
    and only placed. Boxes and frames are elements in the board's plane, lines are
@@ -44,5 +49,267 @@ export const Draw = (() => {
     return [pa, { x: pa.x, y: my }, { x: pb.x, y: my }, pb];
   }
 
-  return { anchor, route, KINDS, GAP };
+  /* ── shapes on the mounted board ── */
+  const FRAME = 'frame';
+  const isBox = (x) => Store.BOXES.includes(x.type);
+  const isThing = (x) => isBox(x) || x.type === FRAME; // has x, y, w, h
+  const DEFAULT = { rect: [160, 96], ellipse: [160, 96], diamond: [160, 96], text: [160, 40], frame: [480, 320] };
+  const LIMITS = { box: { w: 24, h: 24, W: 4000, H: 4000 }, frame: { w: 80, h: 60, W: 8000, H: 8000 } };
+  const TOOLS = [
+    ['select', 'cursor', 'Select', 'V'], ['rect', 'rect', 'Rectangle', 'R'], ['ellipse', 'ellipse', 'Ellipse', 'O'],
+    ['diamond', 'diamond', 'Diamond', 'D'], ['text', 'text', 'Text', 'X'],
+  ];
+  const KEYS = { v: 'select', r: 'rect', o: 'ellipse', d: 'diamond', x: 'text' };
+  let vp, bar, board = null, tool = 'select', lastColor = 'moth', preview = null;
+  const els = new Map(); // shape id -> element (boxes and frames)
+
+  const list = () => Store.shapes(board);
+  const get = (id) => board && list().find((x) => x.id === id);
+  const geom = (id) => { const x = get(id); return x && isThing(x) ? x : undefined; };
+  const known = (x) => isThing(x);
+
+  function init(viewport) {
+    vp = viewport;
+    // the tool bar: its buttons never take focus, so the board keeps its keys
+    bar = h('div', { class: 'hud-pill draw-bar', role: 'toolbar', 'aria-label': 'Drawing tools' });
+    for (const [name, ic, label, key] of TOOLS) {
+      const b = h('button', { class: 'draw-btn', 'data-tool': name, title: `${label} (${key})`, 'aria-label': label, 'aria-pressed': 'false', html: icon(ic), tabindex: '-1' });
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', () => setTool(tool === name && name !== 'select' ? 'select' : name));
+      bar.append(b);
+    }
+    for (const t of ['pointerdown', 'dblclick', 'wheel']) bar.addEventListener(t, (e) => e.stopPropagation());
+    vp.append(bar);
+    paintBar();
+    bus.on('closed', () => { unmount(); });
+  }
+  function paintBar() {
+    for (const b of bar.children) { const on = b.dataset.tool === tool; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+    vp.classList.toggle('drawing', tool !== 'select');
+  }
+  function setTool(name) {
+    if (!TOOLS.some((t) => t[0] === name)) return;
+    tool = name;
+    if (bar) paintBar();
+  }
+
+  function mount(b) {
+    unmount();
+    board = b;
+    setTool('select');
+    const plane = Board.plane();
+    for (const x of list()) if (known(x)) plane.append(build(x));
+  }
+  function unmount() {
+    if (preview) { preview.remove(); preview = null; }
+    for (const el of els.values()) el.remove();
+    els.clear();
+    board = null;
+    if (bar) setTool('select');
+  }
+
+  /* ── a box or frame element ── */
+  const svgNS = 'http://www.w3.org/2000/svg';
+  function build(x) {
+    const text = h('div', { class: 'shape-text', spellcheck: 'false' });
+    text.textContent = x.text || '';
+    const edges = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d }));
+    const el = h('div', { class: 'shape shape-' + x.type, 'data-id': x.id }, text, ...edges);
+    if (x.type !== 'text') {
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('class', 'shape-bg');
+      svg.append(document.createElementNS(svgNS, x.type === 'ellipse' ? 'ellipse' : x.type === 'diamond' ? 'polygon' : 'rect'));
+      el.prepend(svg);
+    }
+    els.set(x.id, el);
+    style(x, el);
+    place(x);
+    el.addEventListener('pointerdown', (e) => {
+      if (el.classList.contains('editing') && e.target.closest('.shape-text')) { e.stopPropagation(); return; }
+      Board.grab(e, x.id);
+    });
+    el.addEventListener('dblclick', (e) => { if (e.target.closest('.rz')) return; e.preventDefault(); e.stopPropagation(); editText(x.id); });
+    text.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // the board and app never see keys typed into a shape
+      // commit here too: blur does not always fire (a window without focus)
+      if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); commitText(x, el); text.blur(); }
+    });
+    text.addEventListener('blur', () => commitText(x, el));
+    return el;
+  }
+  function style(x, el = els.get(x.id)) {
+    if (!el) return;
+    el.className = `shape shape-${x.type} paper-${x.color || 'moth'}${x.fill === false ? ' nofill' : ''}${x.dash ? ' dash' : ''}${el.classList.contains('sel') ? ' sel' : ''}${el.classList.contains('editing') ? ' editing' : ''}`;
+  }
+  /* apply position and size; the outline is drawn at its real size, so corners and strokes never stretch */
+  function place(x) {
+    const el = els.get(x.id); if (!el) return;
+    el.style.transform = `translate(${x.x}px,${x.y}px)`;
+    el.style.width = x.w + 'px';
+    el.style.height = x.h + 'px';
+    el.style.zIndex = x.type === FRAME ? 0 : x.z || 1;
+    const svg = el.firstChild;
+    if (svg && svg.namespaceURI === svgNS) {
+      const w = x.w, hh = x.h, sh = svg.firstChild, i = 1; // inset by half the stroke
+      svg.setAttribute('width', w); svg.setAttribute('height', hh); svg.setAttribute('viewBox', `0 0 ${w} ${hh}`);
+      if (x.type === 'ellipse') { sh.setAttribute('cx', w / 2); sh.setAttribute('cy', hh / 2); sh.setAttribute('rx', Math.max(1, w / 2 - i)); sh.setAttribute('ry', Math.max(1, hh / 2 - i)); }
+      else if (x.type === 'diamond') sh.setAttribute('points', `${w / 2},${i} ${w - i},${hh / 2} ${w / 2},${hh - i} ${i},${hh / 2}`);
+      else { sh.setAttribute('x', i); sh.setAttribute('y', i); sh.setAttribute('width', Math.max(1, w - 2 * i)); sh.setAttribute('height', Math.max(1, hh - 2 * i)); sh.setAttribute('rx', x.type === FRAME ? 4 : 6); }
+    }
+    redraw();
+  }
+
+  /* ── text in a shape: plain text only ── */
+  function editText(id) {
+    const x = get(id), el = els.get(id); if (!x || !el) return;
+    const t = el.querySelector('.shape-text');
+    el.classList.add('editing');
+    t.contentEditable = 'plaintext-only';
+    t.focus({ preventScroll: true });
+    const r = document.createRange(); r.selectNodeContents(t); r.collapse(false);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  }
+  function commitText(x, el) {
+    if (!el.classList.contains('editing')) return;
+    const t = el.querySelector('.shape-text');
+    el.classList.remove('editing');
+    t.contentEditable = 'false';
+    const v = t.textContent.replace(/\u200b/g, '');
+    // a text shape left empty goes away quietly, like an empty note
+    if (x.type === 'text' && !v.trim()) { drop([x.id], true); return; }
+    // grow to fit the text, so nothing is cut off
+    let grew = false;
+    if (x.type !== FRAME && t.scrollHeight > t.clientHeight + 1) { x.h = Math.min(Math.ceil(t.scrollHeight / 8) * 8, LIMITS.box.H); place(x); grew = true; }
+    if (v !== x.text || grew) { x.text = v; Store.change('shapes'); }
+  }
+
+  /* ── drawing: drag to draw, click for the default size; then back to Select ── */
+  function begin(e) {
+    if (!board) return;
+    const G = Board.GRID, snap = (v, alt) => (alt ? Math.round(v) : Math.round(v / G) * G);
+    const kind = tool, sx = e.clientX, sy = e.clientY, p0 = Board.toBoard(sx, sy);
+    let moved = false, last = e;
+    preview = h('div', { class: 'shape-preview shape-' + kind });
+    Board.plane().append(preview);
+    const rectFor = (ev) => {
+      const p1 = Board.toBoard(ev.clientX, ev.clientY);
+      const x1 = snap(Math.min(p0.x, p1.x), ev.altKey), y1 = snap(Math.min(p0.y, p1.y), ev.altKey);
+      const x2 = snap(Math.max(p0.x, p1.x), ev.altKey), y2 = snap(Math.max(p0.y, p1.y), ev.altKey);
+      return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    };
+    const show = (r) => Object.assign(preview.style, { transform: `translate(${r.x}px,${r.y}px)`, width: r.w + 'px', height: r.h + 'px' });
+    preview.hidden = true;
+    const mv = (ev) => {
+      last = ev;
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 4) return;
+      moved = true; preview.hidden = false; show(rectFor(ev));
+    };
+    const up = (ev) => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+      if (preview) { preview.remove(); preview = null; }
+      if (!board) return;
+      const lim = kind === FRAME ? LIMITS.frame : LIMITS.box;
+      let r;
+      if (moved) { r = rectFor(ev || last); r.w = Math.max(r.w, lim.w); r.h = Math.max(r.h, lim.h); }
+      else { const [w, hh] = DEFAULT[kind]; r = { x: snap(p0.x - w / 2, e.altKey), y: snap(p0.y - hh / 2, e.altKey), w, h: hh }; }
+      const x = { id: uid(), type: kind, ...r, color: lastColor, text: '' };
+      if (kind !== FRAME) x.z = Board.nextZ();
+      Store.addShape(board, x);
+      Board.plane().append(build(x));
+      setTool('select');
+      Board.select(x.id);
+      Store.change('shapes');
+      editText(x.id);
+    };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up);
+  }
+
+  /* ── operations the board calls with the selection ── */
+  function drop(ids, quiet) {
+    const b = board, saved = [];
+    for (const id of ids) { const out = Store.dropShape(b, id); if (out) { saved.push(out); const el = els.get(id); if (el) { el.remove(); els.delete(id); } } }
+    if (!saved.length) return;
+    Board.setGroup(Board.selection().filter((id) => !ids.includes(id)));
+    redraw();
+    Store.change('shapes');
+    if (quiet) return;
+    App.pushUndo(saved.length === 1 ? 'Deleted a shape' : `Deleted ${saved.length} shapes`, () => {
+      for (const sv of saved.slice().reverse()) Store.putShape(b, sv);
+      if (board === b) { for (const sv of saved) if (known(sv.shape)) Board.plane().append(build(sv.shape)); Board.setGroup(saved.map((sv) => sv.shape.id)); redraw(); }
+      Store.change('shapes');
+    });
+  }
+  const remove = (ids) => drop(ids, false);
+  function setColor(id, c) {
+    const x = get(id); if (!x) return;
+    x.color = c; lastColor = c;
+    style(x);
+    redraw();
+    Store.change('shapes');
+  }
+  function duplicate(ids) {
+    const out = [];
+    for (const id of ids) {
+      const x = geom(id); if (!x) continue;
+      const c = { ...JSON.parse(JSON.stringify(x)), id: uid(), x: x.x + 24, y: x.y + 24 };
+      if (x.type !== FRAME) c.z = Board.nextZ();
+      Store.addShape(board, c);
+      Board.plane().append(build(c));
+      out.push(c.id);
+    }
+    if (out.length) Store.change('shapes');
+    return out;
+  }
+  /* bring a box to the front, or send it behind every note and box */
+  function order(id, front) {
+    const x = geom(id); if (!x || x.z == null) return;
+    if (front) x.z = Board.nextZ();
+    else {
+      const min = Board.zIndexMin();
+      // nothing goes below 1 (frames sit at 0): make room by lifting everything else
+      if (min <= 1) for (const m of [...board.items, ...list()]) if (m !== x && m.z != null) m.z += 1;
+      x.z = min <= 1 ? 1 : min - 1;
+      refreshZ();
+    }
+    place(x);
+    Store.change('shapes');
+  }
+  function refreshZ() {
+    for (const m of board.items) { const el = Board.el(m.note); if (el) el.style.zIndex = m.z || 1; }
+    for (const x of list()) if (els.get(x.id)) els.get(x.id).style.zIndex = x.type === FRAME ? 0 : x.z || 1;
+  }
+
+  /* tool keys, when nothing is being typed and no modifier is held */
+  function key(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
+    if (e.key === 'Escape') { if (tool === 'select') return false; setTool('select'); return true; }
+    const t = KEYS[e.key.toLowerCase()];
+    if (!t) return false;
+    setTool(t);
+    return true;
+  }
+
+  /* ── what the board asks about ── */
+  const ids = () => list().filter(known).map((x) => x.id);
+  const bounds = () => list().filter(isThing).map((x) => ({ id: x.id, type: x.type, color: x.color, x: x.x, y: x.y, w: x.w, h: x.h }));
+  /* boxes the marquee touches; frames only when it covers them completely */
+  function within(r) {
+    return list().filter(isThing).filter((x) => (x.type === FRAME
+      ? x.x >= r.x && x.y >= r.y && x.x + x.w <= r.x + r.w && x.y + x.h <= r.y + r.h
+      : x.x < r.x + r.w && x.x + x.w > r.x && x.y < r.y + r.h && x.y + x.h > r.y)).map((x) => x.id);
+  }
+  const carried = (sel) => sel.filter((id) => Board.item(id) || geom(id));
+  const looseEnds = () => [];
+  const paths = () => [];
+  const limits = (x) => (x.type === FRAME ? LIMITS.frame : LIMITS.box);
+  const box = (id) => geom(id) || null;
+  function selected() {}
+  function redraw() {}
+
+  return {
+    anchor, route, KINDS, GAP,
+    init, mount, unmount, tool: () => tool, setTool, begin, key,
+    get, geom, el: (id) => els.get(id), place, redraw, editText, remove, setColor, duplicate, order,
+    ids, bounds, within, carried, looseEnds, paths, limits, box, selected,
+  };
 })();

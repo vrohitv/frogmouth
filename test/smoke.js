@@ -1206,6 +1206,76 @@ import { App } from '../src/js/10-app.js';
       App.openTab('secrets');
     }
 
+    // diagrams: boxes, lines and frames on a board
+    const vpEl = () => $('.board-vp');
+    const atVp = (x, y) => { const r = vpEl().getBoundingClientRect(); return { clientX: r.left + x, clientY: r.top + y }; };
+    const dptr = (type, el, x, y, o = {}) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, pointerId: 1, ...atVp(x, y), ...o }));
+    const drawDrag = async (tool, x1, y1, x2, y2) => { keydown(document.body, tool); dptr('pointerdown', vpEl(), x1, y1); dptr('pointermove', window, x2, y2); dptr('pointerup', window, x2, y2); await wait(30); };
+    const undoKey = () => keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+    {
+      const b = { id: uid(), name: 'Diagram', created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.change('boards'); App.openTab('b:' + b.id); await wait(80);
+      ok('the board has a toolbar of drawing tools', $$('.draw-bar button').length >= 5 && $('.draw-bar').getBoundingClientRect().width > 0);
+      Board.zoomAt(1); await frame();
+      const c0 = atVp(300, 200), p0 = Board.toBoard(c0.clientX, c0.clientY);
+      await drawDrag('r', 300, 200, 460, 296);
+      const s = Store.shapes(b)[0];
+      ok('R then a drag draws a rectangle under the pointer, on the grid', s && s.type === 'rect' && Math.abs(s.x - p0.x) <= 8 && Math.abs(s.y - p0.y) <= 8 && s.w === 160 && s.h === 96 && s.x % 8 === 0, JSON.stringify([s, p0]));
+      ok('the tool goes back to Select and the new box is being typed in', Draw.tool() === 'select' && document.activeElement.classList.contains('shape-text'));
+      await type('rod xl cfv');
+      ok('letters typed into a box are text, not tools', Draw.tool() === 'select' && Store.shapes(b).length === 1);
+      keydown(document.activeElement, 'Escape'); await wait(20);
+      ok('a box only grows when its text does not fit', s.h === 96, s.h);
+      ok('the text is saved as plain text', s.text === 'rod xl cfv' && $('.shape .shape-text').textContent === 'rod xl cfv', s.text);
+
+      Board.zoomAt(0.2); await frame();
+      const c1 = atVp(400, 300), q = Board.toBoard(c1.clientX, c1.clientY);
+      keydown(document.body, 'o'); dptr('pointerdown', vpEl(), 400, 300); dptr('pointerup', window, 400, 300); await wait(30);
+      keydown(document.activeElement, 'Escape'); await wait(10);
+      const e = Store.shapes(b)[1];
+      ok('a click at 20% zoom drops a default ellipse centred under the pointer', e && e.type === 'ellipse' && e.w === 160 && e.h === 96 && Math.abs(e.x + 80 - q.x) <= 8 && Math.abs(e.y + 48 - q.y) <= 8, JSON.stringify([e, q]));
+      Board.zoomAt(2.5); await frame();
+      const c2 = atVp(500, 300), q2 = Board.toBoard(c2.clientX, c2.clientY);
+      keydown(document.body, 'd'); dptr('pointerdown', vpEl(), 500, 300); dptr('pointerup', window, 500, 300); await wait(30);
+      keydown(document.activeElement, 'Escape'); await wait(10);
+      const dm = Store.shapes(b)[2];
+      ok('and at 250%', dm && dm.type === 'diamond' && Math.abs(dm.x + 80 - q2.x) <= 8 && Math.abs(dm.y + 48 - q2.y) <= 8, JSON.stringify([dm, q2]));
+      Board.zoomAt(1); await frame();
+
+      const n = Board.addNote({ x: 600, y: 80 }, false, '<p>beside a box</p>');
+      Board.selectAll();
+      ok('select all takes notes and boxes together', Board.selection().length === 4, JSON.stringify(Board.selection()));
+      const x0 = s.x, nx0 = Board.item(n.id).x;
+      keydown(document.body, 'ArrowRight'); await wait(20);
+      ok('arrows nudge both', s.x === x0 + 8 && Board.item(n.id).x === nx0 + 8, JSON.stringify([s.x, x0, Board.item(n.id).x, nx0]));
+      Board.select(s.id); keydown(document.body, '7'); await wait(20);
+      ok('1-9 colours a box', s.color === 'sea' && $(`.shape[data-id="${s.id}"]`).classList.contains('paper-sea'));
+      const zBefore = s.z; Board.select(dm.id); keydown(document.body, '['); await wait(10);
+      ok('[ sends a box behind everything', dm.z < Math.min(...[...b.items, ...Store.shapes(b)].filter((m) => m !== dm && m.z != null).map((m) => m.z)), JSON.stringify([dm.z, zBefore]));
+      Board.select(s.id);
+      keydown(document.body, 'Delete'); await wait(20);
+      ok('Del deletes a box at once, with undo', Store.shapes(b).length === 2 && !$(`.shape[data-id="${s.id}"]`));
+      undoKey(); await wait(30);
+      ok('undo brings it back', Store.shapes(b).length === 3 && !!$(`.shape[data-id="${s.id}"]`));
+      keydown(document.body, 'd', { metaKey: isMac, ctrlKey: !isMac }); await wait(20);
+      ok('duplicate copies a box beside it', Store.shapes(b).length === 4 && Store.shapes(b)[3].x === s.x + 24 && Store.shapes(b)[3].text === s.text);
+      keydown(document.body, 'Delete'); await wait(20);
+      ok('shapes count as the board not being empty', $('.board-empty').hidden);
+
+      keydown(document.body, 'r');
+      ok('a tool shows a crosshair board', vpEl().classList.contains('drawing'));
+      Board.unmount(); App.enter(); await wait(60); // what a reload from disk does: the board is mounted afresh
+      ok('a reload leaves the board in Select with nothing half-drawn', Draw.tool() === 'select' && !$('.shape-preview') && !vpEl().classList.contains('drawing'));
+      for (const th of ['night', 'day']) {
+        document.documentElement.dataset.theme = th; await frame();
+        const cs = getComputedStyle($('.shape .shape-bg').firstElementChild);
+        ok(`box outlines are visible in the ${th} theme`, cs.stroke !== cs.fill && cs.stroke !== 'none' && parseFloat(cs.strokeWidth) >= 1, cs.stroke + ' ' + cs.fill);
+      }
+      document.documentElement.dataset.theme = 'night';
+      const serial = JSON.parse(Store.serialize()).data.boards.find((x) => x.id === b.id);
+      ok('drawn shapes are saved with the board', serial.shapes.length === 3 && serial.shapes.every((x) => x.id && x.type && Number.isFinite(x.w)));
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {

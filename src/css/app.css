@@ -774,6 +774,50 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .board-nav:not(.map-off) .nav-map { color: var(--accent); }
 @media (max-width: 760px) { .minimap { width: 150px; height: 100px; } .board-nav { right: 8px; bottom: 8px; } }
 
+/* ── shapes: boxes, frames and lines drawn on a board ── */
+.shape, .wire, .shape-preview { --stroke: color-mix(in oklch, var(--paper) 40%, var(--ink)); }
+.shape { position: absolute; left: 0; top: 0; color: var(--ink); }
+.shape-bg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.shape-bg > * { fill: var(--paper); stroke: var(--stroke); stroke-width: 1.5; }
+.shape.nofill .shape-bg > * { fill: transparent; }
+.shape.dash .shape-bg > * { stroke-dasharray: 6 5; }
+.shape-rect, .shape-ellipse, .shape-diamond { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .12)); }
+.shape.nofill { filter: none; }
+.shape-text {
+  position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: center; text-align: center;
+  padding: 8px 12px; font: 13.5px/1.4 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: default; overflow: hidden;
+}
+.shape-diamond .shape-text { padding: 12px 22%; }
+.shape-ellipse .shape-text { padding: 10px 14%; }
+.shape-text[contenteditable="plaintext-only"] { cursor: text; overflow: visible; }
+.shape.editing .shape-text:empty::before { content: "Type…"; opacity: .35; }
+/* free text: no outline, reads like a label; the board shows through */
+.shape-text-type, .shape.shape-text { color: var(--text); }
+.shape.shape-text .shape-text { justify-content: flex-start; align-items: flex-start; text-align: left; padding: 6px 4px; font-size: 15px; }
+.shape.shape-text.paper-moth .shape-text { color: var(--text); }
+.shape.shape-text:not(.paper-moth) .shape-text { color: color-mix(in oklch, var(--paper) 30%, var(--ink)); }
+.shape.shape-text:hover { outline: 1px dashed var(--line); outline-offset: 2px; }
+.shape.sel:not(.editing) { outline: 2px dashed var(--accent); outline-offset: 3px; }
+.shape.editing { outline: 2px solid var(--accent); outline-offset: 3px; }
+.shape.dragging { cursor: grabbing; }
+.shape:hover .rz-se::after, .shape.sel .rz-se::after { opacity: .35; }
+.shape.resizing .rz::after { opacity: .7; }
+.shape.resizing .rz-se::after { opacity: 0; }
+.shape .rz-se::after { border-color: var(--stroke); }
+.shape-preview { position: absolute; left: 0; top: 0; pointer-events: none; border: 1.5px dashed var(--accent); background: var(--accent-soft); border-radius: 6px; }
+.shape-preview.shape-ellipse { border-radius: 50%; }
+.shape-preview.shape-text { border-radius: 2px; }
+.board-vp.drawing, .board-vp.drawing .note, .board-vp.drawing .shape, .board-vp.drawing .note-body { cursor: crosshair !important; }
+
+/* the drawing tools: bottom centre of the board */
+.draw-bar { position: absolute; z-index: 6; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 2px; padding: 0 4px; }
+.draw-btn { display: grid; place-items: center; width: 32px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+.draw-btn .ic { width: 16px; height: 16px; }
+.draw-btn:hover { color: var(--text); background: var(--panel-2); }
+.draw-btn.on { color: var(--accent-ink); background: var(--accent); }
+.draw-sep { width: 1px; align-self: stretch; margin: 7px 3px; background: var(--line); }
+@media (max-width: 760px) { .draw-bar { left: 8px; bottom: 8px; transform: none; } }
+
 .marquee { position: absolute; z-index: 5; pointer-events: none; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 2px; }
 
 /* ── find on this board ── */
