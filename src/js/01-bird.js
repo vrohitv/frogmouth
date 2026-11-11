@@ -157,6 +157,7 @@ export const Bird = (() => {
       setTimeout(() => {
         for (const e of eyes) e.lid.classList.remove('fast');
         blinking = false;
+        applyLids(); // the mood may have changed mid-blink (fell asleep, woke up): show it now
         if (twice) setTimeout(() => blink(false), 140);
       }, 120);
     }, 110);
