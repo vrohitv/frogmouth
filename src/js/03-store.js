@@ -262,6 +262,8 @@ export const Store = (() => {
       created = true;
     }
     const vault = { kind, dir, fh, name: kind === 'opfs' ? 'Browser storage' : dir.name, file: fh.name };
+    // browser storage is best-effort: without this, Chrome may clear it when the disk runs low
+    if (kind === 'opfs' && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     const file = await fh.getFile();
     const text = created ? '' : await file.text();
     const data = text.trim() ? parse(text, fh.name) : null; // an unreadable or newer file leaves the open vault as it was
@@ -332,7 +334,7 @@ export const Store = (() => {
     S.saving = true;
     setStatus('saving', 'Saving…');
     try {
-      if (S.vault.kind === 'dir' && !S.force) {
+      if (onDisk() && !S.force) {
         const onDisk = await S.vault.fh.getFile();
         if (onDisk.lastModified > S.lastMod) { setStatus('conflict', 'Changed on disk'); return; }
       }
@@ -366,8 +368,10 @@ export const Store = (() => {
   }
 
   /* ── watching the file for edits made elsewhere ── */
+  /* a vault in a folder or in browser storage is a file another tab, window or tool can write too */
+  const onDisk = () => !!S.vault && (S.vault.kind === 'dir' || S.vault.kind === 'opfs');
   async function checkDisk() {
-    if (!S.vault || S.vault.kind !== 'dir' || S.saving || document.hidden) return;
+    if (!onDisk() || S.saving || document.hidden) return;
     try {
       const f = await S.vault.fh.getFile();
       if (f.lastModified <= S.lastMod) return;

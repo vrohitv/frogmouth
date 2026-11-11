@@ -1593,8 +1593,14 @@ import { App } from '../src/js/10-app.js';
       try {
         const root = await navigator.storage.getDirectory();
         const dir = await root.getDirectoryHandle('fm-test-' + Date.now(), { create: true });
+        // browser storage is best-effort unless asked to persist: Chrome may clear it when the disk fills
+        let persistAsked = 0;
+        const sm = navigator.storage, realPersist = sm.persist;
+        sm.persist = async () => { persistAsked++; return true; };
         const res = await Store.openDir(dir, 'opfs');
+        sm.persist = realPersist;
         ok('opfs creates vault', res.ok && res.fresh);
+        ok('browser storage asks the browser to keep it', persistAsked === 1, persistAsked);
         App.enter();
         ok('sync pill names the storage', $('.sync-where').textContent === 'Browser storage');
         Store.S.data.secrets.push({ id: uid(), key: 'OPFS_KEY', value: 'v', tags: [], desc: '' });
@@ -1633,6 +1639,23 @@ import { App } from '../src/js/10-app.js';
         const mine = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
         ok('"Keep mine" then writes this version once', mine.includes('"MINE"') && Store.S.status === 'saved' && !Store.S.force, Store.S.status);
         Store.S.vault.kind = 'opfs';
+        // the same for a browser-storage vault: a second tab writing the file must not be overwritten
+        {
+          await wait(30);
+          const other = JSON.stringify({ frogmouth: 1, data: { ...JSON.parse(JSON.stringify(Store.S.data)), secrets: [{ id: 'y', key: 'OTHER_TAB', value: '1', tags: [] }] } });
+          const ow = await (await dir.getFileHandle('vault.fm')).createWritable(); await ow.write(other); await ow.close();
+          Store.S.data.secrets.push({ id: uid(), key: 'THIS_TAB', value: '1', tags: [], desc: '' }); Store.change('secrets');
+          await wait(600);
+          const both = await (await (await dir.getFileHandle('vault.fm')).getFile()).text();
+          ok('two tabs on browser storage: the second save stops instead of overwriting', Store.S.status === 'conflict' && both.includes('OTHER_TAB') && !both.includes('"THIS_TAB"'), Store.S.status);
+          await Store.keepMine();
+          // with nothing unsaved here, a write from the other tab is picked up by the watcher
+          await wait(30);
+          const third = JSON.stringify({ frogmouth: 1, data: { ...JSON.parse(JSON.stringify(Store.S.data)), secrets: [{ id: 'z', key: 'WATCHED', value: '1', tags: [] }] } });
+          const tw = await (await dir.getFileHandle('vault.fm')).createWritable(); await tw.write(third); await tw.close();
+          await wait(2300);
+          ok('browser storage is watched for writes from another tab', Store.S.data.secrets.some((s) => s.key === 'WATCHED'), JSON.stringify(Store.S.data.secrets.map((s) => s.key)));
+        }
         // a change made outside the app is reloaded and shown (the board must not keep stale notes)
         App.enter(); await wait(50);
         const disk = JSON.parse(JSON.stringify(Store.S.data));

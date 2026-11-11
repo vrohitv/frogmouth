@@ -588,7 +588,7 @@ export const App = (() => {
       ...Object.entries(ACCENTS).map(([k, label]) => ({ title: `Accent colour: ${label}`, run: () => setAccent(k) })),
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: kb('mod+s'), when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
-      { title: 'Reload from disk', when: () => Store.S.vault.kind === 'dir', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
+      { title: 'Reload from disk', when: () => Store.S.vault.kind !== 'memory', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
       { title: 'Download a copy of the vault', run: downloadVault },
       { title: 'Close vault', run: closeVault },
       { title: 'Keyboard shortcuts', key: '?', run: shortcuts },
