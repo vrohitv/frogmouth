@@ -322,6 +322,10 @@ textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .note.editing { box-shadow: 0 1px 1px rgba(0, 0, 0, .18), 0 16px 32px -18px rgba(0, 0, 0, .6); }
 .note.dragging { box-shadow: 0 2px 2px rgba(0, 0, 0, .18), 0 22px 44px -18px rgba(0, 0, 0, .6); cursor: grabbing; }
 .note.flash { animation: flash 1.1s ease-out; }
+/* a note nobody is touching is skipped when off screen and kept out of other notes' repaints (07-board.js
+   measureNotes). Containment clips what pokes out of the box, so a note being hovered, selected, edited or
+   dragged is left whole: its resize handles and outline show */
+.note.skip:not(:hover):not(.sel):not(.editing):not(.dragging):not(.resizing) { content-visibility: auto; }
 @keyframes flash { 0%, 35% { outline: 4px solid var(--accent); outline-offset: 4px; } 100% { outline-offset: 2px; } }
 .note-grip {
   height: 18px; flex: none; cursor: grab; display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 4px 0 8px;

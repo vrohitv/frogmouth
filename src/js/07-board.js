@@ -26,7 +26,17 @@ export const Board = (() => {
      own positions are board coordinates and never depend on the screen. */
   let vw = 0, vh = 0, cam = { cx: 0, cy: 0, z: 1 };
   const saveView = debounce(() => board && ls.set('cam:' + board.id, cam), 300);
-  const itemOf = (id) => board && board.items.find((it) => it.note === id);
+  /* note id -> placement on this board. Lines look up their ends many times a frame, so this
+     is a map, rebuilt whenever placements were added or removed anywhere (Store.S.placed) */
+  let at = new Map(), atList = null, atRev = -1;
+  function itemOf(id) {
+    if (!board) return undefined;
+    if (atList !== board.items || atRev !== Store.S.placed) {
+      at = new Map(); atList = board.items; atRev = Store.S.placed;
+      for (const it of atList) at.set(it.note, it);
+    }
+    return at.get(id);
+  }
   // notes and boxes share selection, dragging and keys: anything with x, y, w, h on this board
   const geomOf = (id) => itemOf(id) || Draw.geom(id);
   const elOf = (id) => els.get(id) || Draw.el(id);
@@ -135,6 +145,7 @@ export const Board = (() => {
     const el = h('div', { class: 'note paper-' + n.color, 'data-id': n.id }, grip, body, foot, ...edges);
     place(it, el);
     els.set(n.id, el);
+    skipLater(el);
 
     /* View mode: a click selects, a drag moves the note from anywhere on it.
        Edit mode (double-click, Enter): the body is editable and only the
@@ -203,6 +214,25 @@ export const Board = (() => {
       else if (e.target.closest('.chip')) bus.emit('filter-notes', e.target.closest('.chip').dataset.tag);
     });
     return el;
+  }
+
+  /* Notes off screen, or simply not being touched, are not painted again on every frame
+     (content-visibility: auto, from .note.skip in the CSS): a board of a thousand notes pans
+     and drags like one of ten. A skipped note keeps the height it last had on screen, so it
+     is measured once first, in one batch per frame: lines, Fit and the minimap then see
+     every note at its real size. */
+  const unmeasured = new Set();
+  let measureRaf = 0;
+  function skipLater(el) {
+    unmeasured.add(el);
+    if (!measureRaf) measureRaf = requestAnimationFrame(measureNotes);
+  }
+  function measureNotes() {
+    measureRaf = 0;
+    const todo = [...unmeasured].filter((el) => el.isConnected);
+    unmeasured.clear();
+    const hs = todo.map((el) => el.offsetHeight); // one layout for the whole batch
+    todo.forEach((el, i) => { el.style.containIntrinsicHeight = `auto ${hs[i]}px`; el.classList.add('skip'); });
   }
 
   function place(it, el) {

@@ -20,6 +20,8 @@ export const Store = (() => {
     status: 'idle', statusText: '',
     notes: new Map(), // id -> {note, boards, board}
     rev: 0,
+    placed: 0, // bumped whenever placements are added to or taken off a board (lookup caches key on it)
+    shaped: 0, // the same for shapes
     imgCache: new Map(),
   };
 
@@ -119,7 +121,7 @@ export const Store = (() => {
   }
   /* the field exists only while a board has shapes, so boards without any stay as they were */
   const shapes = (b) => (b && b.shapes) || [];
-  function addShape(b, x) { (b.shapes || (b.shapes = [])).push(x); return x; }
+  function addShape(b, x) { (b.shapes || (b.shapes = [])).push(x); S.shaped++; return x; }
   /* every line end on b attached to {[kind]: id} becomes a free point at `at`; returns what reattach needs */
   function detach(b, kind, id, at) {
     const out = [];
@@ -134,14 +136,14 @@ export const Store = (() => {
   function dropShape(b, id) {
     const i = shapes(b).findIndex((x) => x.id === id);
     if (i < 0) return null;
-    const [shape] = b.shapes.splice(i, 1);
+    const [shape] = b.shapes.splice(i, 1); S.shaped++;
     const detached = shape.type === 'line' ? [] : detach(b, 'shape', id, centre(shape));
     if (!b.shapes.length) delete b.shapes;
     return { shape, index: i, detached };
   }
   function putShape(b, saved) {
     const list = b.shapes || (b.shapes = []);
-    list.splice(Math.min(saved.index, list.length), 0, saved.shape);
+    list.splice(Math.min(saved.index, list.length), 0, saved.shape); S.shaped++;
     reattach(saved.detached);
   }
 
@@ -179,6 +181,7 @@ export const Store = (() => {
 
   /* S.notes: note id -> { note, boards: [boards it is placed on], board: first of them or null } */
   function index() {
+    S.placed++;
     S.notes.clear();
     for (const n of S.data.notes) S.notes.set(n.id, { note: n, boards: [], board: null });
     for (const b of S.data.boards) for (const it of b.items) {
@@ -202,7 +205,7 @@ export const Store = (() => {
     const have = b.items.find((it) => it.note === noteId);
     if (have) return have;
     const it = normItem({ note: noteId, x: pos.x, y: pos.y, w: pos.w || 260, h: pos.h || null, z: pos.z || 1 });
-    b.items.push(it);
+    b.items.push(it); S.placed++;
     ref.boards.push(b); if (!ref.board) ref.board = b;
     return it;
   }
@@ -212,7 +215,7 @@ export const Store = (() => {
     const b = board(boardId); if (!b) return null;
     const i = b.items.findIndex((it) => it.note === noteId);
     if (i < 0) return null;
-    const [it] = b.items.splice(i, 1);
+    const [it] = b.items.splice(i, 1); S.placed++;
     const ref = S.notes.get(noteId);
     if (ref) { ref.boards = ref.boards.filter((x) => x !== b); ref.board = ref.boards[0] || null; }
     return { it, index: i, detached: detach(b, 'note', noteId, at || centre(it)) };
@@ -228,6 +231,7 @@ export const Store = (() => {
     const ni = S.data.notes.indexOf(ref.note);
     S.data.notes.splice(ni, 1);
     S.notes.delete(id);
+    S.placed++;
     return { note: ref.note, index: ni, placed };
   }
   function restoreNote(saved) {

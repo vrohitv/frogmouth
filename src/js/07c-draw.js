@@ -71,7 +71,14 @@ export const Draw = (() => {
   let layer = null, overlay = null, picked = []; // the SVG layer for lines; dots and end handles; the selection
 
   const list = () => Store.shapes(board);
-  const get = (id) => board && list().find((x) => x.id === id);
+  // shape id -> shape, rebuilt whenever shapes were added or removed (Store.S.shaped)
+  let byId = new Map(), byList = null, byRev = -1;
+  function get(id) {
+    if (!board) return undefined;
+    const l = list();
+    if (l !== byList || byRev !== Store.S.shaped) { byId = new Map(l.map((x) => [x.id, x])); byList = l; byRev = Store.S.shaped; }
+    return byId.get(id);
+  }
   const geom = (id) => { const x = get(id); return x && isThing(x) ? x : undefined; };
   const known = (x) => isThing(x);
 
@@ -123,7 +130,7 @@ export const Draw = (() => {
     if (layer) layer.remove();
     if (overlay) overlay.remove();
     layer = overlay = null; picked = [];
-    if (ro) ro.disconnect();
+    if (ro) { ro.disconnect(); ro = null; }
     board = null;
     if (bar) setTool('select');
   }
@@ -394,21 +401,25 @@ export const Draw = (() => {
   /* pull an end back so the stroke does not poke through its arrowhead */
   const shorten = (tip, from, by) => { const dx = from.x - tip.x, dy = from.y - tip.y, l = Math.hypot(dx, dy) || 1; return { x: tip.x + (dx / l) * Math.min(by, l), y: tip.y + (dy / l) * Math.min(by, l) }; };
 
-  let raf = 0, ro = null;
+  let raf = 0, ro = null, watched = null;
   const redraw = () => { if (!raf && layer) raf = requestAnimationFrame(redrawNow); };
   function redrawNow() {
     raf = 0;
     if (!layer || !board) return;
     const seen = new Set();
     // a note grows as you type; lines attached to it follow
-    if (!ro) ro = new ResizeObserver(() => redraw());
+    if (!ro) { ro = new ResizeObserver(() => redraw()); watched = new WeakSet(); }
     for (const x of lines()) {
       seen.add(x.id);
       let g = wires.get(x.id);
       if (!g) g = buildWire(x);
       const pts = points(x);
       if (!pts.length) continue;
-      for (const end of [x.a, x.b]) if (end.note && Board.el(end.note)) ro.observe(Board.el(end.note));
+      for (const end of [x.a, x.b]) { const el = end.note && Board.el(end.note); if (el && !watched.has(el)) { watched.add(el); ro.observe(el); } }
+      // a line whose drawing did not change is left alone: moving one note rewrites only its own lines
+      const key = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') + `|${x.head}|${x.color}|${x.dash ? 1 : 0}|${picked.includes(x.id) ? 1 : 0}|${x.text}`;
+      if (g._key === key && (!x.text || labels.has(x.id))) continue;
+      g._key = key;
       const n = pts.length, ends = pts.slice();
       const hb = x.head === 'both', he = x.head === 'end' || hb;
       if (he) ends[n - 1] = shorten(pts[n - 1], pts[n - 2], 7);

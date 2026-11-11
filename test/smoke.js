@@ -1588,6 +1588,43 @@ import { App } from '../src/js/10-app.js';
       $('.modal .btn.primary').click(); await wait(20);
     }
 
+    /* ── 1.4: large boards stay fast ── */
+    const freshBoard = async (name) => {
+      const b = { id: uid(), name, created: now(), items: [] };
+      Store.S.data.boards.push(b); Store.change('boards'); App.openTab('b:' + b.id); await wait(40);
+      return b;
+    };
+    {
+      const b = await freshBoard('Perf');
+      const n1 = Board.addNote({ x: 0, y: 0 }, false, '<p>One</p>'), n2 = Board.addNote({ x: 400, y: 0 }, false, '<p>Two</p>'), n3 = Board.addNote({ x: 800, y: 0 }, false, '<p>Three</p>');
+      const far = Board.addNote({ x: 0, y: 400 }, false, '<p>Far</p>');
+      Store.addShape(b, { id: 'pl1', type: 'line', a: { note: n1.id }, b: { note: n2.id }, head: 'end', color: 'moth', text: '' });
+      Board.unmount(); Board.mount(b); await wait(300); // the feet render after a short delay, and change heights
+      // moving a note rewrites only the lines attached to it
+      const writes = [];
+      const mo = new MutationObserver((ms) => { for (const m of ms) writes.push(m.target.closest('g') && m.target.closest('g').dataset.id); });
+      mo.observe($('svg.wires'), { attributes: true, subtree: true });
+      Board.item(far.id).x += 16; Draw.place(Board.item(far.id)); Board.select(far.id); keydown(document.body, 'ArrowRight'); await frame(); await frame();
+      mo.disconnect();
+      ok('moving a note leaves lines it is not attached to untouched', !writes.includes('pl1'), JSON.stringify(writes));
+      // lookups stay right when placements move around in the list
+      Board.select(n2.id); keydown(document.body, 'Delete'); keydown(document.body, 'Delete'); await wait(20);
+      ok('placement lookups follow a removal', Board.item(n3.id) && Board.item(n3.id).note === n3.id && !Board.item(n2.id));
+      keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac }); await wait(30);
+      ok('and an undo', Board.item(n2.id) && Board.item(n2.id).note === n2.id && Board.item(n3.id).note === n3.id);
+      // note bodies are skipped while off screen, but keep their real height
+      const long = Board.addNote({ x: 60000, y: 60000 }, false, '<p>Tall</p>' + '<p>line</p>'.repeat(30));
+      await frame(); await frame();
+      Board.select(null); await frame();
+      const lel = $(`.note[data-id="${long.id}"]`);
+      ok('notes nobody is touching are skipped while off screen', getComputedStyle(lel).contentVisibility === 'auto', getComputedStyle(lel).contentVisibility);
+      Board.select(long.id); await frame();
+      ok('a selected note is left whole, so its handles and outline show', getComputedStyle(lel).contentVisibility === 'visible', getComputedStyle(lel).contentVisibility);
+      Board.select(null);
+      ok('an off-screen note keeps its real height', Board.rectOf(long.id).h > 500, Board.rectOf(long.id).h);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
