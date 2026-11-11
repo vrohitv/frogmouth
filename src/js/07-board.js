@@ -975,13 +975,13 @@ export const Board = (() => {
     disarm();
     ids = [].concat(ids).filter((id) => Store.noteRef(id));
     if (ids.length > 1) {
-      if (await Modal.confirm(`Delete ${ids.length} notes everywhere?`, `They will be removed from every board they are on and from All notes. You can undo right after.`, `Delete ${ids.length} notes`)) removeEverywhereMany(ids);
+      if (await Modal.confirm(`Delete ${ids.length} notes everywhere?`, `They will be removed from every board they are on and from All notes, and kept in Recently deleted for 30 days.`, `Delete ${ids.length} notes`)) removeEverywhereMany(ids);
       return;
     }
     const ref = Store.noteRef(ids[0]); if (!ref) return;
     const t = ref.note.title ? `“${ref.note.title.slice(0, 40)}”` : 'This note';
     const where = ref.boards.length > 1 ? ` from all ${ref.boards.length} boards and` : ' from';
-    if (await Modal.confirm('Delete this note everywhere?', `${t} will be removed${where} All notes. You can undo right after.`, 'Delete note')) removeEverywhere(ids[0]);
+    if (await Modal.confirm('Delete this note everywhere?', `${t} will be removed${where} All notes, and kept in Recently deleted for 30 days.`, 'Delete note')) removeEverywhere(ids[0]);
   }
   function dropEl(id) {
     if (els.get(id)) { els.get(id).remove(); els.delete(id); }
@@ -1036,10 +1036,13 @@ export const Board = (() => {
     Draw.pin(pins);
     dropEl(id);
     updateEmpty();
+    // an empty note that went away by itself is not worth keeping; anything else is, for 30 days
+    const kept = quiet ? null : keep(saved);
     Store.change('notes');
     if (quiet) { History.forget(id); return; }
     const where = saved.placed.length > 1 ? ` from ${saved.placed.length} boards` : '';
-    App.pushUndo(`Deleted ${n.title ? `“${n.title.slice(0, 28)}”` : 'note'}${where}`, () => {
+    App.pushUndo(`Deleted ${n.title ? `“${n.title.slice(0, 28)}”` : 'note'}${where}. It is in Recently deleted.`, () => {
+      Store.dropTrash(kept.id);
       Store.restoreNote(saved);
       const mine = board && saved.placed.find((p) => p.board === board);
       if (mine) { plane.append(build(mine.it)); updateEmpty(); select(id); refreshFeet(); Draw.redraw(); }
@@ -1047,13 +1050,18 @@ export const Board = (() => {
     });
   }
 
+  /* a note deleted everywhere goes to Recently deleted, with where it was on each board */
+  const keep = (saved) => Store.toTrash({ kind: 'note', note: saved.note, places: saved.placed.map((p) => ({ ...p.it, board: p.board.id })) });
+
   function removeEverywhereMany(ids) {
     const saved = [];
     for (const id of ids) { const pins = Draw.anchors('note', id), s = Store.deleteNote(id); if (s) { Draw.pin(pins); saved.push(s); dropEl(id); } }
     if (!saved.length) return;
     updateEmpty();
+    const kept = saved.map(keep);
     Store.change('notes');
-    App.pushUndo(`Deleted ${saved.length} notes`, () => {
+    App.pushUndo(`Deleted ${saved.length} notes. They are in Recently deleted.`, () => {
+      for (const k of kept) Store.dropTrash(k.id);
       for (const s of saved.slice().reverse()) Store.restoreNote(s);
       if (board) {
         const mine = saved.map((s) => s.placed.find((p) => p.board === board)).filter(Boolean);

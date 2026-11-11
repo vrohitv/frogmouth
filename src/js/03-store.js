@@ -147,6 +147,86 @@ export const Store = (() => {
     reattach(saved.detached);
   }
 
+  /* ── Recently deleted (data.trash): notes and boards deleted on purpose, kept for 30 days.
+     A note keeps where it was placed; a board keeps its placements and shapes. An entry of a
+     kind this release does not know is kept as it is. Present only while it holds something. */
+  const TRASH_DAYS = 30;
+  function normTrash(d) {
+    if (!Array.isArray(d.trash)) { delete d.trash; return; }
+    const keep = now() - TRASH_DAYS * 864e5;
+    d.trash = d.trash.filter((e) => e && typeof e === 'object' && !Array.isArray(e)).filter((e) => {
+      e.id = String(e.id || uid());
+      e.at = +e.at || now();
+      if (e.at < keep) return false;
+      if (e.kind === 'note') {
+        if (!e.note || typeof e.note !== 'object') return false;
+        normNote(e.note);
+        e.places = (Array.isArray(e.places) ? e.places : []).filter((x) => x && typeof x === 'object').map((x) => normItem({ ...x, note: e.note.id, board: String(x.board || '') }));
+      } else if (e.kind === 'board') {
+        if (!e.board || typeof e.board !== 'object') return false;
+        e.board.id = String(e.board.id || uid());
+        e.board.name = String(e.board.name || 'Untitled');
+        e.board.items = (Array.isArray(e.board.items) ? e.board.items : []).filter((it) => it && typeof it === 'object').map((it) => normItem({ ...it, note: String(it.note || '') }));
+      }
+      return true;
+    });
+    if (!d.trash.length) delete d.trash;
+  }
+  const trash = () => (S.data && S.data.trash) || [];
+  function toTrash(entry) {
+    const e = { id: uid(), at: now(), ...entry };
+    (S.data.trash || (S.data.trash = [])).unshift(e);
+    return e;
+  }
+  function dropTrash(id) {
+    const list = trash(), i = list.findIndex((e) => e.id === id);
+    if (i < 0) return null;
+    const [e] = list.splice(i, 1);
+    if (!list.length) delete S.data.trash;
+    return { entry: e, index: i };
+  }
+  /* put a deleted note or board back; returns what reTrash needs to take it out again */
+  function restoreTrash(id) {
+    const e = trash().find((x) => x.id === id);
+    if (!e || (e.kind !== 'note' && e.kind !== 'board')) return null;
+    const out = dropTrash(id);
+    if (e.kind === 'note') {
+      if (S.notes.has(e.note.id)) e.note.id = uid(); // never two notes with one id
+      S.data.notes.push(e.note);
+      out.boards = [];
+      for (const p of e.places) {
+        const b = board(p.board);
+        if (!b || b.items.some((it) => it.note === e.note.id)) continue;
+        const { board: _, ...pos } = p;
+        b.items.push(normItem({ ...pos, note: e.note.id }));
+        out.boards.push(b);
+      }
+    } else {
+      const b = e.board;
+      if (board(b.id)) b.id = uid();
+      // placements of notes deleted since go; lines attached to them stay where they were drawn
+      b.items = b.items.filter((it) => { if (S.notes.has(it.note)) return true; detach(b, 'note', it.note, centre(it)); return false; });
+      S.data.boards.push(b);
+      out.board = b;
+    }
+    index();
+    return out;
+  }
+  /* undo a restore: the note or board goes back to Recently deleted, at its old place in the list */
+  function reTrash(out) {
+    const e = out.entry;
+    if (e.kind === 'note') {
+      const saved = deleteNote(e.note.id);
+      if (saved) e.places = saved.placed.map((p) => ({ ...p.it, board: p.board.id }));
+    } else {
+      const i = S.data.boards.indexOf(out.board);
+      if (i >= 0) S.data.boards.splice(i, 1);
+      index();
+    }
+    const list = S.data.trash || (S.data.trash = []);
+    list.splice(Math.min(out.index, list.length), 0, e);
+  }
+
   function normalize(d) {
     d = d && typeof d === 'object' ? d : {};
     d.notes = Array.isArray(d.notes) ? d.notes.filter((n) => n && typeof n === 'object') : [];
@@ -173,6 +253,7 @@ export const Store = (() => {
       x.tags = Array.isArray(x.tags) ? x.tags.map(String).filter(Boolean) : [];
       x.desc = String(x.desc || '');
     }
+    normTrash(d);
     d.ui = Object.assign({ board: null, active: null }, d.ui || {});
     d.ui.recent = Array.isArray(d.ui.recent) ? d.ui.recent.filter((id) => typeof id === 'string') : [];
     delete d.version; // the format version is on the file ({"frogmouth": N}), not in the data
@@ -559,5 +640,6 @@ export const Store = (() => {
     serialize, save, saveNow, change, reloadFrom, regainAccess, keepMine, recents, forgetRecent,
     saveImage, resolveImage, listImages, listFiles, fileAt, importFile, hasFolder, board, noteRef, secret, setStatus, allTags, tagCounts, backlinks, linksOut, createNote, place, unplace, deleteNote, restoreNote,
     shapes, addShape, dropShape, putShape, detach, reattach, BOXES,
+    trash, toTrash, dropTrash, restoreTrash, reTrash,
   };
 })();

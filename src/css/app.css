@@ -572,6 +572,17 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .modal { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 9px; box-shadow: var(--shadow); padding: 18px 20px; max-height: 88vh; overflow: auto; }
 .modal.wide { width: min(680px, 100%); }
 .modal.keys { width: min(1040px, 100%); }
+/* Recently deleted */
+.trash-list { display: flex; flex-direction: column; gap: 2px; max-height: 56vh; overflow: auto; margin: 0 -8px; }
+.trash-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; }
+.trash-row:hover { background: var(--panel-2); }
+.trash-ic { display: grid; place-items: center; color: var(--muted); }
+.trash-ic .ic { width: 15px; height: 15px; }
+.trash-text { display: flex; flex-direction: column; min-width: 0; }
+.trash-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash-sub { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash-empty { padding: 18px 8px; }
+.modal.trash .modal-actions .btn.danger { margin-right: auto; }
 .modal h2 { margin: 0 0 12px; font-size: 15px; }
 .modal p { margin: 0 0 6px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; flex-wrap: wrap; }

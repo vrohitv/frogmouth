@@ -397,13 +397,14 @@ export const App = (() => {
       { id: 'theme', label: document.documentElement.dataset.theme === 'day' ? 'Dark theme' : 'Light theme', icon: 'sun' },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ id: 'accent', accent: k, label: `${label} accent`, icon: document.documentElement.dataset.accent === k ? 'tick' : 'dot' })),
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: kb('mod+s') } : { id: 'download', label: 'Download a copy', icon: 'down' },
+      { id: 'trash', label: 'Recently deleted', icon: 'trash', hint: Store.trash().length ? String(Store.trash().length) : '' },
       { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, trash: trashPanel, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -485,20 +486,74 @@ export const App = (() => {
     if (d.boards.length === 1) { toast('A vault keeps at least one board'); return; }
     const n = b.items.length, k = Store.shapes(b).length;
     // notes live on in the library; shapes belong to this board alone and go with it
-    const says = [n ? `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards.` : '', k ? `Its ${k} ${k === 1 ? 'shape is' : 'shapes are'} deleted with it.` : ''].filter(Boolean).join(' ');
-    if ((n || k) && !(await Modal.confirm(`Delete the board “${b.name}”?`, `${says} You can undo right after.`, 'Delete board'))) return;
+    const says = [n ? `Its ${n} ${n === 1 ? 'note stays' : 'notes stay'} in All notes and on any other boards.` : '', k ? `Its ${k} ${k === 1 ? 'shape goes' : 'shapes go'} with it.` : ''].filter(Boolean).join(' ');
+    if ((n || k) && !(await Modal.confirm(`Delete the board “${b.name}”?`, `${says} The board is kept in Recently deleted for 30 days.`, 'Delete board'))) return;
     const i = d.boards.indexOf(b);
     d.boards.splice(i, 1);
+    const kept = Store.toTrash({ kind: 'board', board: b });
     Store.index();
     if (d.ui.board === id) d.ui.board = d.boards[Math.min(i, d.boards.length - 1)].id;
     if (d.ui.active === 'b:' + id) activate('b:' + d.ui.board);
     Store.change('boards');
     renderChrome();
-    pushUndo(`Deleted board ${b.name}. ${n ? `${n === 1 ? 'Its note is' : `Its ${n} notes are`} still in All notes.` : ''}`, () => {
+    pushUndo(`Deleted board ${b.name}. It is in Recently deleted.`, () => {
+      Store.dropTrash(kept.id);
       d.boards.splice(Math.min(i, d.boards.length), 0, b);
       Store.index();
       Store.change('boards');
       openTab('b:' + b.id);
+    });
+  }
+
+  /* ── Recently deleted: notes and boards deleted in the last 30 days ── */
+  function trashPanel() {
+    const list = h('div', { class: 'trash-list' });
+    const emptyB = h('button', { class: 'btn ghost danger', text: 'Empty' });
+    const paint = () => {
+      const all = Store.trash();
+      emptyB.hidden = !all.length;
+      if (!all.length) { list.innerHTML = '<p class="muted trash-empty">Nothing here. Notes and boards you delete stay here for 30 days.</p>'; return; }
+      list.replaceChildren(...all.map((e) => {
+        const known = e.kind === 'note' || e.kind === 'board';
+        const title = e.kind === 'note' ? e.note.title || 'Untitled' : e.kind === 'board' ? e.board.name : 'Something this version cannot show';
+        const where = e.kind === 'note' ? (e.places.length ? 'from ' + e.places.map((p) => (Store.board(p.board) || {}).name || 'a deleted board').join(', ') : 'was on no board')
+          : e.kind === 'board' ? `board, ${e.board.items.length} ${e.board.items.length === 1 ? 'note' : 'notes'}${(e.board.shapes || []).length ? `, ${e.board.shapes.length} shapes` : ''}` : '';
+        return h('div', { class: 'trash-row', 'data-id': e.id },
+          h('span', { class: 'trash-ic', html: icon(e.kind === 'board' ? 'board' : 'note') }),
+          h('span', { class: 'trash-text' }, h('span', { class: 'trash-title', text: title }), h('span', { class: 'trash-sub muted', text: `${where} · deleted ${relTime(e.at)}` })),
+          known ? h('button', { class: 'btn ghost ic-only', 'data-a': 'restore', title: 'Restore', 'aria-label': `Restore ${title}`, html: icon('undo') }) : null,
+          h('button', { class: 'btn ghost ic-only danger', 'data-a': 'forget', title: 'Delete forever', 'aria-label': `Delete ${title} forever`, html: icon('trash') }));
+      }));
+    };
+    list.addEventListener('click', async (ev) => {
+      const a = ev.target.closest('[data-a]'), row = ev.target.closest('.trash-row'); if (!a || !row) return;
+      const e = Store.trash().find((x) => x.id === row.dataset.id); if (!e) return;
+      if (a.dataset.a === 'restore') restoreDeleted(e);
+      else if (await Modal.confirm('Delete forever?', `“${row.querySelector('.trash-title').textContent}” will be gone for good. This cannot be undone.`, 'Delete forever')) { Store.dropTrash(e.id); Store.change('trash'); }
+      paint();
+    });
+    emptyB.addEventListener('click', async () => {
+      const k = Store.trash().length;
+      if (!(await Modal.confirm(`Delete ${k} ${k === 1 ? 'thing' : 'things'} forever?`, 'Everything in Recently deleted will be gone for good. This cannot be undone.', 'Empty'))) return;
+      delete Store.S.data.trash; Store.change('trash'); paint();
+    });
+    paint();
+    Modal.open({ title: 'Recently deleted', wide: true, cls: 'trash', body: h('div', null, list, h('p', { class: 'muted small', text: 'Secrets are not kept here: a deleted secret is gone once the vault saves.' })),
+      actions: [{ label: 'Close', icon: 'x', value: null }] }).then(() => {});
+    // the Empty button sits with the dialog's own buttons
+    const acts = document.querySelector('.modal.trash .modal-actions'); if (acts) acts.prepend(emptyB);
+  }
+  function restoreDeleted(e) {
+    const out = Store.restoreTrash(e.id); if (!out) return;
+    const title = e.kind === 'note' ? e.note.title || 'Untitled' : e.board.name;
+    const where = e.kind === 'note' ? (out.boards.length ? ` to ${out.boards.map((b) => b.name).join(', ')}` : ' to All notes') : '';
+    if (Board.current()) Board.refresh();
+    Store.change(e.kind === 'board' ? 'boards' : 'notes');
+    pushUndo(`Restored “${title.slice(0, 28)}”${where}`, () => {
+      Store.reTrash(out);
+      if (e.kind === 'board' && Store.S.data.ui.board === out.board.id) activate('b:' + Store.S.data.boards[0].id);
+      else if (Board.current()) Board.refresh();
+      Store.change(e.kind === 'board' ? 'boards' : 'notes');
     });
   }
 
@@ -586,6 +641,7 @@ export const App = (() => {
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },
       { title: 'Save now', key: kb('mod+s'), when: () => Store.S.vault.kind !== 'memory', run: () => Store.saveNow.flush() },
       { title: 'Reload from disk', when: () => Store.S.vault.kind !== 'memory', run: async () => { try { await Store.reloadFrom(); toast('Reloaded'); } catch { toast('Could not reload', { kind: 'warn' }); } } },
+      { title: 'Recently deleted', run: trashPanel },
       { title: 'Download a copy of the vault', run: downloadVault },
       { title: 'Close vault', run: closeVault },
       { title: 'Keyboard shortcuts', key: '?', run: shortcuts },

@@ -1696,6 +1696,57 @@ import { History } from '../src/js/07d-history.js';
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 
+    /* ── 1.4: Recently deleted ── */
+    {
+      const b = await freshBoard('Trash test');
+      const n = Board.addNote({ x: 120, y: 80 }, false, '<p>Keep me safe</p>');
+      Store.addShape(b, { id: 'tr-box', type: 'rect', x: 0, y: 400, w: 96, h: 96, z: 1, color: 'moth', text: '' });
+      await wait(20);
+      // an empty note that goes away by itself is not kept
+      const empty = Board.addNote({ x: 600, y: 0 }, false); Board.removeEverywhere(empty.id, true);
+      ok('an empty note that goes away by itself is not kept', !Store.trash().some((e) => e.note && e.note.id === empty.id));
+      Board.removeEverywhere(n.id); await wait(20);
+      const entry = Store.trash().find((e) => e.kind === 'note' && e.note.id === n.id);
+      ok('a note deleted everywhere goes to Recently deleted', !!entry && !Store.noteRef(n.id) && entry.places[0].board === b.id && entry.places[0].x === 120, JSON.stringify(entry && entry.places));
+      undoK(); await wait(30);
+      ok('undoing the delete takes it out of Recently deleted', !!Store.noteRef(n.id) && !Store.trash().some((e) => e.note && e.note.id === n.id));
+      Board.removeEverywhere(n.id); await wait(20);
+      App.commands().find((c) => c.title === 'Recently deleted').run(); await wait(40);
+      const row = [...$$('.trash-row')].find((r) => /Keep me safe/.test(r.textContent));
+      ok('Recently deleted lists it with where it was', !!row && /Trash test/.test(row.textContent), $('.modal') && $('.modal').textContent);
+      row.querySelector('[data-a="restore"]').click(); await wait(40);
+      ok('restore puts the note back in the library and on its board, where it was', !!Store.noteRef(n.id) && Board.item(n.id) && Board.item(n.id).x === 120 && !Store.trash().some((e) => e.note && e.note.id === n.id));
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      await wait(20);
+      undoK(); await wait(30);
+      ok('undoing a restore sends it back to Recently deleted', !Store.noteRef(n.id) && Store.trash().some((e) => e.note && e.note.id === n.id));
+      // a board, with its shapes
+      App.openTab('b:' + b.id); await wait(20);
+      App.commands().find((c) => c.title === 'Delete board').run(); await wait(40);
+      ok('deleting a board says it goes to Recently deleted', !!$('.modal') && /Recently deleted/.test($('.modal').textContent), $('.modal') && $('.modal').textContent);
+      if ($('.modal')) $('.modal .btn.primary').click();
+      await wait(40);
+      ok('a deleted board goes to Recently deleted', !Store.board(b.id) && Store.trash().some((e) => e.kind === 'board' && e.board.id === b.id));
+      App.commands().find((c) => c.title === 'Recently deleted').run(); await wait(40);
+      [...$$('.trash-row')].find((r) => /Trash test/.test(r.querySelector('.trash-title').textContent)).querySelector('[data-a="restore"]').click(); await wait(40);
+      ok('a restored board comes back with its shapes', !!Store.board(b.id) && Store.shapes(Store.board(b.id)).some((x) => x.id === 'tr-box'));
+      // deleting for good asks first
+      const forever = [...$$('.trash-row')].find((r) => /Keep me safe/.test(r.textContent));
+      forever.querySelector('[data-a="forget"]').click(); await wait(40);
+      ok('deleting forever asks first', $$('.modal').length === 2 && /cannot be undone/.test($$('.modal')[1].textContent));
+      $$('.modal')[1].querySelector('.btn.primary').click(); await wait(40);
+      ok('and then it is gone for good', !Store.trash().some((e) => e.note && e.note.id === n.id));
+      if ($('.modal')) keydown($('.modal'), 'Escape');
+      await wait(20);
+      // old entries go after 30 days; kinds this release does not know are kept
+      const d = Store.normalize({ notes: [], boards: [], trash: [
+        { kind: 'note', id: 't1', at: Date.now() - 31 * 864e5, note: { id: 'old', html: '<p>old</p>' }, places: [] },
+        { kind: 'note', id: 't2', at: Date.now() - 2 * 864e5, note: { id: 'new', html: '<p>new</p>' }, places: [] },
+        { kind: 'sketch', id: 't3', at: Date.now() - 2 * 864e5, data: 1 }] });
+      ok('Recently deleted keeps 30 days', d.trash.map((e) => e.id).join() === 't2,t3', JSON.stringify(d.trash.map((e) => e.id)));
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
