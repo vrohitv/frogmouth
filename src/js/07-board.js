@@ -4,6 +4,7 @@ import { Popup, Modal, editTags } from './05-ui.js';
 import { Editor } from './06-editor.js';
 import { App } from './10-app.js';
 import { Draw } from './07c-draw.js';
+import { History } from './07d-history.js';
 
 /* ── board: an infinite canvas of draggable sticky notes ────────────
    A board shows placements ({note, x, y, w, h, z}) of notes from the
@@ -121,6 +122,15 @@ export const Board = (() => {
     applyView(saved);
     updateEmpty();
     refreshFeet();
+    bus.emit('mounted', b);
+  }
+  /* build the mounted board again from its data, keeping the view and the selection (after an undo) */
+  function refresh() {
+    if (!board) return;
+    const b = board, keep = [...group], v = { ...view };
+    unmount(); mount(b);
+    view = v; applyView();
+    setGroup(keep.filter((id) => elOf(id)));
   }
   function unmount() {
     closeFind(); closePicker();
@@ -556,6 +566,7 @@ export const Board = (() => {
       for (const id of Draw.carried(all)) { const m = geomOf(id); if (m) { m.x += mv[0]; m.y += mv[1]; place(m); } }
       for (const o of Draw.looseEnds(all)) { o.p.x += mv[0]; o.p.y += mv[1]; }
       Draw.redraw();
+      History.nudge(); // nudges in a row are one undo step
       Store.change('notes'); return true;
     }
     return false;
@@ -1026,7 +1037,7 @@ export const Board = (() => {
     dropEl(id);
     updateEmpty();
     Store.change('notes');
-    if (quiet) return;
+    if (quiet) { History.forget(id); return; }
     const where = saved.placed.length > 1 ? ` from ${saved.placed.length} boards` : '';
     App.pushUndo(`Deleted ${n.title ? `“${n.title.slice(0, 28)}”` : 'note'}${where}`, () => {
       Store.restoreNote(saved);
@@ -1070,8 +1081,6 @@ export const Board = (() => {
   /* tidy into rows, keeping reading order */
   function arrange() {
     if (!board || !board.items.length) return;
-    const b = board, was = b.items.map((m) => [m, m.x, m.y]);
-    App.pushUndo('Notes arranged', () => { for (const [m, x, y] of was) { m.x = x; m.y = y; if (board === b) place(m); } Store.change('notes'); });
     const gap = 24;
     const order = board.items.slice().sort((a, b) => (Math.round(a.y / 160) - Math.round(b.y / 160)) || a.x - b.x);
     const x0 = Math.round(Math.min(...order.map((n) => n.x)) / GRID) * GRID;
@@ -1094,6 +1103,8 @@ export const Board = (() => {
     for (const n of order) place(n);
     setTimeout(() => plane.classList.remove('arranging'), 420);
     Store.change('notes');
+    const step = History.top();
+    toast('Notes arranged', { action: () => History.undoStep(step), label: 'Undo' });
   }
 
   /* ── note foot: tags and backlinks ── */
@@ -1173,7 +1184,7 @@ export const Board = (() => {
   }
 
   return {
-    init, mount, unmount, addNote, reloadNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
+    init, mount, unmount, refresh, addNote, reloadNote, find, closeFind, finding: () => !!finder, remove, removeEverywhere, confirmDeleteEverywhere, placeExisting, addExisting, arrange, fit, center, key, select, focusBody, item: itemOf,
     zoom: () => view.z, view: () => ({ ...view }), zoomAt, toggleMap,
     // where a board point is drawn in the minimap, in client pixels (for tests)
     mapPoint: (x, y) => { const r = map.getBoundingClientRect(); return mapT && { x: r.left + mapT.ox + x * mapT.s, y: r.top + mapT.oy + y * mapT.s }; }, current: () => board, selected: () => sel, selection: picked, selectAll, COLORS,

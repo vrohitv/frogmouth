@@ -2,6 +2,7 @@ import { h, uid, icon, kb, clamp, bus } from './00-util.js';
 import { Store } from './03-store.js';
 import { Board } from './07-board.js';
 import { App } from './10-app.js';
+import { History } from './07d-history.js';
 
 /* ── draw: boxes, frames and lines on a board ───────────────────────
    Shapes belong to one board (board.shapes, docs/format.md); notes are shared
@@ -267,7 +268,7 @@ export const Draw = (() => {
     Board.setGroup(Board.selection().filter((id) => !ids.includes(id)));
     redraw();
     Store.change('shapes');
-    if (quiet) return;
+    if (quiet) { for (const id of ids) History.forget(id); return; }
     App.pushUndo(saved.length === 1 ? 'Deleted a shape' : `Deleted ${saved.length} shapes`, () => {
       for (const sv of saved.slice().reverse()) Store.putShape(b, sv);
       if (board === b) { for (const sv of saved) if (known(sv.shape)) Board.plane().append(build(sv.shape)); Board.setGroup(saved.map((sv) => sv.shape.id)); redraw(); }

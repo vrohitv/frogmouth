@@ -11,6 +11,7 @@ import { Secrets } from '../src/js/08-secrets.js';
 import { NotesList } from '../src/js/08b-notes.js';
 import { Palette } from '../src/js/09-palette.js';
 import { App } from '../src/js/10-app.js';
+import { History } from '../src/js/07d-history.js';
 
 /* Smoke tests. Only included by `python3 build.py --test`.
    Open test/frogmouth.html#smoke (served over http for OPFS),
@@ -1622,6 +1623,76 @@ import { App } from '../src/js/10-app.js';
       ok('a selected note is left whole, so its handles and outline show', getComputedStyle(lel).contentVisibility === 'visible', getComputedStyle(lel).contentVisibility);
       Board.select(null);
       ok('an off-screen note keeps its real height', Board.rectOf(long.id).h > 500, Board.rectOf(long.id).h);
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
+    /* ── 1.4: undo and redo for everything on a board ── */
+    const undoK = () => keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac });
+    const redoK = () => keydown(document.body, 'z', { metaKey: isMac, ctrlKey: !isMac, shiftKey: true });
+    {
+      const b = await freshBoard('Undo');
+      const a = Board.addNote({ x: 0, y: 0 }, false, '<p>Alpha</p>'), c = Board.addNote({ x: 400, y: 0 }, false, '<p>Gamma</p>');
+      await wait(20);
+      const steps = History.size();
+      // a click only raises a note; it is not a step
+      Board.select(c.id);
+      await press($(`.note[data-id="${a.id}"] .note-body`));
+      ok('a click that only raises a note is not an undo step', History.size() === steps, History.size() + ' vs ' + steps);
+      // a drag
+      const el = $(`.note[data-id="${a.id}"]`), r0 = el.getBoundingClientRect();
+      el.querySelector('.note-body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: r0.left + 30, clientY: r0.top + 20, isPrimary: true }));
+      dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r0.left + 30 + 120 * Board.zoom(), clientY: r0.top + 20 + 80 * Board.zoom() }));
+      dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); await wait(20);
+      const moved = { x: Board.item(a.id).x, y: Board.item(a.id).y };
+      undoK(); await wait(30);
+      ok('undo puts a dragged note back', Board.item(a.id).x === 0 && Board.item(a.id).y === 0, JSON.stringify(Board.item(a.id)));
+      redoK(); await wait(30);
+      ok('redo moves it again', Board.item(a.id).x === moved.x && Board.item(a.id).y === moved.y && moved.x > 0, JSON.stringify([moved, Board.item(a.id)]));
+      // nudges in a row are one step
+      Board.select(a.id);
+      for (let i = 0; i < 3; i++) keydown(document.body, 'ArrowRight');
+      await wait(20);
+      undoK(); await wait(30);
+      ok('three nudges in a row undo as one step', Board.item(a.id).x === moved.x, Board.item(a.id).x + ' vs ' + moved.x);
+      // colour
+      Board.select(a.id); keydown(document.body, '4'); await wait(20);
+      ok('colour key colours', Store.noteRef(a.id).note.color === 'rose');
+      undoK(); await wait(30);
+      ok('undo brings the colour back', Store.noteRef(a.id).note.color !== 'rose', Store.noteRef(a.id).note.color);
+      // shapes: style, text, a line end
+      const s1 = { id: uid(), type: 'rect', x: 0, y: 300, w: 160, h: 96, z: 1, color: 'moth', text: 'Box' };
+      Store.addShape(b, s1); Store.change('shapes'); Board.unmount(); Board.mount(b); await wait(30);
+      Board.select(s1.id); await wait(10);
+      [...$$('.draw-style .draw-btn')].find((x) => x.title === 'Dashed').click(); await wait(10);
+      ok('the style bar dashes a box', !!Draw.get(s1.id).dash);
+      undoK(); await wait(30);
+      ok('undo takes the dash off again', !Draw.get(s1.id).dash, JSON.stringify(Draw.get(s1.id)));
+      Draw.editText(s1.id); document.execCommand('selectAll'); document.execCommand('insertText', false, 'Renamed'); keydown($('.shape.editing .shape-text'), 'Escape'); await wait(20);
+      ok('shape text changed', Draw.get(s1.id).text === 'Renamed');
+      undoK(); await wait(30);
+      ok('undo brings the old shape text back', Draw.get(s1.id).text === 'Box', Draw.get(s1.id).text);
+      const ln = { id: uid(), type: 'line', a: { note: a.id }, b: { note: c.id }, head: 'end', color: 'moth', text: '' };
+      Store.addShape(b, ln); Store.change('shapes'); await wait(20);
+      Draw.get(ln.id).b = { shape: s1.id }; Store.change('shapes'); await wait(20);
+      undoK(); await wait(30);
+      ok('undo re-attaches a line end where it was', Draw.get(ln.id) && Draw.get(ln.id).b.note === c.id, JSON.stringify(Draw.get(ln.id)));
+      // things made can be unmade, and made again
+      Board.select(c.id); keydown(document.body, 'd', { metaKey: isMac, ctrlKey: !isMac }); await wait(20);
+      const dup = Board.selected();
+      ok('duplicate made a copy', dup && dup !== c.id && !!Store.noteRef(dup));
+      undoK(); await wait(30);
+      ok('undo of a duplicate removes the copy everywhere', !Board.item(dup) && !Store.noteRef(dup));
+      redoK(); await wait(30);
+      ok('redo brings the copy back with its text', Board.item(dup) && Store.noteRef(dup) && Store.noteRef(dup).note.title === 'Gamma');
+      // a new action after an undo starts a new future
+      undoK(); await wait(30);
+      Board.select(a.id); keydown(document.body, 'ArrowDown'); await wait(20);
+      const before = History.size();
+      redoK(); await wait(30);
+      ok('a new change clears redo', !Store.noteRef(dup) && History.size() === before);
+      keydown(document.body, '?'); await wait(30);
+      ok('the shortcuts list names redo', /Redo/.test(($('.keys-grid') || {}).textContent || ''));
+      if ($('.modal')) $('.modal .btn.primary').click();
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 

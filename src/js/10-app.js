@@ -9,11 +9,11 @@ import { Peek } from './07b-peek.js';
 import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
 import { Palette } from './09-palette.js';
+import { History } from './07d-history.js';
 
 /* ── app shell: welcome, floating controls, board pills, sync, keys, commands ── */
 export const App = (() => {
   let shell, welcome, boardVp, secretsEl, notesEl, menuBtn, switchEl, boardsEl, syncEl, trailEl;
-  const undoStack = [];
 
   /* ── theme ── */
   function setTheme(t) {
@@ -536,13 +536,8 @@ export const App = (() => {
     });
   }
 
-  /* ── undo for deletions ── */
-  function pushUndo(label, fn) {
-    undoStack.push(fn);
-    if (undoStack.length > 30) undoStack.shift();
-    toast(label, { action: () => { const i = undoStack.lastIndexOf(fn); if (i >= 0) undoStack.splice(i, 1); fn(); }, label: `Undo` });
-  }
-  function undo() { const fn = undoStack.pop(); if (fn) { fn(); toast('Restored'); } }
+  /* ── undo: deletions push a closure that puts things back (07d-history.js) ── */
+  const pushUndo = (label, fn) => History.push(label, fn);
 
   async function downloadVault() {
     const text = await Store.serialize();
@@ -562,6 +557,8 @@ export const App = (() => {
   const isBoard = () => Store.S.data && Store.S.data.ui.active !== 'secrets';
   function commands() {
     return [
+      { title: 'Undo', key: kb('mod+z'), run: () => History.undo() },
+      { title: 'Redo', key: kb('mod+shift+z'), run: () => History.redo() },
       { title: 'New note', key: 'N', when: isBoard, run: () => Board.addNote(null, true) },
       { title: 'New board', run: newBoard },
       { title: 'Rename board', key: 'F2', when: isBoard, run: () => renameBoard(Store.S.data.ui.board) },
@@ -597,7 +594,7 @@ export const App = (() => {
 
   function shortcuts() {
     const rows = [
-      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('alt+shift+[ / ]'), 'Move this board left / right'], ['F2', 'Rename this board'], [kb('mod+z'), 'Undo a delete or arrange'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
+      ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('alt+shift+[ / ]'), 'Move this board left / right'], ['F2', 'Rename this board'], [kb('mod+z'), 'Undo'], [kb('mod+shift+z') + ' / ' + kb('mod+y'), 'Redo'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
       ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], [kb('alt+shift') + ' arrows', 'Resize'], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['B', 'Notes that link here'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
       ['Drawing', [['V / Esc', 'Select'], ['R O D', 'Rectangle, ellipse, diamond'], ['X', 'Text'], ['L / C', 'Line / arrow'], ['F', 'Frame'], ['Drag / click', 'Draw / default size'], ['Double-click, ' + kb('enter'), 'Edit the text or label'], ['Drag a side dot', 'Connect with an arrow'], ['Drag a line end', 'Attach it elsewhere'], ['[ ]', 'Send to back / bring to front'], ['1–9', 'Colour'], ['Del', 'Delete (undo with ' + kb('mod+z') + ')']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], [kb('mod+enter'), 'Tick a todo item'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
@@ -645,7 +642,8 @@ export const App = (() => {
     if (e.altKey && !mod && e.code === 'KeyB') { e.preventDefault(); showView('board'); return; }
     if (isTypingTarget(e.target)) return;
     if (e.altKey && !mod && !e.shiftKey && k === 'ArrowLeft' && trail.length && isBoardView()) { e.preventDefault(); back(); return; }
-    if (mod && lower === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+    if (mod && lower === 'z') { e.preventDefault(); if (e.shiftKey) History.redo(); else History.undo(); return; }
+    if (mod && lower === 'y' && !e.shiftKey) { e.preventDefault(); History.redo(); return; }
     if (k === '?') { e.preventDefault(); shortcuts(); return; }
     if (k === 'F2' && isBoard()) { e.preventDefault(); renameBoard(Store.S.data.ui.board); return; }
     if (e.target.closest && e.target.closest('.hud')) return;
