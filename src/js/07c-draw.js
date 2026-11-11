@@ -132,7 +132,8 @@ export const Draw = (() => {
     // a frame's text is its name, shown above its top-left corner
     const text = h('div', { class: x.type === FRAME ? 'shape-text frame-name' : 'shape-text', spellcheck: 'false' });
     text.textContent = x.text || '';
-    const edges = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'].map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d }));
+    // a frame resizes from its corners only, so its edges are there to grab and move it
+    const edges = (x.type === FRAME ? ['ne', 'nw', 'se', 'sw'] : ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw']).map((d) => h('div', { class: 'rz rz-' + d, 'data-rz': d }));
     const el = h('div', { class: 'shape shape-' + x.type, 'data-id': x.id }, text, ...edges);
     if (x.type !== 'text') {
       const svg = document.createElementNS(svgNS, 'svg');
@@ -588,7 +589,7 @@ export const Draw = (() => {
     }
     const r = Board.rectOf(id) || (x && isBox(x) ? x : null);
     if (!r) return;
-    const from = Board.item(id) ? { note: id } : { shape: id }, o = 14;
+    const from = Board.item(id) ? { note: id } : { shape: id }, o = 22; // beyond an incoming arrowhead
     for (const [px, py] of [[r.x + r.w / 2, r.y - o], [r.x + r.w + o, r.y + r.h / 2], [r.x + r.w / 2, r.y + r.h + o], [r.x - o, r.y + r.h / 2]]) {
       const dot = h('div', { class: 'cdot', title: 'Drag to connect', style: { transform: `translate(${px}px,${py}px)` } });
       dot.addEventListener('pointerdown', (e) => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); beginLine(e, from); });

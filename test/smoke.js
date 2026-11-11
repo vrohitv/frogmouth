@@ -1386,6 +1386,16 @@ import { App } from '../src/js/10-app.js';
       dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 84, clientY: r.top + 4 })); await wait(30);
       ok('dragging a frame moves its contents and nothing else', fr.x === 80 && inBox.x === 120 && Board.item(n.id).x === 280 && outBox.x === 600, JSON.stringify([fr.x, inBox.x, Board.item(n.id).x, outBox.x]));
       const ny0 = Board.item(n.id).y;
+      {
+        // its edge moves it too (corners resize)
+        const fe = $(`.shape[data-id="${fr.id}"]`).getBoundingClientRect(), ex = fe.left + 1, ey = fe.top + fe.height / 2;
+        const hitEl = document.elementFromPoint(ex, ey), fx0 = fr.x, bx0 = inBox.x, w0 = fr.w;
+        hitEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: ex, clientY: ey }));
+        dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: ex + 40, clientY: ey }));
+        dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: ex + 40, clientY: ey })); await wait(30);
+        ok('dragging a frame by its edge moves it with its contents', fr.x === fx0 + 40 && fr.w === w0 && inBox.x === bx0 + 40, JSON.stringify([fr.x, fx0, fr.w, w0, inBox.x, bx0, hitEl.className.baseVal || hitEl.className]));
+        fr.x = fx0; inBox.x = bx0; Board.item(n.id).x -= 40; Draw.place(fr); Draw.place(inBox); Board.unmount(); App.enter(); await wait(40); Board.zoomAt(1); await frame();
+      }
       Board.select(fr.id); keydown(document.body, 'ArrowDown'); await frame();
       ok('nudging a frame nudges its contents', fr.y === 8 && inBox.y === 48 && Board.item(n.id).y === ny0 + 8, JSON.stringify([fr.y, inBox.y, Board.item(n.id).y, Board.selected() === fr.id, document.activeElement.className]));
 
