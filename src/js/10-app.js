@@ -4,6 +4,7 @@ import { Editor } from './06-editor.js';
 import { Store } from './03-store.js';
 import { Popup, Modal } from './05-ui.js';
 import { Board } from './07-board.js';
+import { Draw } from './07c-draw.js';
 import { Peek } from './07b-peek.js';
 import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
@@ -41,7 +42,7 @@ export const App = (() => {
 
 
     const actions = h('div', { class: 'w-actions' });
-    card.append(h('p', { class: 'w-lead', text: 'Sticky notes and secrets, kept in one file in a folder you choose.' }), actions);
+    card.append(h('p', { class: 'w-lead', text: 'Sticky notes, diagrams and secrets, kept in one file in a folder you choose.' }), actions);
     if (Store.canPickDir()) {
       actions.append(h('button', { class: 'btn primary big', html: `${icon('folder')} Open a folder <kbd>${kb('enter')}</kbd>`, onclick: pickFolder }));
       const ul = h('div', { class: 'w-recents' });
@@ -570,6 +571,8 @@ export const App = (() => {
       { title: 'List all notes', key: kb('alt+l'), run: () => showView('notes') },
       { title: 'Open secrets', key: kb('alt+s'), run: () => showView('secrets') },
       { title: 'Add an existing note to this board', key: 'A', when: isBoardView, run: () => Board.addExisting() },
+      ...[['Draw a rectangle', 'R', 'rect'], ['Draw an ellipse', 'O', 'ellipse'], ['Draw a diamond', 'D', 'diamond'], ['Add text', 'X', 'text'],
+        ['Draw a line', 'L', 'line'], ['Draw an arrow', 'C', 'arrow'], ['Draw a frame', 'F', 'frame']].map(([title, key, t]) => ({ title, key, when: isBoardView, run: () => Draw.setTool(t) })),
       { title: 'Tag the selected note', key: 'T', when: () => isBoardView() && !!Board.selected(), run: () => Board.tagNote(Board.selected()) },
       { title: 'Boards: find, pin, rename, delete…', key: kb('alt+j'), run: boardPicker },
       { title: 'Next board', key: kb('alt+]'), run: () => cycleBoard(1) },
@@ -590,6 +593,7 @@ export const App = (() => {
     const rows = [
       ['Everywhere', [[kb('mod+k'), 'Search notes, boards, secrets'], [kb('mod+shift+p'), 'Commands'], [kb('mod+s'), 'Save now'], [kb('alt+b / alt+l / alt+s'), 'Board, all notes, secrets'], [kb('alt+j'), 'Boards panel: find, pin, rename, delete, create'], [kb('alt+1') + '–9', 'Board pills 1 to 9'], [kb('alt+[ / alt+]'), 'Previous / next board'], [kb('mod+z'), 'Undo a delete'], [kb('alt+←'), 'Back along board links'], ['?', 'This list']]],
       ['Board', [['N / double-click', 'New note'], ['Click, drag', 'Select, move a note'], [kb('shift+click'), 'Add to the selection'], [kb('shift+drag'), 'Select with a box'], [kb('mod+a'), 'Select every note'], [kb('mod+f'), 'Find in every note'], ['Double-click, ' + kb('enter'), 'Edit a note'], ['Esc', 'Stop editing / deselect'], ['Tab', 'Next note'], ['Arrows', `Nudge (${kb('shift')} for more)`], ['1–9', 'Colour'], [kb('mod+d'), 'Duplicate'], ['T', 'Tag the note'], ['A', 'Add an existing note'], ['Del Del', 'Remove from this board'], [kb('shift+del'), 'Delete everywhere (asks first)'], ['= − 0 ' + kb('shift+1'), 'Zoom in, out, 100%, fit'], ['M', 'Show or hide the minimap'], ['Space+drag, wheel', 'Pan'], [kb('mod+wheel') + ', pinch', 'Zoom'], ['Drag an edge', 'Resize'], [kb('alt+drag'), 'Move a note while editing']]],
+      ['Drawing', [['V / Esc', 'Select'], ['R O D', 'Rectangle, ellipse, diamond'], ['X', 'Text'], ['L / C', 'Line / arrow'], ['F', 'Frame'], ['Drag / click', 'Draw / default size'], ['Double-click, ' + kb('enter'), 'Edit the text or label'], ['Drag a side dot', 'Connect with an arrow'], ['Drag a line end', 'Attach it elsewhere'], ['[ ]', 'Send to back / bring to front'], ['1–9', 'Colour'], ['Del', 'Delete (undo with ' + kb('mod+z') + ')']]],
       ['Note editor', [['/', 'Block menu'], ['@', 'Link a note, board or file'], ['@@', 'Link a board'], ['# ## ###', 'Headings'], ['- 1. [] >', 'Lists, todo, quote'], ['``` lang', 'Code block'], ['/table 4x3', 'Table'], [kb('tab') + ' ' + kb('enter'), 'Next cell, cell below'], [kb('mod+enter'), 'Leave a table or code block'], ['`code`', 'Inline code'], [kb('mod+b / mod+i / mod+u'), 'Bold, italic, underline'], [kb('mod+e'), 'Inline code'], [kb('mod+shift+x'), 'Strikethrough'], [kb(isMac ? 'mod+alt+1' : 'mod+shift+1') + '–3', 'Heading level'], ['Wheel on image', 'Zoom that image']]],
       ['All notes', [['j k  ↑↓', 'Move'], [kb('enter'), 'Open on its board'], ['b', 'Open the board'], ['t', 'Edit tags'], ['s / ' + kb('shift+s'), 'Next sort column, flip order'], ['/', 'Filter: text, board, tags']]],
       ['Secrets', [['j k  ↑↓', 'Move'], ['c  or  y', 'Copy value'], [kb('shift+c'), 'Copy key name'], ['Space', 'Reveal value'], [kb('enter') + '  or  e', 'Edit'], ['N', 'New secret'], ['/', 'Filter'], ['Del', 'Delete']]],

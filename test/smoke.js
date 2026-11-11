@@ -1461,6 +1461,18 @@ import { App } from '../src/js/10-app.js';
       Board.closeFind();
     }
 
+    {
+      // drawing is in the command list and the shortcuts sheet
+      const titles = App.commands().map((c) => c.title);
+      ok('drawing tools are in the command list', ['Draw a rectangle', 'Draw an ellipse', 'Draw a diamond', 'Add text', 'Draw a line', 'Draw an arrow', 'Draw a frame'].every((t) => titles.includes(t)), titles.join('|'));
+      App.commands().find((c) => c.title === 'Draw a frame').run();
+      ok('a drawing command arms its tool', Draw.tool() === 'frame');
+      Draw.setTool('select');
+      keydown(document.body, '?'); await wait(40);
+      ok('the shortcuts list has a Drawing section', $$('.keys-grid h3').some((e) => e.textContent === 'Drawing'));
+      $('.modal .btn.primary').click(); await wait(20);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {

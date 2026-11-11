@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-<p align="center">Sticky notes and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
+<p align="center">Sticky notes, diagrams and secrets in one file on your disk.<br>One HTML page, no server, no network, no accounts.</p>
 
 The tawny frogmouth is a nocturnal bird that hides in plain sight by posing as a broken branch, calm and watchful while it does. In the app its sage-green eyes follow your cursor, and they close while you type a secret. Logo files and usage notes are in [docs/brand](docs/brand/).
 
@@ -37,6 +37,14 @@ Firefox and Safari cannot write to folders on disk. There you can use **Try it w
 - **Screens come and go; notes stay put.** Note positions are board coordinates, never screen pixels, and the view remembers which point of the board is in the middle of the window. Plug in a big display, unplug it, resize the window or change the browser zoom: the same notes stay centred, nothing moves, and going back to a size gives back exactly the view you had there. **Arrange notes** gives the same layout on any screen.
 - **Arrange notes** tidies a board into columns. **Fit** shows everything at once.
 - The first line of a note is its title. Nothing else is needed.
+
+**Diagrams** (on any board, beside your notes)
+- A small tool bar at the bottom of the board: **rectangle** `R`, **ellipse** `O`, **diamond** `D`, **text** `X`, **line** `L`, **arrow** `C` and **frame** `F`; `V` or `Esc` goes back to selecting. Drag to draw, or click for a default size; then type its text.
+- **Lines and arrows stick.** Each end attaches to the note or box under it and follows it when it moves, resizes, or grows while you type. With one note or box selected, drag one of the dots at its sides to draw an arrow from it. A selected line shows a handle at each end: drag it onto something else to re-attach it. Double-click a line (or `↵`) to give it a label.
+- **Frames** are named regions. Drag a frame by its edge or name and everything centred inside it comes along; the inside of a frame stays clickable board.
+- Shapes work like notes: click, `⇧`-click, `⇧`-drag a box, `⌘A`, drag, arrows, `1`–`9` for colour, `⌘D`, Fit, the minimap and `⌘F` (it finds text in shapes and labels too). `Del` deletes a shape at once, and `⌘Z` brings it back. `[` and `]` send a box to the back or bring it to the front.
+- With shapes or lines selected, a style bar at the top offers the nine colours, fill, dashed, order, and for lines straight or elbow and their arrowheads.
+- Shapes are drawn with the same nine paper colours as notes, so they switch with the theme. There is deliberately no pen or freehand tool.
 
 **The editor**
 - `/` opens the block menu: headings, lists, todos, code, quote, divider, image, file tag, note link, secret reference and date.
@@ -124,6 +132,16 @@ Press `?` in the app for the full list. The app detects your system and labels e
 | `=` `-` `0` `⇧1` | Zoom in, out, 100%, fit |
 | `M` | Show or hide the minimap |
 
+| Drawing | |
+|---|---|
+| `V` / `Esc` | Select |
+| `R` `O` `D` `X` | Rectangle, ellipse, diamond, text |
+| `L` / `C` | Line / arrow |
+| `F` | Frame |
+| double-click, `↵` | Edit a shape's text or a line's label |
+| `[` `]` | Send to back, bring to front |
+| `1`–`9`, `Del` | Colour, delete (`⌘Z` undoes) |
+
 | Secrets | |
 |---|---|
 | `j` `k` | Move |
@@ -151,7 +169,9 @@ my-vault/
 ```json
 {"frogmouth":1,"saved":"…","data":{
  "notes":[{"id":"n1","color":"straw","tags":["docs"],"html":"<p>Title</p>…","title":"Title","text":"…"}],
- "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}]}],
+ "boards":[{"id":"b1","name":"Inbox","items":[{"note":"n1","x":80,"y":80,"w":300,"h":null,"z":1}],
+   "shapes":[{"id":"s1","type":"rect","x":440,"y":80,"w":160,"h":96,"z":2,"color":"sea","text":"API"},
+             {"id":"s2","type":"line","a":{"note":"n1"},"b":{"shape":"s1"},"head":"end","color":"moth","text":""}]}],
  "secrets":[{"id":"…","key":"DATABASE_URL","value":"…","tags":["env:prod","db"],"desc":""}],
  "ui":{"board":"…","active":"b:…"}}}
 ```
@@ -192,6 +212,7 @@ src/js/04-highlight.js  syntax highlighter
 src/js/05-ui.js       popup menus, modals, the tag editor
 src/js/06-editor.js   note editor: / menu, @ links, markdown shortcuts, code blocks, images
 src/js/07-board.js    canvas: notes, drag, resize, pan, zoom, arrange, note tags
+src/js/07c-draw.js    diagrams: boxes, frames, lines and arrows on a board
 src/js/08-secrets.js  secrets list, JSON export
 src/js/08b-notes.js   all-notes page: sort, filter, tags, links
 src/js/09-palette.js  search and commands

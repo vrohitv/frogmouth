@@ -1,7 +1,9 @@
 # Changelog
 
-## 1.3.0 (unreleased)
+## 1.3.0 (2026-11-11)
 
+- **Diagrams on boards**: rectangles, ellipses, diamonds, free text, lines, arrows and frames, drawn right beside your notes from a tool bar at the bottom of the board (`R` `O` `D` `X` `L` `C` `F`, `V` or `Esc` to select). Lines and arrows attach to notes and boxes and follow them as they move, resize or grow; drag a dot at the side of a selected note or box to connect it, drag a line's end to re-attach it, double-click a line for a label. Frames carry whatever is centred inside them. Shapes select, move, colour (`1`–`9`), duplicate, delete (with undo), fit, find and show in the minimap like notes; a style bar sets colour, fill, dash, order, elbow or straight, and arrowheads. No pen, by design. Stored as an additive `shapes` list on each board; the file format stays at 1 (docs/format.md).
+- **Fit** keeps everything clear of the floating bars.
 - **Visible editing**: every secret row has a pencil that opens its editor, and the open board's pill has a pencil that renames it in place.
 - **Board pills**: right-click a pill for Rename, Pin and Delete. The small hover × is gone, so a board can no longer be deleted by a near miss. Pinned pills show a pin, and names get more room before they are cut.
 - **Boards panel** (`⌥J`): two-line rows with the titles of each board's first notes under its name, pinned boards in their own section at the top, and pin, rename and delete always visible.
