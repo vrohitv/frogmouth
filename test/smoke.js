@@ -12,6 +12,7 @@ import { NotesList } from '../src/js/08b-notes.js';
 import { Palette } from '../src/js/09-palette.js';
 import { App } from '../src/js/10-app.js';
 import { History } from '../src/js/07d-history.js';
+import { Export } from '../src/js/07e-export.js';
 
 /* Smoke tests. Only included by `python3 build.py --test`.
    Open test/frogmouth.html#smoke (served over http for OPFS),
@@ -1817,6 +1818,28 @@ import { History } from '../src/js/07d-history.js';
       App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
     }
 
+    /* ── 1.4: export ── */
+    {
+      const b = await freshBoard('Export me');
+      const n = Board.addNote({ x: 0, y: 0 }, false, '<p>Card title</p><ul data-type="todo"><li data-checked="true">done <code>env:prod</code></li></ul><pre class="code" data-lang="js"><code>if (x) {\n  go();\n}</code></pre>');
+      Store.addShape(b, { id: 'ex-box', type: 'diamond', x: 400, y: 0, w: 160, h: 96, z: 1, color: 'sea', text: 'Decide' });
+      Store.addShape(b, { id: 'ex-f', type: 'frame', x: -40, y: -60, w: 700, h: 300, color: 'moth', text: 'Zone' });
+      Store.addShape(b, { id: 'ex-l', type: 'line', a: { note: n.id }, b: { shape: 'ex-box' }, head: 'end', color: 'moth', text: 'yes' });
+      Store.change('shapes'); Board.unmount(); Board.mount(b); await wait(40);
+      const { svg } = Export.svg(b);
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      ok('a board exports as a valid SVG', !doc.querySelector('parsererror') && doc.documentElement.tagName === 'svg', svg.slice(0, 200));
+      ok('inline code in a list item is written once, and code keeps its indentation', (svg.match(/env:prod/g) || []).length === 1 && svg.includes('>\u00a0\u00a0go();<'), svg.match(/env:prod/g));
+      ok('with its notes, shapes, frame names and line labels', /Card title/.test(svg) && /☑ done/.test(svg) && /Decide/.test(svg) && /Zone/.test(svg) && />yes</.test(svg) && doc.querySelectorAll('polygon').length === 1, svg.length);
+      const blob = await Export.png(b).catch((e) => e);
+      ok('and as a PNG', blob && blob.type === 'image/png' && blob.size > 1000, blob && (blob.message || blob.size));
+      const md = Export.markdown('<p>Title</p><h2>Part</h2><ul data-type="todo"><li data-checked="true">a</li><li data-checked="false">b</li></ul><pre class="code" data-lang="js"><code>let x = 1;</code></pre><p>see <a class="mention" data-note="X1">@Other</a> and <b>bold</b></p><table><tbody><tr><th>k</th><th>v</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>', new Map([['X1', 'Other note']]));
+      ok('notes turn into Markdown', md.includes('## Part') && md.includes('- [x] a') && md.includes('- [ ] b') && md.includes('```js\nlet x = 1;\n```') && md.includes('[[Other note]]') && md.includes('**bold**') && md.includes('| k | v |'), md);
+      const titles = App.commands().map((c) => c.title);
+      ok('export is in the commands', ['Export this board as SVG', 'Export this board as PNG', 'Export notes as Markdown'].every((t) => titles.includes(t)), titles.filter((t) => /Export/.test(t)).join('|'));
+      App.openTab('b:' + Store.S.data.boards[0].id); await wait(30);
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
@@ -1915,6 +1938,11 @@ import { History } from '../src/js/07d-history.js';
           ok('what was open is saved as a backup first', after.some((nm) => /before-restore/.test(nm)));
           undoK(); await wait(400);
           ok('and the restore can be undone', Store.S.data.secrets.some((s) => s.key === 'SNAP_ME'));
+          // Markdown into the vault folder: one file per note
+          const where = await Export.saveNotes();
+          const mdir = where && await (await dir.getDirectoryHandle('markdown')).getDirectoryHandle(where.split('/')[1]);
+          const files = []; if (mdir) for await (const [nm] of mdir.entries()) files.push(nm);
+          ok('notes export as Markdown files into the vault folder', files.length === Store.S.data.notes.length && files.every((f) => f.endsWith('.md')), JSON.stringify(files));
           if ($('.modal')) keydown($('.modal'), 'Escape');
           await wait(20);
         }

@@ -10,6 +10,7 @@ import { Secrets } from './08-secrets.js';
 import { NotesList } from './08b-notes.js';
 import { Palette } from './09-palette.js';
 import { History } from './07d-history.js';
+import { Export } from './07e-export.js';
 
 /* ── app shell: welcome, floating controls, board pills, sync, keys, commands ── */
 export const App = (() => {
@@ -391,6 +392,19 @@ export const App = (() => {
     inp.focus();
   }
 
+  /* one place for every export: the board as a picture, notes as Markdown, secrets as JSON */
+  function exportMenu(r) {
+    const onBoard = isBoardView();
+    Popup.open({
+      x: r.left, y: r.bottom + 4, title: 'Export',
+      items: [
+        ...(onBoard ? [{ id: 'svg', label: 'This board as SVG', icon: 'image' }, { id: 'png', label: 'This board as PNG', icon: 'image' }] : []),
+        { id: 'md', label: 'Notes as Markdown', icon: 'note', hint: Store.hasFolder() ? 'into the folder' : 'one file' },
+        { id: 'json', label: 'Secrets as JSON…', icon: 'key' },
+      ],
+      onPick: (it) => ({ svg: () => Export.saveBoard('svg'), png: () => Export.saveBoard('png'), md: () => Export.saveNotes(), json: () => Secrets.exportJson() })[it.id](),
+    });
+  }
   function appMenu() {
     const r = menuBtn.getBoundingClientRect();
     const items = [
@@ -399,13 +413,13 @@ export const App = (() => {
       Store.S.vault.kind === 'memory' ? { id: 'download', label: 'Download the vault', icon: 'down', hint: kb('mod+s') } : { id: 'download', label: 'Download a copy', icon: 'down' },
       { id: 'trash', label: 'Recently deleted', icon: 'trash', hint: Store.trash().length ? String(Store.trash().length) : '' },
       ...(Store.hasFolder() ? [{ id: 'backups', label: 'Restore a backup…', icon: 'undo' }] : []),
-      { id: 'export', label: 'Export all secrets as JSON…', icon: 'key' },
+      { id: 'export', label: 'Export…', icon: 'download' },
       { id: 'keys', label: 'Keyboard shortcuts', icon: 'cmd', hint: '?' },
       { id: 'close', label: 'Close vault', icon: 'x' },
     ];
     Popup.open({
       x: r.left, y: r.bottom + 4, items,
-      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, trash: trashPanel, backups: backupPanel, export: Secrets.exportJson, keys: shortcuts, close: closeVault })[it.id](),
+      onPick: (it) => ({ accent: () => setAccent(it.accent), theme: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day'), download: downloadVault, trash: trashPanel, backups: backupPanel, export: () => exportMenu(r), keys: shortcuts, close: closeVault })[it.id](),
     });
   }
 
@@ -672,6 +686,9 @@ export const App = (() => {
       { title: 'Move this board left', key: kb('alt+shift+['), when: isBoardView, run: () => moveBoard(-1) },
       { title: 'Move this board right', key: kb('alt+shift+]'), when: isBoardView, run: () => moveBoard(1) },
       { title: 'New secret', run: () => { openTab('secrets'); Secrets.edit(null); } },
+      { title: 'Export this board as SVG', when: isBoardView, run: () => Export.saveBoard('svg') },
+      { title: 'Export this board as PNG', when: isBoardView, run: () => Export.saveBoard('png') },
+      { title: 'Export notes as Markdown', run: () => Export.saveNotes() },
       { title: 'Export all secrets as JSON', run: () => Secrets.exportJson() },
       ...Object.entries(ACCENTS).map(([k, label]) => ({ title: `Accent colour: ${label}`, run: () => setAccent(k) })),
       { title: 'Switch light / dark', run: () => setTheme(document.documentElement.dataset.theme === 'day' ? 'night' : 'day') },

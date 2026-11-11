@@ -630,7 +630,7 @@ export const Draw = (() => {
   }
 
   return {
-    anchor, route,
+    anchor, route, head, shorten,
     init, mount, unmount, tool: () => tool, setTool, begin, key,
     textEls, get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, inside, anchors, pin, editText, remove, take, add, setColor, order,
     ids, bounds, within, carried, looseEnds, paths, limits, box, selected,
