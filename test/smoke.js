@@ -6,6 +6,7 @@ import { Popup } from '../src/js/05-ui.js';
 import { Peek } from '../src/js/07b-peek.js';
 import { Editor } from '../src/js/06-editor.js';
 import { Board } from '../src/js/07-board.js';
+import { Draw } from '../src/js/07c-draw.js';
 import { Secrets } from '../src/js/08-secrets.js';
 import { NotesList } from '../src/js/08b-notes.js';
 import { Palette } from '../src/js/09-palette.js';
@@ -1136,6 +1137,21 @@ import { App } from '../src/js/10-app.js';
       ok('and putting it back re-attaches them', by('s3').a.shape === 's1');
       const back = JSON.parse(JSON.stringify(d));
       ok('shapes survive a save', back.boards[0].shapes.length === 3 && back.boards[0].shapes.find((x) => x.id === 's2').puff === 3);
+    }
+    {
+      // where a line meets an outline, and how it is routed
+      const R = { x: 0, y: 0, w: 100, h: 100 }, near = (p, x, y) => Math.abs(p.x - x) < 0.01 && Math.abs(p.y - y) < 0.01;
+      ok('a box is met on its edge', near(Draw.anchor(R, 'box', { x: 300, y: 50 }), 100, 50) && near(Draw.anchor(R, 'box', { x: 150, y: 250 }), 75, 100));
+      ok('an ellipse is met on its curve', near(Draw.anchor(R, 'ellipse', { x: 150, y: 150 }), 85.355, 85.355), JSON.stringify(Draw.anchor(R, 'ellipse', { x: 150, y: 150 })));
+      ok('a diamond is met on its side', near(Draw.anchor(R, 'diamond', { x: 150, y: 150 }), 75, 75));
+      ok('a thing asked for its own centre gives the centre', near(Draw.anchor(R, 'box', { x: 50, y: 50 }), 50, 50));
+      const B = { x: 300, y: 200, w: 100, h: 100 };
+      const st = Draw.route({ rect: R, kind: 'box' }, { x: 300, y: 50 }, 'straight');
+      ok('a straight line stops 6 units short of what it is attached to', st.length === 2 && near(st[0], 106, 50) && near(st[1], 300, 50), JSON.stringify(st));
+      const e = Draw.route({ rect: R, kind: 'box' }, { rect: B, kind: 'box' }, 'elbow');
+      ok('an elbow leaves the facing sides and turns half way', e.length === 4 && near(e[0], 106, 50) && near(e[1], 200, 50) && near(e[2], 200, 250) && near(e[3], 294, 250), JSON.stringify(e));
+      const v = Draw.route({ rect: R, kind: 'box' }, { rect: { x: 0, y: 400, w: 100, h: 100 }, kind: 'box' }, 'elbow');
+      ok('things stacked vertically connect top to bottom', near(v[0], 50, 106) && near(v[3], 50, 394), JSON.stringify(v));
     }
 
     // notes are shared: one note on several boards; deleting a board keeps its notes
