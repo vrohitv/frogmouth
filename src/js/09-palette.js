@@ -1,4 +1,4 @@
-import { modKey, h, esc, fuzzy, markPositions, toast, icon, bus, kb, relTime, Tags } from './00-util.js';
+import { modKey, h, esc, fuzzy, markPositions, icon, bus, kb, relTime, Tags } from './00-util.js';
 import { tagAssist } from './05-ui.js';
 import { Bird } from './01-bird.js';
 import { Store } from './03-store.js';

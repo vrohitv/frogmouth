@@ -1,4 +1,4 @@
-import { h, uid, icon, kb, clamp, bus } from './00-util.js';
+import { h, uid, icon, bus } from './00-util.js';
 import { Store } from './03-store.js';
 import { Board } from './07-board.js';
 import { App } from './10-app.js';
