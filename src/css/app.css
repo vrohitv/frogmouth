@@ -856,7 +856,14 @@ mark { background: none; color: var(--accent); font-weight: 700; }
 .draw-btn:hover { color: var(--text); background: var(--panel-2); }
 .draw-btn.on { color: var(--accent-ink); background: var(--accent); }
 .draw-sep { width: 1px; align-self: stretch; margin: 7px 3px; background: var(--line); }
-@media (max-width: 760px) { .draw-bar { left: 8px; bottom: 8px; transform: none; } }
+.draw-style { position: absolute; z-index: 6; left: 50%; top: 72px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 0 6px; }
+.draw-style[hidden] { display: none; }
+.ds-swatches { display: flex; gap: 4px; padding: 0 2px; }
+.draw-style .cp-sw { width: 20px; height: 20px; border-radius: 5px; }
+.draw-style .cp-sw.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--accent); }
+.draw-style .draw-btn { width: 30px; }
+.board-vp.finding .shape:not(.found):not(.shape-frame) { opacity: .35; transition: opacity .15s; }
+@media (max-width: 760px) { .draw-bar { left: 8px; bottom: 8px; transform: none; } .draw-style { left: 8px; top: auto; bottom: 50px; transform: none; max-width: calc(100% - 16px); overflow-x: auto; } }
 
 .marquee { position: absolute; z-index: 5; pointer-events: none; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 2px; }
 

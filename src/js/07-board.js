@@ -752,6 +752,12 @@ export const Board = (() => {
       el.classList.toggle('found', rs.length > 0);
       for (const range of rs) finder.hits.push({ id: m.note, range });
     }
+    // text in boxes, frame names and line labels counts too
+    for (const { id, el } of Draw.textEls()) {
+      const rs = q ? textRanges(el, q) : [];
+      const host = el.closest('.shape'); if (host) host.classList.toggle('found', rs.length > 0);
+      for (const range of rs) finder.hits.push({ id, range });
+    }
     vp.classList.toggle('finding', !!q);
     if (jump) {
       // the first match in (or after) the note find started from
@@ -783,8 +789,8 @@ export const Board = (() => {
     }
     const hit = hits[i];
     if (!hit || !move) return;
-    const el = els.get(hit.id);
-    const it = itemOf(hit.id);
+    const el = elOf(hit.id);
+    const it = geomOf(hit.id) || Draw.box(hit.id);
     if (!el || !it) return;
     // bring the note into view only when it is not already (mostly) on screen
     const vr = vp.getBoundingClientRect(), nr = el.getBoundingClientRect();
@@ -792,7 +798,8 @@ export const Board = (() => {
     else select(hit.id);
     // then scroll inside the note (and a wide code block) to the match
     requestAnimationFrame(() => {
-      const body = el.querySelector('.note-body'), r = hit.range.getBoundingClientRect(), br = body.getBoundingClientRect(), z = view.z;
+      const body = el.querySelector('.note-body'); if (!body) return;
+      const r = hit.range.getBoundingClientRect(), br = body.getBoundingClientRect(), z = view.z;
       if (r.top < br.top || r.bottom > br.bottom) body.scrollTop += (r.top - br.top - br.height / 3) / z;
       const pre = hit.range.startContainer.parentNode.closest && hit.range.startContainer.parentNode.closest('pre.code');
       if (pre) { const pr = pre.getBoundingClientRect(); if (r.left < pr.left || r.right > pr.right) pre.scrollLeft += (r.left - pr.left - pr.width / 3) / z; }
@@ -805,6 +812,7 @@ export const Board = (() => {
     finder = null;
     vp.classList.remove('finding');
     for (const el of els.values()) el.classList.remove('found');
+    for (const el of plane.querySelectorAll('.shape.found')) el.classList.remove('found');
     if (canPaint) { CSS.highlights.delete('fm-find'); CSS.highlights.delete('fm-find-on'); }
   }
 

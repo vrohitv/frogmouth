@@ -62,7 +62,7 @@ export const Draw = (() => {
   ];
   const KEYS = { v: 'select', r: 'rect', o: 'ellipse', d: 'diamond', x: 'text', l: 'line', c: 'arrow', f: 'frame' };
   const LINE_TOOLS = ['line', 'arrow'];
-  let vp, bar, board = null, tool = 'select', lastColor = 'moth', preview = null;
+  let vp, bar, styleBar, board = null, tool = 'select', lastColor = 'moth', preview = null;
   const els = new Map(); // shape id -> element (boxes and frames)
   const wires = new Map(); // line id -> <g> in the wires layer
   const labels = new Map(); // line id -> its label element
@@ -84,8 +84,10 @@ export const Draw = (() => {
       b.addEventListener('click', () => setTool(tool === name && name !== 'select' ? 'select' : name));
       bar.append(b);
     }
-    for (const t of ['pointerdown', 'dblclick', 'wheel']) bar.addEventListener(t, (e) => e.stopPropagation());
-    vp.append(bar);
+    styleBar = h('div', { class: 'hud-pill draw-style', role: 'toolbar', 'aria-label': 'Shape style', hidden: true });
+    for (const el of [bar, styleBar]) for (const t of ['pointerdown', 'dblclick', 'wheel']) el.addEventListener(t, (e) => e.stopPropagation());
+    styleBar.addEventListener('mousedown', (e) => e.preventDefault());
+    vp.append(bar, styleBar);
     paintBar();
     bus.on('closed', () => { unmount(); });
   }
@@ -96,7 +98,7 @@ export const Draw = (() => {
   function setTool(name) {
     if (!TOOLS.some((t) => t[0] === name)) return;
     tool = name;
-    if (bar) paintBar();
+    if (bar) { paintBar(); paintStyle(); }
   }
 
   function mount(b) {
@@ -287,6 +289,7 @@ export const Draw = (() => {
   function order(id, front) {
     const x = geom(id); if (!x || x.z == null) return;
     if (front) x.z = Board.nextZ();
+    else if (x.z <= Board.zIndexMin() && [...board.items, ...list()].filter((m) => m.z === x.z).length === 1) return;
     else {
       const min = Board.zIndexMin();
       // nothing goes below 1 (frames sit at 0): make room by lifting everything else
@@ -526,7 +529,48 @@ export const Draw = (() => {
   }
 
   /* ── selection furniture: connector dots on one note or box, end handles on one line ── */
-  function selected(ids) { picked = ids; if (layer) redrawNow(); }
+  function selected(ids) { picked = ids; if (layer) redrawNow(); paintStyle(); }
+
+  /* ── the style bar: shown while shapes or lines are selected; acts on all of them ── */
+  function paintStyle() {
+    if (!styleBar) return;
+    const S = board ? picked.map(get).filter((x) => x && (isThing(x) || x.type === 'line')) : [];
+    styleBar.hidden = !S.length || tool !== 'select';
+    if (styleBar.hidden) { styleBar.replaceChildren(); return; }
+    const boxes = S.filter(isBox), lns = S.filter((x) => x.type === 'line');
+    const btn = (ic, title, on, fn) => {
+      const b = h('button', { class: 'draw-btn' + (on ? ' on' : ''), title, 'aria-label': title, 'aria-pressed': String(!!on), html: icon(ic), tabindex: '-1' });
+      b.addEventListener('click', () => { fn(); changed(S); });
+      return b;
+    };
+    const sep = () => h('span', { class: 'draw-sep' });
+    const swatches = h('div', { class: 'ds-swatches' }, Board.COLORS.map((c, i) => {
+      const b = h('button', { class: 'cp-sw paper-' + c + (S.every((x) => x.color === c) ? ' on' : ''), title: `${c[0].toUpperCase() + c.slice(1)} (${i + 1})`, 'aria-label': c, tabindex: '-1' });
+      b.addEventListener('click', () => { for (const x of S) x.color = c; lastColor = c; changed(S); });
+      return b;
+    }));
+    const out = [swatches, sep()];
+    if (boxes.length) out.push(btn('fill', 'Fill', boxes.every((x) => x.fill !== false), () => { const off = boxes.some((x) => x.fill !== false); for (const x of boxes) { if (off) x.fill = false; else delete x.fill; } }));
+    out.push(btn('dash', 'Dashed', S.every((x) => x.dash), () => { const on = S.some((x) => !x.dash); for (const x of S) { if (on) x.dash = true; else delete x.dash; } }));
+    if (boxes.length) out.push(sep(), btn('front', 'To front (])', false, () => { for (const x of boxes) order(x.id, true); }), btn('back', 'To back ([)', false, () => { for (const x of boxes) order(x.id, false); }));
+    if (lns.length) {
+      const route = (r) => () => { for (const x of lns) { if (r) x.route = r; else delete x.route; } };
+      const heads = (hd) => () => { for (const x of lns) x.head = hd; };
+      out.push(sep(),
+        btn('straight', 'Straight', lns.every((x) => !x.route), route(null)), btn('elbow', 'Elbow', lns.every((x) => x.route === 'elbow'), route('elbow')), sep(),
+        btn('headnone', 'No heads', lns.every((x) => x.head === 'none'), heads('none')), btn('headend', 'Head at the end', lns.every((x) => x.head === 'end'), heads('end')), btn('headboth', 'Both ends', lns.every((x) => x.head === 'both'), heads('both')));
+    }
+    styleBar.replaceChildren(...out);
+  }
+  function changed(S) {
+    for (const x of S) style(x);
+    redraw();
+    Store.change('shapes');
+    paintStyle();
+  }
+  /* text in shapes and line labels, for find on this board */
+  const textEls = () => [...els].map(([id, el]) => ({ id, el: el.querySelector('.shape-text') })).filter((x) => x.el && x.el.textContent)
+    .concat([...labels].map(([id, el]) => ({ id, el })));
   function paintOverlay() {
     if (!overlay) return;
     for (const el of [...overlay.querySelectorAll('.cdot, .wend')]) el.remove();
@@ -575,7 +619,7 @@ export const Draw = (() => {
   return {
     anchor, route, KINDS, GAP,
     init, mount, unmount, tool: () => tool, setTool, begin, key,
-    get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, inside, anchors, pin, editText, remove, setColor, duplicate, order,
+    textEls, get, geom, el: (id) => els.get(id) || wires.get(id), place, redraw, lines, points, inside, anchors, pin, editText, remove, setColor, duplicate, order,
     ids, bounds, within, carried, looseEnds, paths, limits, box, selected,
   };
 })();

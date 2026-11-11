@@ -1423,6 +1423,44 @@ import { App } from '../src/js/10-app.js';
       Draw.remove([big.id]);
     }
 
+    {
+      // the style bar: colour, fill, dash, order; straight or elbow and arrowheads for lines; find sees shape text
+      const b = Board.current();
+      const box = Store.addShape(b, { id: uid(), type: 'rect', x: 0, y: 500, w: 160, h: 96, z: 9, color: 'moth', text: 'payments broker' });
+      const ln = Store.addShape(b, { id: uid(), type: 'line', a: { x: 0, y: 700 }, b: { x: 200, y: 700 }, head: 'end', color: 'moth', text: 'queue' });
+      Board.unmount(); App.enter(); await wait(60);
+      ok('no style bar with nothing selected', !$('.draw-style') || $('.draw-style').hidden);
+      Board.select(box.id); await frame();
+      const press = (title) => { const x = $$('.draw-style button').find((e) => e.title.startsWith(title)); if (x) x.click(); return !!x; };
+      ok('selecting a box shows its styles, without line controls', !$('.draw-style').hidden && $$('.draw-style .cp-sw').length === 9 && !$$('.draw-style button').some((x) => x.title.startsWith('Elbow')));
+      press('Fill'); press('Dashed'); await frame();
+      ok('fill and dash are stored only when set', box.fill === false && box.dash === true && $(`.shape[data-id="${box.id}"]`).classList.contains('nofill'));
+      press('Fill'); press('Dashed');
+      ok('and removed when unset', !('fill' in box) && !('dash' in box));
+      $$('.draw-style .cp-sw')[3].click();
+      ok('a swatch colours the selection', box.color === 'rose');
+      ok('the current colour is marked', $$('.draw-style .cp-sw')[3].classList.contains('on'));
+      press('To back');
+      ok('To back sends it behind', box.z === Math.min(...[...b.items, ...Store.shapes(b)].filter((m) => m.z != null).map((m) => m.z)));
+      Board.select(ln.id); await frame();
+      ok('selecting a line shows line controls, not fill', press('Elbow') && !$$('.draw-style button').some((x) => x.title.startsWith('Fill')));
+      press('Both');
+      ok('a line can be an elbow with two heads', ln.route === 'elbow' && ln.head === 'both');
+      await frame(); await frame();
+      ok('both heads are drawn', $$(`.wire[data-id="${ln.id}"] .wire-head`).length === 2);
+      press('Straight'); press('No heads'); await frame(); await frame();
+      ok('straight is the absence of a route; no heads draws none', !('route' in ln) && ln.head === 'none' && !$(`.wire[data-id="${ln.id}"] .wire-head`));
+      Board.setGroup([box.id, ln.id]); await frame();
+      $$('.draw-style .cp-sw')[6].click();
+      ok('a swatch colours a mixed selection', box.color === 'sea' && ln.color === 'sea');
+      Board.select(null);
+      Board.find('broker'); await wait(60);
+      ok('find sees text in boxes', /1 of 1/.test($('.find-count').textContent), $('.find-count').textContent);
+      Board.find('queue'); await wait(60);
+      ok('and line labels', /1 of 1/.test($('.find-count').textContent), $('.find-count').textContent);
+      Board.closeFind();
+    }
+
     // OPFS: real file writes through the File System Access API
     if (Store.canOPFS() && location.protocol.startsWith('http')) {
       try {
